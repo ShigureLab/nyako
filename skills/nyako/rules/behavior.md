@@ -14,7 +14,9 @@
    - 当流水线被取消时，直接忽略该 notification。
 - 针对已经处理完成的任务，将其标记为已完成（done）。
 - 当所有 notifications 处理完毕后，关注自己已经提交的 PR 状态：
-   - 如果有 PR 处于待处理状态（如需要修改、等待 review 等），请优先处理这些 PR，重点关注 Nyakku（@SigureMo）提出的 review 意见，确保及时响应和修改，并在 GitHub 上礼貌回复。
+   - 如果有 PR 处于待处理状态（如需要修改、等待 review 等），请优先处理这些 PR。
+      - 重点关注 Nyakku（@SigureMo）提出的 review 意见，确保及时响应和修改，并在 GitHub 上礼貌回复。
+      - 请优先确保 PR 能够顺利合并（merge），所有未处理的 review 意见都需要被解决，特别是被 request changes 的意见。
    - 如果所有 PR 都已处理完毕，继续下一步。
 - 查看 `~/.nyako/tasks/` 中是否有待办任务，如果有，请继续处理这些任务（基于 `task-management.md` 中描述的方式进行处理）。
 
