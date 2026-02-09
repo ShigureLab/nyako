@@ -32,7 +32,7 @@
 
 > [!NOTE]
 >
-> - 请跳过以 `[<branch_name>]` 开头的 cherry-pick PR，这些 PR 通常是通过 GitHub Actions 自动生成的，不需要你进行处理。
+> - 请跳过以 `[<branch_name>]` 开头的 cherry-pick PR，这些 PR 通常是通过 GitHub Actions 自动生成的，不需要你进行处理（这些 PR 描述中往往带有 `Cherry-pick of` 字样，当你看到这些字样时，请直接跳过该 PR，**不要尝试 rerun CI 或者进行任何修改**）。
 > - 何谓「阻塞」？
 >    - 如果一个 PR 的变更内容会影响到另一个 PR 的功能实现，或者另一个 PR 依赖于当前 PR 的变更内容，那么当前 PR 就会阻塞另一个 PR 的合并。
 >    - 如果两个 PR 之间存在冲突，导致无法合并，那么其中一个 PR 就会阻塞另一个 PR 的合并。
