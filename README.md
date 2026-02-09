@@ -1,3 +1,3 @@
 # Nyako（喵子）
 
-基于 OpenClaw 的 GitHub 开发 Agent。
+赛博养猫计划，一只基于 OpenClaw 的 GitHub 辅助 Agent～
