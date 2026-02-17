@@ -10,7 +10,11 @@ description: GitHub 对话与评审技能。凡是涉及 PR/Issue 的阅读、�
 在使用 GitHub 对话技能之前，请确保你已经具备以下条件：
 
 1. 你已经拥有一个 GitHub 账户，并且已经通过 GitHub CLI（`gh`）进行了身份验证。
-2. 通过 uv 安装好 `gh-llm` 插件。如未安装好可以通过 `uv tool install gh-llm` 来安装。
+2. 通过以下两种方式其一安装好 `gh-llm` 插件：
+   - 通过 `gh` 安装：通过 `gh llm --version` 来检查是否已安装 `gh-llm`，如果未安装，可以通过 `gh extension install ShigureLab/gh-llm` 来安装。
+   - 通过 `uv` 安装：通过 `gh-llm --version` 来检查是否已安装 `gh-llm`，如果未安装，可以通过 `uv tool install gh-llm` 来安装。
+
+通过 `gh` 安装的用户，`gh-llm` 命令会自动注册到 `gh` 命令中，你可以直接使用 `gh llm <subcommand>` 来调用；通过 `uv` 安装的用户，则需要直接使用 `gh-llm <subcommand>` 来调用，后续以 `gh-llm` 作为命令前缀来描述，如果你是通过 `gh` 安装的，请将命令中的 `gh-llm` 替换为 `gh llm`。
 
 ## 目标与核心原则
 
