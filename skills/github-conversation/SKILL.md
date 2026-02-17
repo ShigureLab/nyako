@@ -264,6 +264,33 @@ gh-llm issue comment-edit <comment_id> --body '<new_body>' --issue <issue_number
 6. shell 参数不用单引号，导致文本被提前展开。
 7. 提了建议但没有任何证据引用。
 
+## 评论正文格式规则（避免出现字面量 \n\n）
+
+发布 PR/Issue 评论、review summary、thread reply 时，正文必须是真实换行，不是转义字符文本。
+
+硬性要求：
+
+1. 禁止在最终正文中出现字面量 \n 或 \n\n。
+2. 需要分段时，直接写多行文本，或使用 heredoc 生成真实换行。
+3. 若使用 gh api 的 JSON 参数，禁止手写带转义的 body 字符串；应通过文件输入。
+
+推荐写法：
+
+```bash
+cat > /tmp/pr-comment.txt <<"EOF"
+第一段
+
+第二段
+EOF
+
+gh pr comment <pr_number> --repo <owner/repo> --body-file /tmp/pr-comment.txt
+```
+
+发布前自检：
+
+1. 本地检查评论文件，确认段落是换行而不是反斜杠 n 文本。
+2. 发布前后分别执行 `gh-llm pr view` 并通过 diff 确认评论内容正确显示为多段。
+
 ## 最后自检清单
 
 在结束任务前逐项确认：
