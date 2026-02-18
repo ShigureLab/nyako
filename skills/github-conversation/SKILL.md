@@ -108,6 +108,13 @@ gh-llm issue event <index> --issue <issue_number> --repo <owner/repo>
 - Issue: `hidden`, `details`, `all`
 - 支持逗号分隔和重复传参（如 `--expand hidden --expand details`）。
 
+`--show` 推荐值：
+
+- PR: `meta`, `description`, `timeline`, `checks`, `actions`, `all`
+- Issue: `meta`, `description`, `timeline`, `actions`, `all`
+- 支持逗号分隔和重复传参（如 `--show meta --show timeline`）。
+- `summary` 是 `meta,description` 的别名。
+
 ### 步骤 3：确认后再做交互动作
 
 仅在上下文充分时执行：
