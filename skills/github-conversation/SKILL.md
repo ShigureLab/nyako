@@ -94,12 +94,12 @@ gh-llm issue view <issue_number> --repo <owner/repo> --expand minimized,details
 ```bash
 gh-llm pr timeline-expand <page> --pr <pr_number> --repo <owner/repo>
 gh-llm pr timeline-expand <page> --pr <pr_number> --repo <owner/repo> --expand resolved,outdated,minimized,details
-gh-llm pr event <index> --pr <pr_number> --repo <owner/repo>
+gh-llm pr comment-expand <comment_id> --pr <pr_number> --repo <owner/repo>
 gh-llm pr review-expand <PRR_id[,PRR_id...]> --pr <pr_number> --repo <owner/repo>
 
 gh-llm issue timeline-expand <page> --issue <issue_number> --repo <owner/repo>
 gh-llm issue timeline-expand <page> --issue <issue_number> --repo <owner/repo> --expand minimized,details
-gh-llm issue event <index> --issue <issue_number> --repo <owner/repo>
+gh-llm issue comment-expand <comment_id> --issue <issue_number> --repo <owner/repo>
 ```
 
 `--expand` 推荐值：
@@ -174,8 +174,8 @@ gh-llm pr view <pr_number> --repo <owner/repo>
 # 展开隐藏时间线页面
 gh-llm pr timeline-expand <page> --pr <pr_number> --repo <owner/repo>
 
-# 查看单条事件完整正文
-gh-llm pr event <index> --pr <pr_number> --repo <owner/repo>
+# 查看单条评论完整正文
+gh-llm pr comment-expand <comment_id> --pr <pr_number> --repo <owner/repo>
 
 # 展开 resolved review 详情（支持批量）
 gh-llm pr review-expand <PRR_id[,PRR_id...]> --pr <pr_number> --repo <owner/repo>
@@ -194,7 +194,7 @@ Issue 的读取逻辑与 PR 相同：先看概要，再按需展开。
 ```bash
 gh-llm issue view <issue_number> --repo <owner/repo>
 gh-llm issue timeline-expand <page> --issue <issue_number> --repo <owner/repo>
-gh-llm issue event <index> --issue <issue_number> --repo <owner/repo>
+gh-llm issue comment-expand <comment_id> --issue <issue_number> --repo <owner/repo>
 ```
 
 ## Review 工作流（必须掌握）
