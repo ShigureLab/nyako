@@ -123,29 +123,29 @@ configure() {
    echo ""
 
    # nyako 模型
-   ask "nyako（主 Agent）模型 [默认: minimax/m2.5]:"
+   ask "nyako（主 Agent）模型 [默认: minimax-portal/MiniMax-M2.5]:"
    read -r NYAKO_MODEL
-   NYAKO_MODEL="${NYAKO_MODEL:-minimax/m2.5}"
+   NYAKO_MODEL="${NYAKO_MODEL:-minimax-portal/MiniMax-M2.5}"
 
    # monitor-neko 模型
-   ask "monitor-neko（监控喵）模型 [默认: google/gemini-3-flash]:"
+   ask "monitor-neko（监控喵）模型 [默认: google/gemini-3-flash-preview]:"
    read -r MONITOR_MODEL
-   MONITOR_MODEL="${MONITOR_MODEL:-google/gemini-3-flash}"
+   MONITOR_MODEL="${MONITOR_MODEL:-google/gemini-3-flash-preview}"
 
    # dev-neko 模型
-   ask "dev-neko（开发喵）模型 [默认: github-copilot/gpt-5.3-codex]:"
+   ask "dev-neko（开发喵）模型 [默认: openai-codex/gpt-5.3-codex]:"
    read -r DEV_MODEL
-   DEV_MODEL="${DEV_MODEL:-github-copilot/gpt-5.3-codex}"
+   DEV_MODEL="${DEV_MODEL:-openai-codex/gpt-5.3-codex}"
 
    # research-neko 模型
-   ask "research-neko（调研喵）模型 [默认: github-copilot/gpt-5.3-codex]:"
+   ask "research-neko（调研喵）模型 [默认: openai-codex/gpt-5.3-codex]:"
    read -r RESEARCH_MODEL
-   RESEARCH_MODEL="${RESEARCH_MODEL:-github-copilot/gpt-5.3-codex}"
+   RESEARCH_MODEL="${RESEARCH_MODEL:-openai-codex/gpt-5.3-codex}"
 
    # plan-neko 模型
-   ask "plan-neko（规划喵）模型 [默认: github-copilot/gpt-5.3-codex]:"
+   ask "plan-neko（规划喵）模型 [默认: openai-codex/gpt-5.3-codex]:"
    read -r PLAN_MODEL
-   PLAN_MODEL="${PLAN_MODEL:-github-copilot/gpt-5.3-codex}"
+   PLAN_MODEL="${PLAN_MODEL:-openai-codex/gpt-5.3-codex}"
 
    echo ""
    info "配置摘要："
@@ -245,12 +245,12 @@ fresh_config() {
    sed \
       -e "s|\${NYAKO_HOME}|${NYAKO_HOME}|g" \
       -e "s|\${NYAKO_REPO}|${NYAKO_REPO}|g" \
-      -e "s|\${NYAKO_MODEL:-minimax/m2.5}|${NYAKO_MODEL}|g" \
-      -e "s|\${NYAKO_DEFAULT_MODEL:-minimax/m2.5}|${NYAKO_MODEL}|g" \
-      -e "s|\${MONITOR_MODEL:-google/gemini-3-flash}|${MONITOR_MODEL}|g" \
-      -e "s|\${DEV_MODEL:-github-copilot/gpt-5.3-codex}|${DEV_MODEL}|g" \
-      -e "s|\${RESEARCH_MODEL:-github-copilot/gpt-5.3-codex}|${RESEARCH_MODEL}|g" \
-      -e "s|\${PLAN_MODEL:-github-copilot/gpt-5.3-codex}|${PLAN_MODEL}|g" \
+      -e "s|\${NYAKO_MODEL:-minimax-portal/MiniMax-M2.5}|${NYAKO_MODEL}|g" \
+      -e "s|\${NYAKO_DEFAULT_MODEL:-minimax-portal/MiniMax-M2.5}|${NYAKO_MODEL}|g" \
+      -e "s|\${MONITOR_MODEL:-google/gemini-3-flash-preview}|${MONITOR_MODEL}|g" \
+      -e "s|\${DEV_MODEL:-openai-codex/gpt-5.3-codex}|${DEV_MODEL}|g" \
+      -e "s|\${RESEARCH_MODEL:-openai-codex/gpt-5.3-codex}|${RESEARCH_MODEL}|g" \
+      -e "s|\${PLAN_MODEL:-openai-codex/gpt-5.3-codex}|${PLAN_MODEL}|g" \
       "${NYAKO_REPO}/openclaw.template.json5" > "$config_file"
 }
 
@@ -276,7 +276,7 @@ merge_config() {
             id: "nyako", default: true,
             name: "Shigure Nyako",
             workspace: $nyako_ws,
-            model: { primary: $nyako_model },
+            model: { primary: $nyako_model, fallbacks: ["google/gemini-3-flash-preview","zai/glm-4.7"] },
             identity: { name: "Shigure Nyako", theme: "cute team-leading cat", emoji: "🐱" },
             subagents: { allowAgents: ["monitor-neko","dev-neko","research-neko","plan-neko"] }
          },
@@ -284,7 +284,7 @@ merge_config() {
             id: "monitor-neko",
             name: "Monitor Neko",
             workspace: $monitor_ws,
-            model: { primary: $monitor_model },
+            model: { primary: $monitor_model, fallbacks: ["minimax-portal/MiniMax-M2.1-lightning","zai/glm-4.7"] },
             identity: { name: "Monitor Neko", theme: "alert sentinel cat", emoji: "👀" },
             heartbeat: { every: "10m", target: "none" },
             subagents: { allowAgents: [] }
@@ -293,7 +293,7 @@ merge_config() {
             id: "dev-neko",
             name: "Dev Neko",
             workspace: $dev_ws,
-            model: { primary: $dev_model },
+            model: { primary: $dev_model, fallbacks: ["github-copilot/gpt-5.3-codex","openai-codex/gpt-5.2-codex"] },
             identity: { name: "Dev Neko", theme: "focused engineer cat", emoji: "⌨️" },
             subagents: { allowAgents: ["research-neko","plan-neko"] }
          },
@@ -301,7 +301,7 @@ merge_config() {
             id: "research-neko",
             name: "Research Neko",
             workspace: $research_ws,
-            model: { primary: $research_model },
+            model: { primary: $research_model, fallbacks: ["github-copilot/gpt-5.3-codex","github-copilot/claude-opus-4.6"] },
             identity: { name: "Research Neko", theme: "curious researcher cat", emoji: "🔍" },
             subagents: { allowAgents: [] }
          },
@@ -309,7 +309,7 @@ merge_config() {
             id: "plan-neko",
             name: "Plan Neko",
             workspace: $plan_ws,
-            model: { primary: $plan_model },
+            model: { primary: $plan_model, fallbacks: ["github-copilot/gpt-5.3-codex","github-copilot/claude-opus-4.6"] },
             identity: { name: "Plan Neko", theme: "organized strategist cat", emoji: "📋" },
             subagents: { allowAgents: ["research-neko"] }
          }

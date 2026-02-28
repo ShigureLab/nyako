@@ -8,7 +8,7 @@
   agents: {
     defaults: {
       model: {
-        primary: "${NYAKO_DEFAULT_MODEL:-minimax/m2.5}",
+        primary: "${NYAKO_DEFAULT_MODEL:-minimax-portal/MiniMax-M2.5}",
       },
       // 默认不启用心跳，仅 monitor-neko 需要
       heartbeat: {
@@ -25,7 +25,8 @@
         name: "Shigure Nyako",
         workspace: "${NYAKO_HOME}/workspace-nyako",
         model: {
-          primary: "${NYAKO_MODEL:-minimax/m2.5}",
+          primary: "${NYAKO_MODEL:-minimax-portal/MiniMax-M2.5}",
+          fallbacks: ["google/gemini-3-flash-preview", "zai/glm-4.7"],
         },
         identity: {
           name: "Shigure Nyako",
@@ -44,7 +45,8 @@
         name: "Monitor Neko",
         workspace: "${NYAKO_HOME}/workspace-monitor-neko",
         model: {
-          primary: "${MONITOR_MODEL:-google/gemini-3-flash}",
+          primary: "${MONITOR_MODEL:-google/gemini-3-flash-preview}",
+          fallbacks: ["minimax-portal/MiniMax-M2.1-lightning", "zai/glm-4.7"],
         },
         identity: {
           name: "Monitor Neko",
@@ -67,7 +69,8 @@
         name: "Dev Neko",
         workspace: "${NYAKO_HOME}/workspace-dev-neko",
         model: {
-          primary: "${DEV_MODEL:-github-copilot/gpt-5.3-codex}",
+          primary: "${DEV_MODEL:-openai-codex/gpt-5.3-codex}",
+          fallbacks: ["github-copilot/gpt-5.3-codex", "openai-codex/gpt-5.2-codex"],
         },
         identity: {
           name: "Dev Neko",
@@ -86,7 +89,8 @@
         name: "Research Neko",
         workspace: "${NYAKO_HOME}/workspace-research-neko",
         model: {
-          primary: "${RESEARCH_MODEL:-github-copilot/gpt-5.3-codex}",
+          primary: "${RESEARCH_MODEL:-openai-codex/gpt-5.3-codex}",
+          fallbacks: ["github-copilot/gpt-5.3-codex", "github-copilot/claude-opus-4.6"],
         },
         identity: {
           name: "Research Neko",
@@ -105,7 +109,8 @@
         name: "Plan Neko",
         workspace: "${NYAKO_HOME}/workspace-plan-neko",
         model: {
-          primary: "${PLAN_MODEL:-github-copilot/gpt-5.3-codex}",
+          primary: "${PLAN_MODEL:-openai-codex/gpt-5.3-codex}",
+          fallbacks: ["github-copilot/gpt-5.3-codex", "github-copilot/claude-opus-4.6"],
         },
         identity: {
           name: "Plan Neko",

@@ -52,7 +52,7 @@ Nyako Team 是一个基于 [OpenClaw](https://github.com/openclaw/openclaw) 的�
 
 ### 👀 monitor-neko（监控喵）— 哨兵
 
-- **模型**：Gemini 3 Flash（高频轮询用便宜模型）
+- **模型**：Gemini 3 Flash Preview（高频轮询用便宜模型）
 - **心跳**：每 10 分钟
 - **职责**：
    - 轮询 GitHub 通知
@@ -62,7 +62,7 @@ Nyako Team 是一个基于 [OpenClaw](https://github.com/openclaw/openclaw) 的�
 
 ### ⌨️ dev-neko（开发喵）— 工程师
 
-- **模型**：github-copilot/gpt-5.3-codex（可配置）
+- **模型**：openai-codex/gpt-5.3-codex（可配置）
 - **驱动方式**：cron 定时任务 + session spawn（按需）
 - **职责**：
    - 通过 ACP 调度 Codex 进行编码
@@ -75,7 +75,7 @@ Nyako Team 是一个基于 [OpenClaw](https://github.com/openclaw/openclaw) 的�
 
 ### 🔍 research-neko（调研喵）— 情报员
 
-- **模型**：github-copilot/gpt-5.3-codex（可配置）
+- **模型**：openai-codex/gpt-5.3-codex（可配置）
 - **驱动方式**：session spawn（按需）
 - **职责**：
    - 技术方案调研与对比
@@ -84,7 +84,7 @@ Nyako Team 是一个基于 [OpenClaw](https://github.com/openclaw/openclaw) 的�
 
 ### 📋 plan-neko（规划喵）— 策略师
 
-- **模型**：github-copilot/gpt-5.3-codex（可配置）
+- **模型**：openai-codex/gpt-5.3-codex（可配置）
 - **驱动方式**：session spawn（按需）
 - **职责**：
    - 将大任务拆解为可执行的子任务
