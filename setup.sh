@@ -404,6 +404,45 @@ install_gh_llm() {
 # ═══════════════════════════════════════════
 # 注册 / 更新 Cron 任务
 # ═══════════════════════════════════════════
+
+# upsert 单个 cron job：存在则 edit，不存在则 add
+_cron_upsert() {
+   local name="$1" agent="$2" cron_expr="$3" tz="$4" message="$5" label="$6"
+   shift 6
+
+   # 检查是否已存在（通过 list --json 查找 name）
+   local existing_id
+   existing_id=$(openclaw cron list --json 2>/dev/null \
+      | jq -r --arg n "$name" '.jobs[] | select(.name == $n) | .id // empty' 2>/dev/null \
+      | head -1 || true)
+
+   if [[ -n "$existing_id" && "$existing_id" != "null" ]]; then
+      # 已存在 → edit
+      openclaw cron edit "$existing_id" \
+         --agent "$agent" \
+         --name "$name" \
+         --cron "$cron_expr" \
+         --tz "$tz" \
+         --message "$message" \
+         --session isolated \
+         --no-deliver \
+         "$@" \
+         2>&1 && ok "已更新 ${label}" || warn "${label} 更新失败"
+   else
+      # 不存在 → add
+      openclaw cron add \
+         --agent "$agent" \
+         --name "$name" \
+         --cron "$cron_expr" \
+         --tz "$tz" \
+         --message "$message" \
+         --session isolated \
+         --no-deliver \
+         "$@" \
+         2>&1 && ok "已注册 ${label}" || warn "${label} 注册失败（Gateway 可能未运行）"
+   fi
+}
+
 register_cron_jobs() {
    info "注册 Cron 任务..."
 
@@ -415,42 +454,22 @@ register_cron_jobs() {
    fi
 
    # 中频：推进已有 PR（每 1h）
-   local pr_review_prompt
-   pr_review_prompt=$(cat "$crons_dir/dev-pr-review.md")
-   openclaw cron upsert \
-      --agent dev-neko \
-      --name dev-pr-review \
-      --schedule '{"kind":"cron","expr":"0 * * * *","tz":"Asia/Shanghai"}' \
-      --session-target isolated \
-      --payload "{\"kind\":\"agentTurn\",\"message\":$(printf '%s' "$pr_review_prompt" | jq -Rs .)}" \
-      --delivery '{"mode":"none"}' \
-      --active-hours '{"start":"14:00","end":"08:00","tz":"Asia/Shanghai"}' \
-      2>/dev/null && ok "已注册 dev-pr-review（每 1h）" || warn "dev-pr-review 注册失败（Gateway 可能未运行，启动后会自动重试）"
+   _cron_upsert \
+      "dev-pr-review" "dev-neko" "0 * * * *" "Asia/Shanghai" \
+      "$(cat "$crons_dir/dev-pr-review.md")" \
+      "dev-pr-review（每 1h）"
 
    # 低频：处理开发任务（每 4h）
-   local new_task_prompt
-   new_task_prompt=$(cat "$crons_dir/dev-new-task.md")
-   openclaw cron upsert \
-      --agent dev-neko \
-      --name dev-new-task \
-      --schedule '{"kind":"cron","expr":"0 */4 * * *","tz":"Asia/Shanghai"}' \
-      --session-target isolated \
-      --payload "{\"kind\":\"agentTurn\",\"message\":$(printf '%s' "$new_task_prompt" | jq -Rs .)}" \
-      --delivery '{"mode":"none"}' \
-      --active-hours '{"start":"14:00","end":"08:00","tz":"Asia/Shanghai"}' \
-      2>/dev/null && ok "已注册 dev-new-task（每 4h）" || warn "dev-new-task 注册失败（Gateway 可能未运行，启动后会自动重试）"
+   _cron_upsert \
+      "dev-new-task" "dev-neko" "0 */4 * * *" "Asia/Shanghai" \
+      "$(cat "$crons_dir/dev-new-task.md")" \
+      "dev-new-task（每 4h）"
 
    # 周频：低优维护（每周一 UTC+8 10:00）
-   local maintenance_prompt
-   maintenance_prompt=$(cat "$crons_dir/dev-maintenance.md")
-   openclaw cron upsert \
-      --agent dev-neko \
-      --name dev-maintenance \
-      --schedule '{"kind":"cron","expr":"0 10 * * 1","tz":"Asia/Shanghai"}' \
-      --session-target isolated \
-      --payload "{\"kind\":\"agentTurn\",\"message\":$(printf '%s' "$maintenance_prompt" | jq -Rs .)}" \
-      --delivery '{"mode":"none"}' \
-      2>/dev/null && ok "已注册 dev-maintenance（每周一）" || warn "dev-maintenance 注册失败（Gateway 可能未运行，启动后会自动重试）"
+   _cron_upsert \
+      "dev-maintenance" "dev-neko" "0 10 * * 1" "Asia/Shanghai" \
+      "$(cat "$crons_dir/dev-maintenance.md")" \
+      "dev-maintenance（每周一）"
 
    echo ""
    info "Cron 调度总表："
@@ -460,8 +479,8 @@ register_cron_jobs() {
    echo ""
    info "monitor-neko 通过心跳（每 10min）驱动，配置在 openclaw.json 中"
    echo ""
-   info "如果 Gateway 未运行，cron 任务会在首次启动后自动注册"
-   info "也可以启动 Gateway 后手动运行: ./setup.sh --register-crons"
+   info "需要 Gateway 运行中才能注册 cron 任务"
+   info "启动 Gateway 后运行: ./setup.sh --register-crons"
 }
 
 # ═══════════════════════════════════════════
