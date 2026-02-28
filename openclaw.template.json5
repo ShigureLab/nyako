@@ -1,0 +1,152 @@
+// OpenClaw 配置模板（JSON5 格式）
+// 部署时由 setup.sh 根据用户输入生成正式 openclaw.json
+// 文档: https://docs.openclaw.ai/
+{
+  // ═══════════════════════════════════════════
+  // Agent 团队定义
+  // ═══════════════════════════════════════════
+  agents: {
+    defaults: {
+      model: {
+        primary: "${NYAKO_DEFAULT_MODEL:-minimax/m2.5}",
+      },
+      // 默认不启用心跳，仅 monitor-neko 需要
+      heartbeat: {
+        every: "0m",
+      },
+    },
+
+    list: [
+      // ── nyako（主 Agent / 团队管理者）──
+      // 无心跳：通过 Telegram 消息和子 Agent 报告被动触发
+      {
+        id: "nyako",
+        default: true,
+        name: "Shigure Nyako",
+        workspace: "${NYAKO_HOME}/workspace-nyako",
+        model: {
+          primary: "${NYAKO_MODEL:-minimax/m2.5}",
+        },
+        identity: {
+          name: "Shigure Nyako",
+          theme: "cute team-leading cat",
+          emoji: "🐱",
+        },
+        subagents: {
+          allowAgents: ["monitor-neko", "dev-neko", "research-neko", "plan-neko"],
+        },
+      },
+
+      // ── monitor-neko（监控喵 / 哨兵）──
+      // 唯一需要心跳的 Agent：高频轮询 GitHub 通知
+      {
+        id: "monitor-neko",
+        name: "Monitor Neko",
+        workspace: "${NYAKO_HOME}/workspace-monitor-neko",
+        model: {
+          primary: "${MONITOR_MODEL:-google/gemini-3-flash}",
+        },
+        identity: {
+          name: "Monitor Neko",
+          theme: "alert sentinel cat",
+          emoji: "👀",
+        },
+        heartbeat: {
+          every: "10m",
+          target: "none",
+        },
+        subagents: {
+          allowAgents: [],
+        },
+      },
+
+      // ── dev-neko（开发喵 / 工程师）──
+      // 无心跳：通过 cron 任务驱动（见 crons/），或被 session spawn 唤醒
+      {
+        id: "dev-neko",
+        name: "Dev Neko",
+        workspace: "${NYAKO_HOME}/workspace-dev-neko",
+        model: {
+          primary: "${DEV_MODEL:-github-copilot/gpt-5.3-codex}",
+        },
+        identity: {
+          name: "Dev Neko",
+          theme: "focused engineer cat",
+          emoji: "⌨️",
+        },
+        subagents: {
+          allowAgents: ["research-neko", "plan-neko"],
+        },
+      },
+
+      // ── research-neko（调研喵 / 情报员）──
+      // 无心跳：纯被动，通过 session spawn 唤醒
+      {
+        id: "research-neko",
+        name: "Research Neko",
+        workspace: "${NYAKO_HOME}/workspace-research-neko",
+        model: {
+          primary: "${RESEARCH_MODEL:-github-copilot/gpt-5.3-codex}",
+        },
+        identity: {
+          name: "Research Neko",
+          theme: "curious researcher cat",
+          emoji: "🔍",
+        },
+        subagents: {
+          allowAgents: [],
+        },
+      },
+
+      // ── plan-neko（规划喵 / 策略师）──
+      // 无心跳：纯被动，通过 session spawn 唤醒
+      {
+        id: "plan-neko",
+        name: "Plan Neko",
+        workspace: "${NYAKO_HOME}/workspace-plan-neko",
+        model: {
+          primary: "${PLAN_MODEL:-github-copilot/gpt-5.3-codex}",
+        },
+        identity: {
+          name: "Plan Neko",
+          theme: "organized strategist cat",
+          emoji: "📋",
+        },
+        subagents: {
+          allowAgents: ["research-neko"],
+        },
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════
+  // 渠道绑定
+  // ═══════════════════════════════════════════
+  bindings: [
+    // nyako 绑定到 Telegram（用户交互入口）
+    {
+      agentId: "nyako",
+      match: { channel: "telegram" },
+    },
+  ],
+
+  // ═══════════════════════════════════════════
+  // Skills 配置
+  // ═══════════════════════════════════════════
+  skills: {
+    load: {
+      // 从 repo 的 skills/ 目录加载共享 skills
+      extraDirs: ["${NYAKO_REPO}/skills"],
+    },
+  },
+
+  // ═══════════════════════════════════════════
+  // 渠道配置
+  // ═══════════════════════════════════════════
+  channels: {
+    telegram: {
+      // 由 setup.sh 配置
+      // botToken: "${TELEGRAM_BOT_TOKEN}",
+    },
+  },
+}
