@@ -36,10 +36,14 @@ Options:
    --update           更新已有部署（同步文件 + 更新 cron）
    --register-crons   仅注册/更新 cron 任务
    --check            检查前置依赖
+   --doctor           运行部署健康检查
+   --monitor-health   检查 monitor-neko 心跳健康
    --help             显示帮助信息
 
 Environment:
    NYAKO_HOME    OpenClaw 主目录（默认: ~/.openclaw）
+   TELEGRAM_BOT_TOKEN  Telegram Bot Token（可选，写入 channels.telegram.botToken）
+   TELEGRAM_CHAT_ID  Cron 投递目标 Telegram chatId（可选）
 EOF
    exit 0
 }
@@ -147,6 +151,20 @@ configure() {
    read -r PLAN_MODEL
    PLAN_MODEL="${PLAN_MODEL:-openai-codex/gpt-5.3-codex}"
 
+   # Telegram bot token（可选）
+   ask "Telegram Bot Token [可留空，使用环境变量 TELEGRAM_BOT_TOKEN]:"
+   read -r TELEGRAM_BOT_TOKEN_INPUT
+   if [[ -n "${TELEGRAM_BOT_TOKEN_INPUT:-}" ]]; then
+      TELEGRAM_BOT_TOKEN="$TELEGRAM_BOT_TOKEN_INPUT"
+   fi
+
+   # Telegram chat id（可选，cron announce 定向）
+   ask "Telegram Chat ID [可留空，cron 将使用 last 会话]:"
+   read -r TELEGRAM_CHAT_ID_INPUT
+   if [[ -n "${TELEGRAM_CHAT_ID_INPUT:-}" ]]; then
+      TELEGRAM_CHAT_ID="$TELEGRAM_CHAT_ID_INPUT"
+   fi
+
    echo ""
    info "配置摘要："
    echo "   nyako:         $NYAKO_MODEL"
@@ -154,6 +172,16 @@ configure() {
    echo "   dev-neko:      $DEV_MODEL"
    echo "   research-neko: $RESEARCH_MODEL"
    echo "   plan-neko:     $PLAN_MODEL"
+   if [[ -n "${TELEGRAM_BOT_TOKEN:-}" ]]; then
+      echo "   telegram bot:  已设置"
+   else
+      echo "   telegram bot:  未设置（将沿用已有配置或保持空）"
+   fi
+   if [[ -n "${TELEGRAM_CHAT_ID:-}" ]]; then
+      echo "   telegram chat: ${TELEGRAM_CHAT_ID}"
+   else
+      echo "   telegram chat: 未设置（cron 使用 last 会话）"
+   fi
    echo "   NYAKO_HOME:    $NYAKO_HOME"
    echo ""
 }
@@ -216,6 +244,32 @@ deploy_skills() {
 }
 
 # ═══════════════════════════════════════════
+# 部署运行脚本
+# ═══════════════════════════════════════════
+deploy_scripts() {
+   info "部署运行脚本..."
+
+   local scripts_src="${NYAKO_REPO}/scripts"
+   local scripts_dest="${NYAKO_DATA}/bin"
+
+   if [[ ! -d "$scripts_src" ]]; then
+      warn "scripts 目录不存在: $scripts_src"
+      return
+   fi
+
+   mkdir -p "$scripts_dest"
+
+   if command -v rsync &>/dev/null; then
+      rsync -av --delete "$scripts_src/" "$scripts_dest/"
+   else
+      cp -R "$scripts_src/"* "$scripts_dest/"
+   fi
+
+   chmod +x "$scripts_dest"/*.sh 2>/dev/null || true
+   ok "已部署运行脚本 → ${scripts_dest}"
+}
+
+# ═══════════════════════════════════════════
 # 生成 OpenClaw 配置
 # ═══════════════════════════════════════════
 generate_config() {
@@ -241,6 +295,9 @@ generate_config() {
 # 全新安装：从模板生成配置
 fresh_config() {
    local config_file="$1"
+   local telegram_bot_token="${TELEGRAM_BOT_TOKEN:-}"
+   local telegram_bot_token_escaped
+   telegram_bot_token_escaped=$(printf '%s' "$telegram_bot_token" | sed 's/[&|]/\\&/g')
 
    sed \
       -e "s|\${NYAKO_HOME}|${NYAKO_HOME}|g" \
@@ -251,6 +308,7 @@ fresh_config() {
       -e "s|\${DEV_MODEL:-openai-codex/gpt-5.3-codex}|${DEV_MODEL}|g" \
       -e "s|\${RESEARCH_MODEL:-openai-codex/gpt-5.3-codex}|${RESEARCH_MODEL}|g" \
       -e "s|\${PLAN_MODEL:-openai-codex/gpt-5.3-codex}|${PLAN_MODEL}|g" \
+      -e "s|\${TELEGRAM_BOT_TOKEN:-}|${telegram_bot_token_escaped}|g" \
       "${NYAKO_REPO}/openclaw.template.json5" > "$config_file"
 }
 
@@ -261,6 +319,7 @@ merge_config() {
    # 构建 Agent 团队列表 JSON
    local agents_list
    agents_list=$(jq -n \
+      --arg nyako_default_ws "${NYAKO_HOME}/workspace" \
       --arg nyako_ws "${NYAKO_HOME}/workspace-nyako" \
       --arg monitor_ws "${NYAKO_HOME}/workspace-monitor-neko" \
       --arg dev_ws "${NYAKO_HOME}/workspace-dev-neko" \
@@ -284,7 +343,7 @@ merge_config() {
             id: "monitor-neko",
             name: "Monitor Neko",
             workspace: $monitor_ws,
-            model: { primary: $monitor_model, fallbacks: ["minimax-portal/MiniMax-M2.1-lightning","zai/glm-4.7"] },
+            model: { primary: $monitor_model, fallbacks: ["minimax-portal/MiniMax-M2.1","zai/glm-4.7"] },
             identity: { name: "Monitor Neko", theme: "alert sentinel cat", emoji: "👀" },
             heartbeat: { every: "10m", target: "none" },
             subagents: { allowAgents: [] }
@@ -331,10 +390,15 @@ merge_config() {
    tmp_file=$(mktemp)
 
    jq --argjson agents_list "$agents_list" \
+      --arg nyako_default_ws "${NYAKO_HOME}/workspace" \
       --arg skills_dir "${NYAKO_REPO}/skills" \
+      --arg telegram_bot_token "${TELEGRAM_BOT_TOKEN:-}" \
       '
       # Agent 团队定义
       .agents.list = $agents_list |
+
+      # 默认 workspace 统一为 ~/.openclaw/workspace
+      .agents.defaults.workspace = $nyako_default_ws |
 
       # 默认心跳关闭（仅 monitor-neko 在 list 中覆盖为 10m）
       .agents.defaults.heartbeat.every = "0m" |
@@ -346,7 +410,18 @@ merge_config() {
       .skills.load.extraDirs = (
          (.skills.load.extraDirs // []) |
          if any(. == $skills_dir) then . else . + [$skills_dir] end
-      )
+      ) |
+
+      # 确保 channels.telegram 结构存在
+      .channels = (.channels // {}) |
+      .channels.telegram = (.channels.telegram // {}) |
+
+      # 可选：写入 Telegram botToken
+      if $telegram_bot_token != "" then
+         .channels.telegram.botToken = $telegram_bot_token
+      else
+         .
+      end
       ' "$config_file" > "$tmp_file" && mv "$tmp_file" "$config_file"
 }
 
@@ -368,18 +443,49 @@ init_runtime() {
    mkdir -p "${NYAKO_HOME}/memory"
    ok "记忆目录: ${NYAKO_HOME}/memory/"
 
-   # Session 列表（如不存在则创建）
-   local sessions_file="${NYAKO_DATA}/sessions.md"
-   if [[ ! -f "$sessions_file" ]]; then
-      cat > "$sessions_file" <<'EOF'
+   # 健康检查目录
+   mkdir -p "${NYAKO_DATA}/health"
+   ok "健康目录: ${NYAKO_DATA}/health/"
+
+   # Session 存储（JSON 为主，Markdown 为导出）
+   local session_store="${NYAKO_DATA}/bin/session_store.sh"
+   if [[ -x "$session_store" ]]; then
+      NYAKO_DATA="${NYAKO_DATA}" "$session_store" init
+      ok "已初始化 Session 存储: ${NYAKO_DATA}/sessions.json + sessions.md"
+   else
+      # 回退：仅创建 Markdown
+      local sessions_file="${NYAKO_DATA}/sessions.md"
+      if [[ ! -f "$sessions_file" ]]; then
+         cat > "$sessions_file" <<'EOF'
 # Nyako Sessions
 
 | id | agent | title | repos | prs | issues | status | created_at | updated_at |
 |----|-------|-------|-------|-----|--------|--------|------------|------------|
 EOF
-      ok "已创建 Session 列表: ${sessions_file}"
+         ok "已创建 Session 列表: ${sessions_file}"
+      else
+         ok "Session 列表已存在: ${sessions_file}"
+      fi
+   fi
+}
+
+doctor() {
+   local doctor_script="${NYAKO_DATA}/bin/doctor.sh"
+   if [[ -x "$doctor_script" ]]; then
+      NYAKO_HOME="${NYAKO_HOME}" NYAKO_DATA="${NYAKO_DATA}" "$doctor_script"
    else
-      ok "Session 列表已存在: ${sessions_file}"
+      warn "doctor 脚本不存在，先运行 --install 或 --update 部署 scripts"
+      return 1
+   fi
+}
+
+monitor_health() {
+   local monitor_script="${NYAKO_DATA}/bin/monitor_health_check.sh"
+   if [[ -x "$monitor_script" ]]; then
+      NYAKO_HOME="${NYAKO_HOME}" NYAKO_DATA="${NYAKO_DATA}" TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-}" "$monitor_script" --last-lines 2000
+   else
+      warn "monitor_health_check 脚本不存在，先运行 --install 或 --update 部署 scripts"
+      return 1
    fi
 }
 
@@ -409,6 +515,11 @@ install_gh_llm() {
 _cron_upsert() {
    local name="$1" agent="$2" cron_expr="$3" tz="$4" message="$5" label="$6"
    shift 6
+   local delivery_args=(--announce --channel telegram)
+
+   if [[ -n "${TELEGRAM_CHAT_ID:-}" ]]; then
+      delivery_args+=(--to "$TELEGRAM_CHAT_ID")
+   fi
 
    # 检查是否已存在（通过 list --json 查找 name）
    local existing_id
@@ -425,7 +536,7 @@ _cron_upsert() {
          --tz "$tz" \
          --message "$message" \
          --session isolated \
-         --no-deliver \
+         "${delivery_args[@]}" \
          "$@" \
          2>&1 && ok "已更新 ${label}" || warn "${label} 更新失败"
    else
@@ -437,7 +548,7 @@ _cron_upsert() {
          --tz "$tz" \
          --message "$message" \
          --session isolated \
-         --no-deliver \
+         "${delivery_args[@]}" \
          "$@" \
          2>&1 && ok "已注册 ${label}" || warn "${label} 注册失败（Gateway 可能未运行）"
    fi
@@ -445,6 +556,12 @@ _cron_upsert() {
 
 register_cron_jobs() {
    info "注册 Cron 任务..."
+
+   if [[ -n "${TELEGRAM_CHAT_ID:-}" ]]; then
+      info "Cron 投递目标: telegram:${TELEGRAM_CHAT_ID}"
+   else
+      warn "未设置 TELEGRAM_CHAT_ID，Cron 将投递到 Telegram 的 last 会话"
+   fi
 
    local crons_dir="${NYAKO_REPO}/crons"
 
@@ -500,6 +617,7 @@ install() {
 
    deploy_workspaces
    deploy_skills
+   deploy_scripts
    generate_config
    init_runtime
    install_gh_llm
@@ -533,6 +651,8 @@ update() {
 
    deploy_workspaces
    deploy_skills
+   deploy_scripts
+   init_runtime
    echo ""
 
    register_cron_jobs
@@ -556,9 +676,11 @@ main() {
       --update)   update ;;
       --register-crons) register_cron_jobs ;;
       --check)    check_dependencies ;;
+      --doctor)   doctor ;;
+      --monitor-health) monitor_health ;;
       --help|-h)  usage ;;
       "")
-         echo "请指定操作：--install / --update / --register-crons / --check"
+         echo "请指定操作：--install / --update / --register-crons / --check / --doctor / --monitor-health"
          echo "运行 --help 查看帮助"
          exit 1
          ;;

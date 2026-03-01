@@ -2,9 +2,10 @@
 
 Session 是连续上下文的载体。一个 Agent 可以同时拥有多个 Session，每个 Session 处理一个独立的工作流。
 
-## Session 列表文件
+## Session 存储文件
 
-文件路径：`~/.nyako/sessions.md`
+- 主存储（机器读写）：`~/.nyako/sessions.json`
+- 人读视图（自动导出）：`~/.nyako/sessions.md`
 
 ## 格式
 
@@ -78,6 +79,6 @@ stale → done                 （确认放弃）
 ## 关键规则
 
 1. **一个任务线对应一个 Session**——不要将无关任务混在同一个 Session 中
-2. **Session 由 nyako 创建**——子 Agent 只能建议创建，最终由 nyako 决定
+2. **Session 写操作统一通过 `~/.nyako/bin/session_store.sh`**——不要直接手改 `sessions.md`
 3. **及时更新状态**——状态变化时立即更新 `sessions.md`
 4. **及时关联**——当 Session 产生新的 PR/issue 时，及时添加到对应字段

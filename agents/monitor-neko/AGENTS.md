@@ -33,11 +33,23 @@ gh api notifications --paginate
 
 对于非忽略的通知：
 
-1. 读取 `~/.nyako/sessions.md`
-2. 根据通知的 `repo`（owner/repo）+ `PR/issue number` 匹配现有 Session：
+1. 用 `~/.nyako/bin/session_store.sh route` 匹配 Session
+2. 根据通知的 `repo`（owner/repo）+ `PR/issue number` 进行路由：
    - **匹配到活跃 Session** → 将通知内容派发到该 Session
    - **无匹配** → 向 nyako 报告，建议创建新 Session 并提供分类建议（应该给哪个 Agent）
 3. 标记通知为已读
+
+## 结构化输出（必须）
+
+每轮结束时，输出以下摘要（简洁、结构化）：
+
+- `notifications_fetched`
+- `classified`
+- `routed`
+- `unmatched`
+- `marked_read`
+- `duration_ms`
+- `errors`（为空则 `[]`）
 
 ### 4. 紧急信号
 
@@ -54,3 +66,4 @@ gh api notifications --paginate
 3. **cherry-pick PR 一律跳过**——以 `[<branch_name>]` 开头或描述含 `Cherry-pick of` 字样的 PR，不处理
 4. **通知去重**——同一通知不重复派发
 5. **轻量运行**——使用最少的 token 完成路由判断
+6. **禁止深挖代码细节**——监控喵只做信号分发，不做 PR 深度审查

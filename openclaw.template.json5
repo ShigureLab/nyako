@@ -7,6 +7,7 @@
   // ═══════════════════════════════════════════
   agents: {
     defaults: {
+      workspace: "${NYAKO_HOME}/workspace",
       model: {
         primary: "${NYAKO_DEFAULT_MODEL:-minimax-portal/MiniMax-M2.5}",
       },
@@ -46,7 +47,7 @@
         workspace: "${NYAKO_HOME}/workspace-monitor-neko",
         model: {
           primary: "${MONITOR_MODEL:-google/gemini-3-flash-preview}",
-          fallbacks: ["minimax-portal/MiniMax-M2.1-lightning", "zai/glm-4.7"],
+          fallbacks: ["minimax-portal/MiniMax-M2.1", "zai/glm-4.7"],
         },
         identity: {
           name: "Monitor Neko",
@@ -151,7 +152,7 @@
   channels: {
     telegram: {
       // 由 setup.sh 配置
-      // botToken: "${TELEGRAM_BOT_TOKEN}",
+      botToken: "${TELEGRAM_BOT_TOKEN:-}",
     },
   },
 }

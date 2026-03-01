@@ -8,6 +8,9 @@
 
 ## 执行步骤
 
+0. **活跃时间窗口检查（UTC+8 14:00-次日 08:00）**
+   - 先执行：`TZ=Asia/Shanghai date +%H`
+   - 若当前小时不在 `14-23` 或 `00-08`，直接结束本轮并简短记录 `skip(out_of_window)`
 1. **Renovate / 依赖更新 PR**
    - 检查维护的 repo 中是否有 Renovate 或其他 bot 自动提交的依赖更新 PR
    - 对这些 PR 进行 review

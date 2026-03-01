@@ -25,6 +25,9 @@
 ```bash
 git clone https://github.com/ShigureLab/nyako.git
 cd nyako
+# 可选：预设 Telegram 配置
+# export TELEGRAM_BOT_TOKEN="123456:ABC..."
+# export TELEGRAM_CHAT_ID="123456789"
 ./setup.sh --install
 ```
 
@@ -37,6 +40,7 @@ cd nyako
 5. 注册 cron 定时任务
 6. 初始化运行时目录
 7. 安装 `gh-llm` 插件
+8. 部署 `~/.nyako/bin` 运行脚本（session store / doctor / monitor health）
 
 ### 启动
 
@@ -54,6 +58,16 @@ git pull
 ```
 
 这将仅同步 Agent workspace 和 Skills 文件，不会重置配置。
+
+### 运维检查
+
+```bash
+# 部署健康检查
+./setup.sh --doctor
+
+# monitor-neko 心跳健康快照
+./setup.sh --monitor-health
+```
 
 ## 架构
 
@@ -94,6 +108,7 @@ nyako/
 ├── docs/                    # 架构文档
 │   └── architecture.md
 ├── openclaw.template.json5  # OpenClaw 配置模板（JSON5）
+├── scripts/                 # 运行脚本（session store / doctor / health）
 └── setup.sh                 # 一键部署脚本
 ```
 

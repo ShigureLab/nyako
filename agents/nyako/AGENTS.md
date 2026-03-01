@@ -26,23 +26,26 @@
    - 规划任务（拆解大任务、制定计划等）→ **plan-neko**
    - 复合任务 → 先让 **plan-neko** 拆解，再分发
 3. **Session 路由**：
-   - 检查 `~/.nyako/sessions.md` 中是否有相关联的活跃 Session
+   - 用 `~/.nyako/bin/session_store.sh route` 检查是否有相关联的活跃 Session
    - 有关联 → 派发到已有 Session
-   - 无关联 → 创建新 Session 并记录
+   - 无关联 → 创建新 Session 并记录到 `sessions.json`
 4. **Spawn 子 Agent**：通过 `sessions_spawn` 将任务派发到对应子 Agent
 
 ### Session 管理
 
 Session 是连续上下文的载体。一个 Agent 可以有多个 Session，每个 Session 处理一个独立的工作流。
 
-**Session 列表文件**：`~/.nyako/sessions.md`
+**Session 主存储**：`~/.nyako/sessions.json`（机器读写）  
+**Session 人读视图**：`~/.nyako/sessions.md`（由脚本导出）
 
 Session 管理规则：
 
-1. **创建 Session**：当新任务与现有 Session 无关时，创建新 Session 并记录到列表
-2. **路由 Session**：当 monitor-neko 发现新通知时，根据 repo + PR/issue 编号匹配现有 Session
-3. **关闭 Session**：当任务完成（PR 合并、issue 关闭）时，将 Session 标记为 `done`
-4. **Session 命名**：格式为 `<agent>-<topic>-<序号>`，如 `dev-docstring-001`、`dev-unittest-002`
+1. **创建 Session**：`~/.nyako/bin/session_store.sh create ...`
+2. **路由 Session**：`~/.nyako/bin/session_store.sh route ...`
+3. **更新状态**：`~/.nyako/bin/session_store.sh set-status ...`
+4. **关联 PR/issue/repo**：`~/.nyako/bin/session_store.sh link ...`
+5. **关闭 Session**：当任务完成（PR 合并、issue 关闭）时，标记为 `done`
+6. **Session 命名**：格式为 `<agent>-<topic>-<序号>`，如 `dev-docstring-001`、`dev-unittest-002`
 
 Session 列表格式见 `schemas/session.schema.md`。
 
@@ -59,7 +62,7 @@ Session 列表格式见 `schemas/session.schema.md`。
 
 每次心跳唤醒时，执行以下任务：
 
-1. 检查 `~/.nyako/sessions.md`，汇总所有活跃 Session 的状态
+1. 用 `~/.nyako/bin/session_store.sh list --status active` 汇总活跃 Session 状态
 2. 检查是否有子 Agent 完成了任务需要汇报
 3. 检查是否有需要用户决策的事项
 4. 若有需要通知用户的信息，通过消息渠道发送摘要
@@ -67,14 +70,14 @@ Session 列表格式见 `schemas/session.schema.md`。
 
 ### 记忆管理
 
-- 每日记忆写入 `~/openclaw/memory/YYYY-MM-DD.md`
+- 每日记忆写入 `~/.openclaw/workspace-nyako/memory/YYYY-MM-DD.md`
 - 当 PR 合并、任务完成等重要事件发生时，记录到当日记忆
 - 长期经验教训记录到 `MEMORY.md`
 
 ## 关键规则
 
 1. **永远不做专业性任务**——所有技术工作委派给子 Agent
-2. **Session 隔离**——不同任务线的 Session 互不干扰
+2. **Session 统一入口**——所有读写通过 `session_store.sh`，不要手改 `sessions.md`
 3. **及时汇报**——子 Agent 完成工作后，及时归纳并向用户反馈
 4. **主人优先**——@SigureMo 的命令具有最高优先级
 5. **高效调度**——尽可能并行分发不相关的任务到不同 Session

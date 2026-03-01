@@ -4,7 +4,7 @@
 
 ## 存储路径
 
-- **每日记忆**：`~/openclaw/memory/YYYY-MM-DD.md`
+- **每日记忆**：`~/.openclaw/workspace-<agent>/memory/YYYY-MM-DD.md`
 - **长期记忆**：各 Agent workspace 下的 `MEMORY.md`
 
 ## 每日记忆格式

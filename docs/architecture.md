@@ -140,6 +140,8 @@ active → blocked → active → done → archived
 
 详见 `schemas/session.schema.md`。
 
+Session 的读写统一通过 `~/.nyako/bin/session_store.sh` 完成，避免并发修改 Markdown 造成冲突。
+
 ## 调度机制
 
 | 调度方式 | Agent        | 频率       | 内容                                  | prompt 文件                |
@@ -150,7 +152,7 @@ active → blocked → active → done → archived
 | cron     | dev-neko     | 每周一     | 低优维护（renovate PR 等）            | `crons/dev-maintenance.md` |
 
 - **心跳 vs cron**：心跳由 OpenClaw 内置调度，使用 HEARTBEAT.md 作为系统提示；cron 由 `openclaw cron upsert` 注册，每个任务使用独立的 prompt 文件。
-- 所有调度尊重活跃时间窗口（UTC+8 14:00 到次日 08:00）。
+- 活跃时间窗口（UTC+8 14:00 到次日 08:00）当前由 Agent 提示词约束，不是强制调度门控。
 - nyako、research-neko、plan-neko 无定时调度，纯粹按需驱动（消息触发 / session spawn）。
 
 ## 消息流
@@ -181,7 +183,9 @@ dev-neko ──ACP spawn──→ Codex ──result──→ dev-neko ──gh 
 | --------------------------------- | ------------------------------------- |
 | `~/.openclaw/workspace-<agent>/`  | 各 Agent 的 workspace（AGENTS.md 等） |
 | `~/.openclaw/openclaw.json`       | OpenClaw 主配置                       |
-| `~/.openclaw/memory/`             | 每日记忆日志                          |
-| `~/.nyako/sessions.md`            | Session 管理列表                      |
+| `~/.openclaw/workspace-<agent>/memory/` | 每日记忆 Markdown 日志               |
+| `~/.openclaw/memory/`             | 记忆索引与运行时状态（OpenClaw 管理） |
+| `~/.nyako/sessions.json`          | Session 主存储（机器读写）            |
+| `~/.nyako/sessions.md`            | Session 人读视图（由脚本导出）        |
 | `~/.nyako/tasks/`                 | 任务文件                              |
 | `~/.nyako/workspace/<org>/<repo>` | 代码工作区                            |
