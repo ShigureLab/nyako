@@ -7,7 +7,7 @@
 | Agent                | 角色       | 职责                            | 模型                          |
 | -------------------- | ---------- | ------------------------------- | ----------------------------- |
 | 🐱 **nyako**         | 团队管理者 | 交互 · 调度 · Session 管理      | minimax-portal/MiniMax-M2.5   |
-| 👀 **monitor-neko**  | 哨兵       | 高频轮询 GitHub 通知            | google/gemini-3-flash-preview |
+| 👀 **monitor-neko**  | 哨兵       | 高频轮询 GitHub 通知            | minimax-portal/MiniMax-M2.5   |
 | ⌨️ **dev-neko**      | 工程师     | 开发 · PR 处理 · ACP 调度 Codex | openai-codex/gpt-5.3-codex    |
 | 🔍 **research-neko** | 情报员     | 技术调研 · 方案分析             | openai-codex/gpt-5.3-codex    |
 | 📋 **plan-neko**     | 策略师     | 任务拆解 · 优先级评估           | openai-codex/gpt-5.3-codex    |

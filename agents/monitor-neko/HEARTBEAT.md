@@ -1,6 +1,6 @@
 # Monitor Neko Heartbeat
 
-每次心跳唤醒（每 10 分钟），执行以下操作：
+每次心跳唤醒（每 20 分钟），执行以下操作：
 
 1. **轮询 GitHub 通知** — `gh api notifications --paginate`
 2. **分类每条通知** — 按类型标记（issue-assign / pr-review / pr-merged / comment / ci-failure / cherry-pick 等）

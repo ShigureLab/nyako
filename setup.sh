@@ -132,9 +132,9 @@ configure() {
    NYAKO_MODEL="${NYAKO_MODEL:-minimax-portal/MiniMax-M2.5}"
 
    # monitor-neko 模型
-   ask "monitor-neko（监控喵）模型 [默认: google/gemini-3-flash-preview]:"
+   ask "monitor-neko（监控喵）模型 [默认: minimax-portal/MiniMax-M2.5]:"
    read -r MONITOR_MODEL
-   MONITOR_MODEL="${MONITOR_MODEL:-google/gemini-3-flash-preview}"
+   MONITOR_MODEL="${MONITOR_MODEL:-minimax-portal/MiniMax-M2.5}"
 
    # dev-neko 模型
    ask "dev-neko（开发喵）模型 [默认: openai-codex/gpt-5.3-codex]:"
@@ -304,7 +304,7 @@ fresh_config() {
       -e "s|\${NYAKO_REPO}|${NYAKO_REPO}|g" \
       -e "s|\${NYAKO_MODEL:-minimax-portal/MiniMax-M2.5}|${NYAKO_MODEL}|g" \
       -e "s|\${NYAKO_DEFAULT_MODEL:-minimax-portal/MiniMax-M2.5}|${NYAKO_MODEL}|g" \
-      -e "s|\${MONITOR_MODEL:-google/gemini-3-flash-preview}|${MONITOR_MODEL}|g" \
+      -e "s|\${MONITOR_MODEL:-minimax-portal/MiniMax-M2.5}|${MONITOR_MODEL}|g" \
       -e "s|\${DEV_MODEL:-openai-codex/gpt-5.3-codex}|${DEV_MODEL}|g" \
       -e "s|\${RESEARCH_MODEL:-openai-codex/gpt-5.3-codex}|${RESEARCH_MODEL}|g" \
       -e "s|\${PLAN_MODEL:-openai-codex/gpt-5.3-codex}|${PLAN_MODEL}|g" \
@@ -345,7 +345,7 @@ merge_config() {
             workspace: $monitor_ws,
             model: { primary: $monitor_model, fallbacks: ["minimax-portal/MiniMax-M2.1","zai/glm-4.7"] },
             identity: { name: "Monitor Neko", theme: "alert sentinel cat", emoji: "👀" },
-            heartbeat: { every: "10m", target: "none" },
+            heartbeat: { every: "20m", target: "none" },
             subagents: { allowAgents: [] }
          },
          {
@@ -400,7 +400,7 @@ merge_config() {
       # 默认 workspace 统一为 ~/.openclaw/workspace
       .agents.defaults.workspace = $nyako_default_ws |
 
-      # 默认心跳关闭（仅 monitor-neko 在 list 中覆盖为 10m）
+      # 默认心跳关闭（仅 monitor-neko 在 list 中覆盖为 20m）
       .agents.defaults.heartbeat.every = "0m" |
 
       # Telegram 绑定
@@ -594,7 +594,7 @@ register_cron_jobs() {
    echo "   dev-new-task      每 4 小时   处理开发任务          crons/dev-new-task.md"
    echo "   dev-maintenance   每周一      低优维护              crons/dev-maintenance.md"
    echo ""
-   info "monitor-neko 通过心跳（每 10min）驱动，配置在 openclaw.json 中"
+   info "monitor-neko 通过心跳（每 20min）驱动，配置在 openclaw.json 中"
    echo ""
    info "需要 Gateway 运行中才能注册 cron 任务"
    info "启动 Gateway 后运行: ./setup.sh --register-crons"

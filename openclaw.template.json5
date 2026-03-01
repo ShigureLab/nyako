@@ -46,8 +46,12 @@
         name: "Monitor Neko",
         workspace: "${NYAKO_HOME}/workspace-monitor-neko",
         model: {
-          primary: "${MONITOR_MODEL:-google/gemini-3-flash-preview}",
-          fallbacks: ["minimax-portal/MiniMax-M2.1", "zai/glm-4.7"],
+          primary: "${MONITOR_MODEL:-minimax-portal/MiniMax-M2.5}",
+          fallbacks: [
+            "google/gemini-3-flash-preview",
+            "minimax-portal/MiniMax-M2.1",
+            "zai/glm-4.7",
+          ],
         },
         identity: {
           name: "Monitor Neko",
@@ -55,7 +59,7 @@
           emoji: "👀",
         },
         heartbeat: {
-          every: "10m",
+          every: "20m",
           target: "none",
         },
         subagents: {
