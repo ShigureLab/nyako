@@ -9,10 +9,16 @@
 ### 1. 收集通知
 
 ```bash
-gh api notifications --paginate
+gh api notifications --paginate -f all=true
 ```
 
-收集所有未读的 GitHub 通知。
+收集通知流（包含已读与未读），再按时间窗口去重处理，避免漏掉已读但刚发生状态变更的线程。
+
+补充检查（必须）：
+
+1. 读取活跃 Session（`~/.nyako/bin/session_store.sh list --status active`）
+2. 对 Session 里关联的 PR 执行状态反查（`gh pr view <num> --repo <owner/repo> --json state,mergedAt,updatedAt,reviewDecision`）
+3. 若发现 `mergedAt != null`，即使通知流没有命中，也要生成 `pr-merged` 事件并路由
 
 ### 2. 分类通知
 
@@ -38,6 +44,11 @@ gh api notifications --paginate
    - **匹配到活跃 Session** → 将通知内容派发到该 Session
    - **无匹配** → 向 nyako 报告，建议创建新 Session 并提供分类建议（应该给哪个 Agent）
 3. 标记通知为已读
+
+强制约束：
+
+- 不允许使用 `--author @me` 作为筛选条件
+- 必须覆盖“非自己提交但与你相关”的 PR（review request / mention / subscribed / Session 关联 PR）
 
 ## 结构化输出（必须）
 
@@ -67,3 +78,4 @@ gh api notifications --paginate
 4. **通知去重**——同一通知不重复派发
 5. **轻量运行**——使用最少的 token 完成路由判断
 6. **禁止深挖代码细节**——监控喵只做信号分发，不做 PR 深度审查
+7. **禁止提建议/反问**——不要给“下一步建议”，不要反问用户，直接执行监控与路由并上报结果
