@@ -137,19 +137,19 @@ configure() {
    MONITOR_MODEL="${MONITOR_MODEL:-minimax-portal/MiniMax-M2.5}"
 
    # dev-neko 模型
-   ask "dev-neko（开发喵）模型 [默认: openai-codex/gpt-5.3-codex]:"
+   ask "dev-neko（开发喵）模型 [默认: openai-codex/gpt-5.4]:"
    read -r DEV_MODEL
-   DEV_MODEL="${DEV_MODEL:-openai-codex/gpt-5.3-codex}"
+   DEV_MODEL="${DEV_MODEL:-openai-codex/gpt-5.4}"
 
    # research-neko 模型
-   ask "research-neko（调研喵）模型 [默认: openai-codex/gpt-5.3-codex]:"
+   ask "research-neko（调研喵）模型 [默认: openai-codex/gpt-5.4]:"
    read -r RESEARCH_MODEL
-   RESEARCH_MODEL="${RESEARCH_MODEL:-openai-codex/gpt-5.3-codex}"
+   RESEARCH_MODEL="${RESEARCH_MODEL:-openai-codex/gpt-5.4}"
 
    # plan-neko 模型
-   ask "plan-neko（规划喵）模型 [默认: openai-codex/gpt-5.3-codex]:"
+   ask "plan-neko（规划喵）模型 [默认: openai-codex/gpt-5.4]:"
    read -r PLAN_MODEL
-   PLAN_MODEL="${PLAN_MODEL:-openai-codex/gpt-5.3-codex}"
+   PLAN_MODEL="${PLAN_MODEL:-openai-codex/gpt-5.4}"
 
    # Telegram bot token（可选）
    ask "Telegram Bot Token [可留空，使用环境变量 TELEGRAM_BOT_TOKEN]:"
@@ -305,9 +305,9 @@ fresh_config() {
       -e "s|\${NYAKO_MODEL:-minimax-portal/MiniMax-M2.5}|${NYAKO_MODEL}|g" \
       -e "s|\${NYAKO_DEFAULT_MODEL:-minimax-portal/MiniMax-M2.5}|${NYAKO_MODEL}|g" \
       -e "s|\${MONITOR_MODEL:-minimax-portal/MiniMax-M2.5}|${MONITOR_MODEL}|g" \
-      -e "s|\${DEV_MODEL:-openai-codex/gpt-5.3-codex}|${DEV_MODEL}|g" \
-      -e "s|\${RESEARCH_MODEL:-openai-codex/gpt-5.3-codex}|${RESEARCH_MODEL}|g" \
-      -e "s|\${PLAN_MODEL:-openai-codex/gpt-5.3-codex}|${PLAN_MODEL}|g" \
+      -e "s|\${DEV_MODEL:-openai-codex/gpt-5.4}|${DEV_MODEL}|g" \
+      -e "s|\${RESEARCH_MODEL:-openai-codex/gpt-5.4}|${RESEARCH_MODEL}|g" \
+      -e "s|\${PLAN_MODEL:-openai-codex/gpt-5.4}|${PLAN_MODEL}|g" \
       -e "s|\${TELEGRAM_BOT_TOKEN:-}|${telegram_bot_token_escaped}|g" \
       "${NYAKO_REPO}/openclaw.template.json5" > "$config_file"
 }
@@ -352,7 +352,7 @@ merge_config() {
             id: "dev-neko",
             name: "Dev Neko",
             workspace: $dev_ws,
-            model: { primary: $dev_model, fallbacks: ["github-copilot/gpt-5.3-codex","openai-codex/gpt-5.2-codex"] },
+            model: { primary: $dev_model, fallbacks: ["openai-codex/gpt-5.3-codex"] },
             identity: { name: "Dev Neko", theme: "focused engineer cat", emoji: "⌨️" },
             subagents: { allowAgents: ["research-neko","plan-neko"] }
          },
@@ -360,7 +360,7 @@ merge_config() {
             id: "research-neko",
             name: "Research Neko",
             workspace: $research_ws,
-            model: { primary: $research_model, fallbacks: ["github-copilot/gpt-5.3-codex","github-copilot/claude-opus-4.6"] },
+            model: { primary: $research_model, fallbacks: ["openai-codex/gpt-5.3-codex"] },
             identity: { name: "Research Neko", theme: "curious researcher cat", emoji: "🔍" },
             subagents: { allowAgents: [] }
          },
@@ -368,7 +368,7 @@ merge_config() {
             id: "plan-neko",
             name: "Plan Neko",
             workspace: $plan_ws,
-            model: { primary: $plan_model, fallbacks: ["github-copilot/gpt-5.3-codex","github-copilot/claude-opus-4.6"] },
+            model: { primary: $plan_model, fallbacks: ["openai-codex/gpt-5.3-codex"] },
             identity: { name: "Plan Neko", theme: "organized strategist cat", emoji: "📋" },
             subagents: { allowAgents: ["research-neko"] }
          }
@@ -379,6 +379,7 @@ merge_config() {
    #   agents.list              → 设置 5 个 Agent 定义
    #   agents.defaults.heartbeat.every → 默认关闭心跳（monitor-neko 在自身定义中覆盖）
    #   bindings                 → nyako 绑定 Telegram
+   #   tools.profile            → 显式设为 coding，避免新版 onboard 默认降到 messaging
    #   skills.load.extraDirs    → 确保包含 nyako skills 路径
    #
    # 不动的字段（举例）：
@@ -405,6 +406,15 @@ merge_config() {
 
       # Telegram 绑定
       .bindings = [{agentId: "nyako", match: {channel: "telegram"}}] |
+
+      # 明确启用 coding 工具集，避免新版默认 messaging 只保留消息类工具
+      .tools = (.tools // {}) |
+      .tools.profile = "coding" |
+      .tools.allow = ["group:fs","group:runtime","group:sessions","group:memory","group:messaging","image"] |
+      .tools.sessions = (.tools.sessions // {}) |
+      .tools.sessions.visibility = "all" |
+      .tools.agentToAgent = (.tools.agentToAgent // {}) |
+      .tools.agentToAgent.enabled = true |
 
       # 确保 skills 目录包含 nyako skills（去重）
       .skills.load.extraDirs = (

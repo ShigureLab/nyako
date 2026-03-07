@@ -74,8 +74,8 @@
         name: "Dev Neko",
         workspace: "${NYAKO_HOME}/workspace-dev-neko",
         model: {
-          primary: "${DEV_MODEL:-openai-codex/gpt-5.3-codex}",
-          fallbacks: ["github-copilot/gpt-5.3-codex", "openai-codex/gpt-5.2-codex"],
+          primary: "${DEV_MODEL:-openai-codex/gpt-5.4}",
+          fallbacks: ["openai-codex/gpt-5.3-codex"],
         },
         identity: {
           name: "Dev Neko",
@@ -94,8 +94,8 @@
         name: "Research Neko",
         workspace: "${NYAKO_HOME}/workspace-research-neko",
         model: {
-          primary: "${RESEARCH_MODEL:-openai-codex/gpt-5.3-codex}",
-          fallbacks: ["github-copilot/gpt-5.3-codex", "github-copilot/claude-opus-4.6"],
+          primary: "${RESEARCH_MODEL:-openai-codex/gpt-5.4}",
+          fallbacks: ["openai-codex/gpt-5.3-codex"],
         },
         identity: {
           name: "Research Neko",
@@ -114,8 +114,8 @@
         name: "Plan Neko",
         workspace: "${NYAKO_HOME}/workspace-plan-neko",
         model: {
-          primary: "${PLAN_MODEL:-openai-codex/gpt-5.3-codex}",
-          fallbacks: ["github-copilot/gpt-5.3-codex", "github-copilot/claude-opus-4.6"],
+          primary: "${PLAN_MODEL:-openai-codex/gpt-5.4}",
+          fallbacks: ["openai-codex/gpt-5.3-codex"],
         },
         identity: {
           name: "Plan Neko",
@@ -147,6 +147,26 @@
     load: {
       // 从 repo 的 skills/ 目录加载共享 skills
       extraDirs: ["${NYAKO_REPO}/skills"],
+    },
+  },
+
+  // OpenClaw 2026.3.2 起本地默认 tools.profile 为 messaging，
+  // 对 nyako 这类需要读写工作区/调用运行时工具的代理不够用。
+  tools: {
+    profile: "coding",
+    allow: [
+      "group:fs",
+      "group:runtime",
+      "group:sessions",
+      "group:memory",
+      "group:messaging",
+      "image",
+    ],
+    sessions: {
+      visibility: "all",
+    },
+    agentToAgent: {
+      enabled: true,
     },
   },
 
