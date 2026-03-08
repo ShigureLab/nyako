@@ -1,16 +1,23 @@
 # Nyako（喵子）
 
-赛博养猫计划 —— 基于 [OpenClaw](https://github.com/openclaw/openclaw) 的多 Agent GitHub 辅助团队。
+赛博养猫计划。
+
+现在的 `nyako v2` 不再把自己绑死在 OpenClaw 上，而是作为 `nyakore` 的上层定义仓存在：
+
+- `nyakore` 负责 runtime、session、run、artifact、terminal host
+- `nyako` 负责 agents、tools、skills、prompt definitions
+- 本机 secrets 与 runtime state 放在 `~/.nyakore/`
+- 仓库根目录下的定义文件可以放心用 git 管理并上传
 
 ## 🐱 团队成员
 
-| Agent                | 角色       | 职责                            | 模型                          |
-| -------------------- | ---------- | ------------------------------- | ----------------------------- |
-| 🐱 **nyako**         | 团队管理者 | 交互 · 调度 · Session 管理      | minimax-portal/MiniMax-M2.5   |
-| 👀 **monitor-neko**  | 哨兵       | 高频轮询 GitHub 通知            | minimax-portal/MiniMax-M2.5   |
-| ⌨️ **dev-neko**      | 工程师     | 开发 · PR 处理 · ACP 调度 Codex | openai-codex/gpt-5.4          |
-| 🔍 **research-neko** | 情报员     | 技术调研 · 方案分析             | openai-codex/gpt-5.4          |
-| 📋 **plan-neko**     | 策略师     | 任务拆解 · 优先级评估           | openai-codex/gpt-5.4          |
+| Agent                | 角色       | 职责                            | 配置位置 |
+| -------------------- | ---------- | ------------------------------- | -------- |
+| 🐱 **nyako**         | 团队管理者 | 交互 · 调度 · Session 管理      | `agents/nyako/agent.toml` |
+| 👀 **monitor-neko**  | 哨兵       | 高频轮询 GitHub 通知            | `agents/monitor-neko/agent.toml` |
+| ⌨️ **dev-neko**      | 工程师     | 开发 · PR 处理 · 调用 coding agent | `agents/dev-neko/agent.toml` |
+| 🔍 **research-neko** | 情报员     | 技术调研 · 方案分析             | `agents/research-neko/agent.toml` |
+| 📋 **plan-neko**     | 策略师     | 任务拆解 · 优先级评估           | `agents/plan-neko/agent.toml` |
 
 ## 快速开始
 
@@ -18,99 +25,127 @@
 
 - Node.js 22+
 - [GitHub CLI](https://cli.github.com/) (`gh`)（已登录）
-- [OpenClaw](https://github.com/openclaw/openclaw)（`npm install -g openclaw@latest`）
+- `nyakore`
 
 ### 安装
 
 ```bash
 git clone https://github.com/ShigureLab/nyako.git
 cd nyako
-# 可选：预设 Telegram 配置
-# export TELEGRAM_BOT_TOKEN="123456:ABC..."
-# export TELEGRAM_CHAT_ID="123456789"
-./setup.sh --install
+mkdir -p ~/.nyakore/providers
+cp providers.example/*.toml ~/.nyakore/providers/
 ```
 
-安装脚本将：
-
-1. 检查前置依赖（`gh`、`openclaw`、`jq`）
-2. 交互式配置各 Agent 的模型
-3. 部署 Agent workspace 和共享 Skills
-4. 生成 OpenClaw 配置
-5. 注册 cron 定时任务
-6. 初始化运行时目录
-7. 安装 `gh-llm` 插件
-8. 部署 `~/.nyako/bin` 运行脚本（session store / doctor / monitor health）
+然后按本机情况填写 `~/.nyakore/providers/*.toml`。
 
 ### 启动
 
+在 `nyako` 仓库目录里启动 `nyakore`：
+
 ```bash
-openclaw gateway --port 18789
+cd ~/Projects/nyako
+nyakore tui
 ```
+
+`nyakore` 会读取：
+
+- repo 内 `runtime.toml`
+- repo 内 `agents/*/agent.toml`
+- repo 内 `tools/*/tool.toml`
+- repo 内 `skills/skills.toml`
+- repo 内 `memory/*.md`
+- 用户目录 `~/.nyakore/providers/*.toml`
 
 ### 更新
 
-当 repo 有更新时，拉取后运行：
+当 repo 有更新时，只需要同步 repo 本身：
 
 ```bash
 git pull
-./setup.sh --update
-```
-
-这将仅同步 Agent workspace 和 Skills 文件，不会重置配置。
-
-### 运维检查
-
-```bash
-# 部署健康检查
-./setup.sh --doctor
-
-# monitor-neko 心跳健康快照
-./setup.sh --monitor-health
 ```
 
 ## 架构
 
-```
-用户 ──Telegram──→ 🐱 nyako ──spawn──→ ⌨️ dev-neko ──ACP──→ Codex
-                       │                    │
-                       │                    └──spawn──→ 🔍 research-neko
-                       │
-                       ├──spawn──→ 📋 plan-neko
-                       │
-GitHub ──notify──→ 👀 monitor-neko ──route──→ Session
+```text
+用户 ──TUI/未来网关──→ 🐱 nyako ──tools──→ Session / Team / Artifacts
+                            │
+                            ├──delegate──→ ⌨️ dev-neko
+                            ├──delegate──→ 🔍 research-neko
+                            ├──delegate──→ 📋 plan-neko
+                            └──delegate──→ 👀 monitor-neko
+
+repo root            定义层，可提交
+~/.nyakore/          secrets + runtime state，本机私有
 ```
 
-详见 [docs/architecture.md](docs/architecture.md)。
+## 配置结构
 
-## 仓库结构
+```text
+runtime.toml
+agents/
+├── nyako/
+│   ├── AGENTS.md
+│   ├── IDENTITY.md
+│   ├── MEMORY.md
+│   ├── agent.toml
+│   └── ...
+├── dev-neko/
+├── research-neko/
+├── plan-neko/
+└── monitor-neko/
 
+tools/
+├── runtime-session/
+│   └── tool.toml
+├── runtime-team/
+│   └── tool.toml
+└── github/
+    └── tool.toml
+
+skills/
+├── github-contribution-guidelines/
+├── github-conversation/
+├── paddlepaddle-contribution-guidelines/
+└── skills.toml
+
+memory/
+└── core.md
 ```
-nyako/
-├── agents/                  # Agent workspace 定义
-│   ├── nyako/               # 🐱 主 Agent
-│   ├── monitor-neko/        # 👀 监控喵
-│   ├── dev-neko/            # ⌨️ 开发喵
-│   ├── research-neko/       # 🔍 调研喵
-│   └── plan-neko/           # 📋 规划喵
-├── skills/                  # 共享 Skills
-│   ├── github-contribution-guidelines/
-│   ├── github-conversation/
-│   └── paddlepaddle-contribution-guidelines/
-├── crons/                   # cron 任务 prompt 文件
-│   ├── dev-pr-review.md     # 每 1h：推进已有 PR
-│   ├── dev-new-task.md      # 每 4h：处理开发任务
-│   └── dev-maintenance.md   # 每周一：低优维护
-├── schemas/                 # 运行时数据 schema
-│   ├── session.schema.md
-│   ├── task.schema.md
-│   └── memory.schema.md
-├── docs/                    # 架构文档
-│   └── architecture.md
-├── openclaw.template.json5  # OpenClaw 配置模板（JSON5）
-├── scripts/                 # 运行脚本（session store / doctor / health）
-└── setup.sh                 # 一键部署脚本
+
+这里放的是定义，不是 secrets。
+
+本机私有层：
+
+```text
+~/.nyakore/
+├── providers/
+│   ├── minimax-default.toml
+│   └── openai-codex-default.toml
+└── projects/
+    └── <repo-slug>-<hash>/
 ```
+
+## 当前状态
+
+第一版已经把以下内容迁成新结构：
+
+- 默认 runtime 索引：`runtime.toml`
+- 5 个 agent 的独立目录式配置
+- `AGENTS.md` 为主提示入口，`IDENTITY.md`、`MEMORY.md` 等文件按需注入
+- repo 级共享长期记忆目录：`memory/`
+- 可扩展的 tool definitions 目录
+- skills registry
+
+当前 prompt 组合顺序由 `nyakore` 负责固定为：
+
+1. `AGENTS.md`
+2. `IDENTITY.md`
+3. `SOUL.md`
+4. `TOOLS.md`
+5. `USER.md`
+6. repo 级 `memory/*.md`
+7. agent 级 `MEMORY.md`
+8. `~/.nyakore/projects/<project>/memory/summary.md`
 
 ## License
 

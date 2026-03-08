@@ -1,0 +1,8 @@
+id = "plan-neko"
+name = "plan-neko"
+role = "planner"
+
+[model]
+model = "openai-codex/gpt-5.4"
+credential = "openai-codex-default"
+thinking = "medium"
