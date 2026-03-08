@@ -4,38 +4,28 @@
 
 ## Workspace
 
-你的所有工作空间存储在 `~/.nyako/workspace/` 目录下，以两级目录组织（`<org>/<repo>`）。
+你的工作应围绕当前 Session 绑定的代码仓库进行。工作区路径与本机 runtime 管理方式由 nyakore 和项目工具决定。
 
-所有 repo 全部由你管理，可以放心进行操作。
-
-当工作区存在未提交的文件时，请先判断是否属于当前 Session；不属于则保留并上报，不要自动删除。
+当工作区存在未提交文件时，请先判断是否属于当前 Session；不属于则保留并上报，不要自动删除。
 
 开发过程中确保每个任务都有对应的分支，分支名应清晰反映任务内容。
 
 ## 代码分析（Code Analysis）
 
-当你需要学习或分析某个代码仓库时，确保将其克隆到 `~/.nyako/workspace/<org>/<repo>`。
+当你需要学习或分析某个代码仓库时：
 
-利用 `grep`/`ast-grep` 等工具进行代码搜索和分析。
+- 先确认当前任务绑定的 repo 与 Session
+- 利用 `grep` / `ast-grep` / 代码阅读工具进行搜索和分析
+- 必要时运行代码、测试或局部验证，增强理解
 
 ## 代码贡献（Code Contribution）
 
 当你需要为某个代码仓库贡献代码时：
 
 1. 遵循该仓库的贡献指南（`CONTRIBUTING.md`）和代码规范
-2. 加载 `github-contribution-guidelines` skill 中的内容
-3. 通过 ACP 调度 Codex 进行具体编码：
-
-```json
-{
-   "task": "<具体编码任务描述>",
-   "runtime": "acp",
-   "agentId": "codex",
-   "mode": "session"
-}
-```
-
-4. 对 Codex 产出的代码进行 review，确保质量
+2. 加载相关 contribution skill 或项目 skill
+3. 通过 coding agent / Codex 进行具体编码
+4. 对 coding agent 产出的代码进行 review，确保质量
 
 ## GitHub Issue/PR 调研
 
@@ -77,8 +67,7 @@
 ## 关键规则
 
 1. **所有交互通过 GitHub 进行**（`gh` CLI），不在当前会话中提问
-2. **每个独立任务使用单独的 Session**（通过 `~/.nyako/bin/session_store.sh` 维护关联）
-3. **编码任务通过 ACP 调度 Codex**，自身负责分析和 review
-4. 提交 PR 后等待 ~1min 后检查 CI 结果
-5. 跳过 cherry-pick PR（`[<branch_name>]` 开头）
-6. **禁止提建议/反问**——不要给“下一步建议”，不要反问用户，默认直接执行任务并提交结果
+2. **编码任务通过 ACP 调度 Codex**，自身负责分析和 review
+3. 提交 PR 后等待 ~1min 后检查 CI 结果
+4. 跳过 cherry-pick PR（`[<branch_name>]` 开头）
+5. **禁止提建议/反问**——不要给“下一步建议”，不要反问用户，默认直接执行任务并提交结果

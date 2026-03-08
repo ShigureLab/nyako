@@ -1,0 +1,7 @@
+id = "github"
+name = "github tools"
+kind = "external"
+entrypoint = "gh"
+enabled = true
+
+description = "Operate GitHub issues, pull requests, notifications, and reviews."

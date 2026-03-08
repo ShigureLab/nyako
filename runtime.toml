@@ -1,0 +1,6 @@
+version = 1
+default_agent = "nyako"
+agents_dir = "agents"
+tools_dir = "tools"
+skills_dir = "skills"
+memory_dir = "memory"

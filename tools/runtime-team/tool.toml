@@ -1,0 +1,7 @@
+id = "runtime-team"
+name = "runtime team tools"
+kind = "runtime"
+entrypoint = "nyakore"
+enabled = true
+
+description = "Manage runtime team member state and assignment bindings."
