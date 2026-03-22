@@ -4,3 +4,8 @@ agents_dir = "agents"
 tools_dir = "tools"
 skills_dir = "skills"
 memory_dir = "memory"
+
+[bash]
+adapter = "rtk"
+rtk_bin = "/opt/homebrew/bin/rtk"
+strict = false

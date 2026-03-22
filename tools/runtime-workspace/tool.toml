@@ -1,0 +1,7 @@
+id = "runtime-workspace"
+name = "runtime workspace tools"
+kind = "runtime"
+entrypoint = "nyakore"
+enabled = true
+
+description = "Inspect and update nyakore workspace bindings for sessions."

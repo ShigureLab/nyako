@@ -1,6 +1,17 @@
 id = "research-neko"
 name = "research-neko"
 role = "researcher"
+tools = [
+    "read",
+    "bash",
+    "grep",
+    "find",
+    "ls",
+    "runtime-session",
+    "runtime-team",
+    "runtime-task",
+    "runtime-workspace",
+]
 
 [model]
 model = "openai-codex/gpt-5.4"
