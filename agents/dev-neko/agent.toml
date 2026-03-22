@@ -1,8 +1,21 @@
 id = "dev-neko"
 name = "dev-neko"
 role = "software-engineer"
+tools = [
+    "read",
+    "bash",
+    "edit",
+    "write",
+    "grep",
+    "find",
+    "ls",
+    "runtime-session",
+    "runtime-team",
+    "runtime-task",
+    "runtime-workspace",
+]
 
 [model]
 model = "openai-codex/gpt-5.4"
 credential = "openai-codex-default"
-thinking = "medium"
+thinking = "xhigh"

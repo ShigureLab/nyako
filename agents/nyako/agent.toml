@@ -1,8 +1,9 @@
 id = "nyako"
 name = "nyako"
 role = "coordinator"
+tools = ["runtime-session", "runtime-team", "runtime-task", "runtime-workspace"]
 
 [model]
-model = "minimax-cn/MiniMax-M2.5"
-credential = "minimax-default"
+model = "openai-codex/gpt-5.4"
+credential = "openai-codex-default"
 thinking = "medium"
