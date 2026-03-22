@@ -1,9 +1,18 @@
 id = "monitor-neko"
 name = "monitor-neko"
 role = "monitor"
-tools = ["read", "bash", "grep", "find", "ls", "runtime-session", "runtime-team", "runtime-task"]
+tools = [
+    "read",
+    "bash",
+    "grep",
+    "find",
+    "ls",
+    "runtime-session",
+    "runtime-team",
+    "runtime-task",
+]
 
 [model]
-model = "minimax-cn/MiniMax-M2.5"
+model = "minimax-cn/MiniMax-M2.7"
 credential = "minimax-default"
 thinking = "off"
