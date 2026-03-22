@@ -102,6 +102,9 @@ tools/
 └── github/
     └── tool.toml
 
+schedules/
+└── github-monitor.md
+
 skills/
 ├── github-contribution-guidelines/
 ├── github-conversation/
