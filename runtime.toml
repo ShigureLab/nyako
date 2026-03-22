@@ -7,5 +7,5 @@ memory_dir = "memory"
 
 [bash]
 adapter = "rtk"
-rtk_bin = "/opt/homebrew/bin/rtk"
+rtk_bin = "rtk"
 strict = false
