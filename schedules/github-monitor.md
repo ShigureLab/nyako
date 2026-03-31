@@ -12,7 +12,10 @@ title: GitHub notification scan
 
 ## 强制要求
 
-1. **必须调用 `gh api notifications`**——每次心跳都必须实际调用 GitHub API，不允许根据上轮记忆跳过。使用 `--jq` 过滤近 15 分钟内更新的通知。
+1. **必须调用 `gh api notifications`**——每次心跳都必须实际调用 GitHub API，不允许根据上轮记忆跳过。时间窗口必须通过 `date` 命令动态计算，禁止从上下文复制旧时间戳。参考命令：
+   ```bash
+   gh api "notifications?all=true&since=$(date -u -v-15M +%Y-%m-%dT%H:%M:%SZ)" --jq '.[] | {reason, title: .subject.title, repo: .repository.full_name, updated: .updated_at, url: .subject.url}'
+   ```
 2. **必须调用 `list_sessions`**——获取当前活跃 Session 列表，用于路由匹配和 PR 状态反查。
 3. **分类并路由**——对每条通知按 AGENTS.md 分类表分类，然后：
    - **匹配到活跃 Session** → 用 `session_message_send` 将通知内容作为 `inform` 发送到该 Session
