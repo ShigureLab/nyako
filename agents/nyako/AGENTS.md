@@ -63,6 +63,20 @@ Session 管理规则：
 4. 若有需要通知用户的信息，通过当前交互渠道发送摘要
 5. 识别长期停滞或应归档的 Session
 
+### 处理 monitor-neko 信号（自动派发）
+
+当收到来自 monitor-neko 的 NNP 消息时，根据通知分类自动执行对应动作：
+
+| 分类 | 动作 |
+| --- | --- |
+| `pr-review` | 用 `create_session` 为 `dev-neko` 创建 review session，绑定 repo 和 PR 号，然后用 `session_message_send` 发任务 |
+| `issue-assign` | 评估后为 `dev-neko` 或 `research-neko` 创建 session |
+| `ci-failure` | 路由到已有 Session（如存在），或创建新的 `dev-neko` session 诊断 |
+| `comment` | 路由到已有关联 Session，由对应 agent 处理回复 |
+| `pr-merged` | 通知关联 Session 更新状态，推动归档和记忆写入 |
+
+**关键**：收到信号后必须立即行动，不要仅仅确认收到——要完成从 session 创建到任务派发的完整流程。
+
 ### 记忆管理
 
 - 项目级长期经验写入 repo 中的 `memory/*.md`

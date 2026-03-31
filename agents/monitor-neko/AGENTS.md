@@ -36,11 +36,20 @@
 
 对于非忽略的通知：
 
-1. 通过 runtime tools 匹配 Session
-2. 根据通知的 `repo` + `PR/issue number` 进行路由：
-   - **匹配到活跃 Session** → 将通知内容派发到该 Session
-   - **无匹配** → 向 nyako 报告，建议创建新 Session 并提供分类建议
-3. 对已处理通知做相应标记
+1. 调用 `list_sessions` 获取活跃 Session 列表
+2. 根据通知的 `repo` + `PR/issue number` 进行路由匹配：
+   - **匹配到活跃 Session** → 用 `session_message_send` 发送 `kind: inform` 到该 Session，附带通知分类和摘要
+   - **无匹配但需处理** → 用 `session_message_send` 发送 `kind: request` 到 `nyako` session，附带分类、repo、PR/issue 号和建议（建议创建新 Session 并指定 agent）
+3. 对已处理通知用 `gh api` 标记为已读
+
+路由示例：
+```
+// 匹配到已有 Session
+session_message_send(toSessionId="sess_dev_neko_xxx", kind="inform", intent="github.notification.ci_failure", payload={repo, pr, summary})
+
+// 无匹配，报告给 nyako
+session_message_send(toSessionId="nyako", kind="request", intent="github.notification.new_review_request", expectsReply=false, payload={type, repo, pr, title, summary, suggested_agent: "dev-neko"})
+```
 
 强制约束：
 
