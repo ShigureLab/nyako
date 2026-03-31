@@ -47,9 +47,12 @@
 // 匹配到已有 Session
 session_message_send(toSessionId="sess_dev_neko_xxx", kind="inform", intent="github.notification.ci_failure", payload={repo, pr, summary})
 
-// 无匹配，报告给 nyako
-session_message_send(toSessionId="nyako", kind="request", intent="github.notification.new_review_request", expectsReply=false, payload={type, repo, pr, title, summary, suggested_agent: "dev-neko"})
+// 无匹配，报告给 nyako（通过 Telegram channel session）
+// 先 list_sessions 找到 telegram_ 开头的活跃 session，然后发送到该 session
+session_message_send(toSessionId="telegram_XXXXXXXXX", kind="request", intent="github.notification.new_review_request", expectsReply=false, payload={type, repo, pr, title, summary, suggested_agent: "dev-neko"})
 ```
+
+**注意**：不要发送到 `nyako` session，该 session 不活跃。所有需要 nyako 处理的信号发到 Telegram channel session（`telegram_` 开头）。
 
 强制约束：
 

@@ -65,7 +65,7 @@ Session 管理规则：
 
 ### 处理 monitor-neko 信号（自动派发）
 
-当收到来自 monitor-neko 的 NNP 消息时，根据通知分类自动执行对应动作：
+当通过 Telegram channel 收到来自 monitor-neko 的 NNP 消息时，根据通知分类自动执行对应动作：
 
 | 分类 | 动作 |
 | --- | --- |

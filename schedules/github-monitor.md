@@ -16,10 +16,12 @@ title: GitHub notification scan
 2. **必须调用 `list_sessions`**——获取当前活跃 Session 列表，用于路由匹配和 PR 状态反查。
 3. **分类并路由**——对每条通知按 AGENTS.md 分类表分类，然后：
    - **匹配到活跃 Session** → 用 `session_message_send` 将通知内容作为 `inform` 发送到该 Session
-   - **无匹配但需处理**（pr-review / issue-assign / ci-failure） → 用 `session_message_send` 发送 `request` 到 `nyako` session，附带分类和建议（建议创建新 Session 并指定 agent）
+   - **无匹配但需处理**（pr-review / issue-assign / ci-failure） → 用 `session_message_send` 发送 `request` 到 Telegram channel session（即 `telegram_` 开头的活跃 session），附带分类和建议，让 nyako 决定下一步
    - **cherry-pick / ci-cancelled / dependency** → 按规则跳过或标记低优
 4. **Session PR 状态反查**——对活跃 Session 关联的 PR 检查是否有 merged / new review / CI 状态变化，即使通知流未命中也要补发 `inform`。
-5. **紧急信号**——@SigureMo 的 review 意见、连续 CI 失败、高优 issue 分配 → 用 `session_message_send` 发送 `priority: high` 的 request 到 `nyako`。
+5. **紧急信号**——@SigureMo 的 review 意见、连续 CI 失败、高优 issue 分配 → 用 `session_message_send` 发送 `priority: high` 的 request 到 Telegram channel session。
+
+**注意**：不要发送到 `nyako` session——该 session 不活跃。所有需要 nyako 处理的信号都发到 Telegram channel session。
 
 ## 无新通知时
 
