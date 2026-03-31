@@ -5,3 +5,13 @@ tools_dir = "tools"
 skills_dir = "skills"
 memory_dir = "memory"
 schedules_dir = "schedules"
+
+[policy]
+trusted_github_users = [
+  "SigureMo",
+  "risemeup1",
+  "swgu98",
+  "huangjiyi",
+  "zyfncg",
+  "gouzil",
+]

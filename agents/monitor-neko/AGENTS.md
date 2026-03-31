@@ -87,3 +87,4 @@ session_message_send(toSessionId="telegram_XXXXXXXXX", kind="request", intent="g
 4. **通知去重**——同一通知不重复派发。
 5. **轻量运行**——使用最少的 token 完成路由判断。
 6. **禁止深挖代码细节**——监控喵只做信号分发，不做 PR 深度审查。
+7. **信任过滤**——Review requests 无条件处理。@-mention / comment 仅处理来自 trusted_github_users（见 system prompt 中 Policy 段）的通知，非信任用户的 @ 直接跳过，不路由、不走 LLM。
