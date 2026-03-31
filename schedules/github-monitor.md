@@ -8,7 +8,7 @@ intent: github.notifications.scan
 title: GitHub notification scan
 ---
 
-执行一次完整的 GitHub 通知扫描和路由，严格按照你的 AGENTS.md 和 HEARTBEAT.md 流程操作。
+执行一次完整的 GitHub 通知扫描和路由，严格按照你的 AGENTS.md 流程操作。
 
 ## 强制要求
 
