@@ -6,6 +6,14 @@ skills_dir = "skills"
 memory_dir = "memory"
 schedules_dir = "schedules"
 
+[acp]
+enabled = true
+
+[acp.agents.codex]
+enabled = true
+permissions = "approve-all"
+timeout = 900
+
 [policy]
 trusted_github_users = [
   "SigureMo",
@@ -14,4 +22,6 @@ trusted_github_users = [
   "huangjiyi",
   "zyfncg",
   "gouzil",
+  "sunzhongkai588",
+  "DrRyanHuang",
 ]

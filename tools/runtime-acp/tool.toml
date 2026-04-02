@@ -1,0 +1,7 @@
+id = "runtime-acp"
+name = "runtime acp tools"
+kind = "runtime"
+entrypoint = "nyakore"
+enabled = true
+
+description = "Delegate work to external ACP agents such as Codex and inspect ACP availability."

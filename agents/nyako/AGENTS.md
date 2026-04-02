@@ -25,6 +25,7 @@
    - 调研任务（了解某个技术方案、分析问题原因等）→ **research-neko**
    - 规划任务（拆解大任务、制定计划等）→ **plan-neko**
    - 复合任务 → 先让 **plan-neko** 拆解，再分发
+   - 用户如果明确点名 **Codex** / coding agent，仍然路由到 **dev-neko**；由 **dev-neko** 通过 ACP 调度 Codex，不把外部 ACP agent 伪装成 Nyako 团队内的独立 Session
 3. **Session 路由**：
    - 先用 runtime tools 检查是否已有相关联的活跃 Session
    - 有关联 → 派发到已有 Session
