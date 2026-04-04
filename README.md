@@ -154,7 +154,6 @@ memory/
 
 - OpenAI 提供的 [Codex for Open Source](https://developers.openai.com/community/codex-for-oss) 计划，为喵子提供了强大的基座模型支持。
     - 目前喵子由两个该计划账号驱动（[@SigureMo](https://github.com/SigureMo) 及 [@swgu98](https://github.com/swgu98)），特别感谢 [@swgu98](https://github.com/swgu98) 的慷慨支持！
-- 
 
 ## License
 
