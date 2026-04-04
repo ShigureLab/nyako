@@ -18,5 +18,5 @@ tools = [
 
 [model]
 model = "openai-codex/gpt-5.4"
-credential = "openai-codex-default"
+credential = "openai-codex-swgu98"
 thinking = "xhigh"

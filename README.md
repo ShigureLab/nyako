@@ -2,7 +2,7 @@
 
 赛博养猫计划。
 
-现在的 `nyako v2` 不再把自己绑死在 OpenClaw 上，而是作为 `nyakore` 的上层定义仓存在：
+## 设计原则
 
 - `nyakore` 负责 runtime、session、run、artifact、terminal host
 - `nyako` 负责 agents、tools、skills、prompt definitions
@@ -149,6 +149,12 @@ memory/
 6. repo 级 `memory/*.md`
 7. agent 级 `MEMORY.md`
 8. `~/.nyakore/projects/<project>/memory/summary.md`
+
+## 特别感谢
+
+- OpenAI 提供的 [Codex for Open Source](https://developers.openai.com/community/codex-for-oss) 计划，为喵子提供了强大的基座模型支持。
+    - 目前喵子由两个该计划账号驱动（[@SigureMo](https://github.com/SigureMo) 及 [@swgu98](https://github.com/swgu98)），特别感谢 [@swgu98](https://github.com/swgu98) 的慷慨支持！
+- 
 
 ## License
 
