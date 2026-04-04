@@ -1,11 +1,9 @@
 ---
 id: github-monitor
-kind: message.request
+kind: session.run
 cron: "*/10 * * * *"
-from: main
-to: sess_monitor_neko_github_watch
-intent: github.notifications.scan
-title: GitHub notification scan
+session: sess_monitor_neko_github_watch
+task: github.notifications.scan
 ---
 
 执行一次完整的 GitHub 通知扫描和路由，严格按照你的 AGENTS.md 流程操作。
@@ -28,13 +26,13 @@ title: GitHub notification scan
    - **cherry-pick / ci-cancelled / dependency** → 按规则跳过或标记低优
 4. **Session PR 状态反查**——对活跃 Session 关联的 PR，以及所有 `author` / reply 类通知，检查是否有 merged / new review / CI 状态变化；已 merged 时优先补发 `pr-merged inform`，未 merged 且处于活跃 review Session 时普通回复也要补路由。
 5. **紧急信号**——@SigureMo 的 review 意见、连续 CI 失败、高优 issue 分配 → 用 `session_message_send` 发送 `priority: high` 的 request 到 Telegram channel session。
-6. **交付语义**——凡是需要上游知晓的结果，必须已经通过 `session_message_send` 显式发送 `inform` / `reply`；凡是需要 nyako 决策或派发下一步的，必须显式发送 `request`；如果本轮还需要对 `from: main` 回报扫描结论，用 `reply`，不要拿最后的文本摘要代替。
+6. **交付语义**——凡是需要下游 Session 知晓的结果，必须已经通过 `session_message_send` 显式发送 `inform` / `reply`；凡是需要 nyako 决策或派发下一步的，必须显式发送 `request`；这条 schedule 直接唤起当前 Session，不存在上游 sender，不要为了定时心跳补发无意义 `reply`。
 
 **注意**：不要发送到 `nyako` session——该 session 不活跃。所有需要 nyako 处理的信号都发到 Telegram channel session。
 
 ## 无新通知时
 
-如果 GitHub API 返回空且 Session 反查无变化，输出简短摘要后结束；但如果本轮被要求向 `from: main` 回报执行结果，则这个 no-op 结果也要显式 `reply`，不要只留文本输出。
+如果 GitHub API 返回空且 Session 反查无变化，输出简短摘要后结束；不要仅因为这是一次定时心跳就额外补发 no-op `reply`。
 
 ## 输出
 
