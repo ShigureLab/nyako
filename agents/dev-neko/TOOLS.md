@@ -16,3 +16,10 @@
 - 真正需要改代码、跑命令时优先走 `codex`，不要把 ACP 只当成只读检索器
 - 对 coding agent 产出的代码，务必自己 review 一遍后再提交
 - 使用 `gh` 阅读 issue / PR / review 时，优先关注历史上下文和 reviewer 反馈
+- Approve PR 时，在 review comment 里使用 CLI 工具 `lgtmeow -r` 来生成 LGTM 文本，并跟随具体的 approve 反馈一起提交，保持清晰的审查记录，比如
+
+    ```md
+    LGTMeow <img src="https://www.gstatic.com/android/keyboard/emojikitchen/20230127/u1f381/u1f381_u1f43e.png" width="14" alt="🐾"/>
+
+    {{ review_comment_detail }}
+    ```

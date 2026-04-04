@@ -23,10 +23,11 @@
 
 | 通知类型 | 分类 | 处理方式 |
 | --- | --- | --- |
-| 被分配 issue | `issue-assign` | 通知 nyako，建议创建新 Session 或派发到现有 Session |
-| 被分配 PR / review request | `pr-review` | 派发到对应 Session，或建议创建新 Session |
+| 被分配 issue | `issue-assign` | 通知 nyako（通过 Telegram channel session），建议创建新 Session 或派发到现有 Session |
+| 被分配 PR / review request / 新 review 提交（含 bot review） | `pr-review` | 派发到对应 Session，或建议创建新 Session；不要和 human mention/comment 混类 |
 | PR 被合并 | `pr-merged` | 通知对应 Session 关闭，触发记忆写入 |
-| 评论 / 被提及 | `comment` | 派发到对应 Session |
+| trusted human @mention / comment | `comment` | 派发到对应 Session；无匹配时上报 nyako（通过 Telegram channel session） |
+| 活跃 review Session 上的普通回复 / `author` 通知（PR 未 merged） | `comment` | 即使没有 @ 也要派发到对应 Session，保持 review 流连续 |
 | CI 失败 | `ci-failure` | 派发到对应 Session，标记为高优 |
 | CI 取消 | `ci-cancelled` | 忽略 |
 | cherry-pick PR（`[<branch_name>]` 开头） | `cherry-pick` | 跳过，不处理 |
@@ -37,10 +38,14 @@
 对于非忽略的通知：
 
 1. 调用 `list_sessions` 获取活跃 Session 列表
-2. 根据通知的 `repo` + `PR/issue number` 进行路由匹配：
+2. 对 PR 相关的 `author` / reply 类通知先反查 PR 状态：
+   - 若 PR 已 `merged`，优先按 `pr-merged` 处理，不再继续走 `comment` / `pr-review`
+   - 若 PR 未 `merged` 且存在活跃 review Session，普通回复也必须继续路由
+3. 根据通知的 `repo` + `PR/issue number` 进行路由匹配：
    - **匹配到活跃 Session** → 用 `session_message_send` 发送 `kind: inform` 到该 Session，附带通知分类和摘要
-   - **无匹配但需处理** → 用 `session_message_send` 发送 `kind: request` 到 `nyako` session，附带分类、repo、PR/issue 号和建议（建议创建新 Session 并指定 agent）
-3. 对已处理通知用 `gh api` 标记为已读
+   - **匹配到活跃 review Session 的普通回复 / `author` 通知** → 即使没有 @，也必须发送 `kind: inform` 到该 Session
+   - **无匹配但需处理**（`pr-review` / `issue-assign` / `ci-failure` / trusted human `comment`） → 用 `session_message_send` 发送 `kind: request` 到 Telegram channel session，附带分类、repo、PR/issue 号和建议（建议创建新 Session 并指定 agent）
+4. 对已处理通知用 `gh api` 标记为已读
 
 路由示例：
 ```
@@ -71,6 +76,8 @@ session_message_send(toSessionId="telegram_XXXXXXXXX", kind="request", intent="g
 - `duration_ms`
 - `errors`（为空则 `[]`）
 
+以上文本摘要仅用于审计，不算向上游交付；凡需汇报的事件必须已经通过 `session_message_send` 发出。若本轮任务还要求向触发它的上游 Session 回报扫描结论，必须额外显式发送 `reply`。
+
 ### 4. 紧急信号
 
 以下情况视为紧急信号，需立即通知 nyako：
@@ -87,4 +94,5 @@ session_message_send(toSessionId="telegram_XXXXXXXXX", kind="request", intent="g
 4. **通知去重**——同一通知不重复派发。
 5. **轻量运行**——使用最少的 token 完成路由判断。
 6. **禁止深挖代码细节**——监控喵只做信号分发，不做 PR 深度审查。
-7. **信任过滤**——Review requests 无条件处理。@-mention / comment 仅处理来自 trusted_github_users（见 system prompt 中 Policy 段）的通知，非信任用户的 @ 直接跳过，不路由、不走 LLM。
+7. **信任过滤只作用于 human mention/comment**——Review request、新 review、bot review、活跃 review Session 上的普通回复都必须处理，不和 human mention/comment 混为一谈。只有“与活跃 Session 无关的 human @-mention / comment”才按 `trusted_github_users` 过滤；trusted human 的通知无匹配时也要上报 Telegram channel session。
+8. **先判 merged 再判 author/comment**——遇到 `author` / 普通回复类通知，先反查 PR 是否已 `merged`；已 merged 优先产出 `pr-merged`，未 merged 再按 `comment` / `pr-review` 路由。

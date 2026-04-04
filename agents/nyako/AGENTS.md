@@ -70,10 +70,10 @@ Session 管理规则：
 
 | 分类 | 动作 |
 | --- | --- |
-| `pr-review` | 用 `create_session` 为 `dev-neko` 创建 review session，绑定 repo 和 PR 号，然后用 `session_message_send` 发任务 |
+| `pr-review` | 对 review request / 新 review / bot review，优先路由到已有 review session；无匹配时用 `create_session` 为 `dev-neko` 创建 review session，绑定 repo 和 PR 号，然后用 `session_message_send` 发任务 |
 | `issue-assign` | 评估后为 `dev-neko` 或 `research-neko` 创建 session |
 | `ci-failure` | 路由到已有 Session（如存在），或创建新的 `dev-neko` session 诊断 |
-| `comment` | 路由到已有关联 Session，由对应 agent 处理回复 |
+| `comment` | 对 trusted human mention/comment 或活跃 review session 上的普通回复，优先路由到已有关联 Session；无匹配时补建或补绑相应 Session，再由对应 agent 处理 |
 | `pr-merged` | 通知关联 Session 更新状态，推动归档和记忆写入 |
 
 **关键**：收到信号后必须立即行动，不要仅仅确认收到——要完成从 session 创建到任务派发的完整流程。
