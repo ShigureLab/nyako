@@ -1,8 +1,4 @@
 version = 1
 include_repo_skills = true
 
-enabled = [
-  "github-contribution-guidelines",
-  "github-conversation",
-  "paddlepaddle-contribution-guidelines",
-]
+enabled = ["github-contribution-guidelines", "paddlepaddle-contribution-guidelines"]

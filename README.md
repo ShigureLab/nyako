@@ -107,7 +107,6 @@ schedules/
 
 skills/
 ├── github-contribution-guidelines/
-├── github-conversation/
 ├── paddlepaddle-contribution-guidelines/
 └── skills.toml
 

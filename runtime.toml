@@ -6,6 +6,12 @@ skills_dir = "skills"
 memory_dir = "memory"
 schedules_dir = "schedules"
 
+[[skills.external]]
+provider = "github"
+repo = "ShigureLab/gh-llm"
+skill = "github-conversation"
+ref = "main"
+
 [acp]
 enabled = true
 
