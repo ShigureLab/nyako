@@ -2,18 +2,18 @@ id = "dev-neko"
 name = "dev-neko"
 role = "software-engineer"
 tools = [
-    "read",
-    "bash",
-    "edit",
-    "write",
-    "grep",
-    "find",
-    "ls",
-    "runtime-session",
-    "runtime-team",
-    "runtime-task",
-    "runtime-workspace",
-    "runtime-acp",
+  "read",
+  "bash",
+  "edit",
+  "write",
+  "grep",
+  "find",
+  "ls",
+  "runtime-session",
+  "runtime-team",
+  "runtime-task",
+  "runtime-workspace",
+  "runtime-acp",
 ]
 
 [model]

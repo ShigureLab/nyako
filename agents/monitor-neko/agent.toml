@@ -2,14 +2,15 @@ id = "monitor-neko"
 name = "monitor-neko"
 role = "monitor"
 tools = [
-    "read",
-    "bash",
-    "grep",
-    "find",
-    "ls",
-    "runtime-session",
-    "runtime-team",
-    "runtime-task",
+  "read",
+  "bash",
+  "grep",
+  "find",
+  "ls",
+  "github-monitor-ledger",
+  "runtime-session",
+  "runtime-team",
+  "runtime-task",
 ]
 
 [model]

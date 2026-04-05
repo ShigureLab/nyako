@@ -8,8 +8,8 @@
 
 ### 1. 收集通知
 
-- 收集 GitHub 通知流（包含已读与未读）
-- 按时间窗口去重处理，避免漏掉已读但刚发生状态变更的线程
+- 收集 GitHub inbox 里当前尚未完成的通知
+- 不要把主扫描限制在最近 `15m` 之类的时间窗口；主扫描依赖 inbox 消费语义，补状态靠 Session 反查和 ledger
 
 补充检查（必须）：
 
@@ -21,17 +21,17 @@
 
 对每条通知进行分类：
 
-| 通知类型 | 分类 | 处理方式 |
-| --- | --- | --- |
-| 被分配 issue | `issue-assign` | 通知 nyako（通过 Telegram channel session），建议创建新 Session 或派发到现有 Session |
-| 被分配 PR / review request / 新 review 提交（含 bot review） | `pr-review` | 派发到对应 Session，或建议创建新 Session；不要和 human mention/comment 混类 |
-| PR 被合并 | `pr-merged` | 通知对应 Session 关闭，触发记忆写入 |
-| trusted human @mention / comment | `comment` | 派发到对应 Session；无匹配时上报 nyako（通过 Telegram channel session） |
-| 活跃 review Session 上的普通回复 / `author` 通知（PR 未 merged） | `comment` | 即使没有 @ 也要派发到对应 Session，保持 review 流连续 |
-| CI 失败 | `ci-failure` | 派发到对应 Session，标记为高优 |
-| CI 取消 | `ci-cancelled` | 忽略 |
-| cherry-pick PR（`[<branch_name>]` 开头） | `cherry-pick` | 跳过，不处理 |
-| Renovate / 依赖更新 PR | `dependency` | 标记为低优，记录供 dev-neko 低频任务处理 |
+| 通知类型                                                         | 分类           | 处理方式                                                                             |
+| ---------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------ |
+| 被分配 issue                                                     | `issue-assign` | 通知 nyako（通过 Telegram channel session），建议创建新 Session 或派发到现有 Session |
+| 被分配 PR / review request / 新 review 提交（含 bot review）     | `pr-review`    | 派发到对应 Session，或建议创建新 Session；不要和 human mention/comment 混类          |
+| PR 被合并                                                        | `pr-merged`    | 通知对应 Session 关闭，触发记忆写入                                                  |
+| trusted human @mention / comment                                 | `comment`      | 派发到对应 Session；无匹配时上报 nyako（通过 Telegram channel session）              |
+| 活跃 review Session 上的普通回复 / `author` 通知（PR 未 merged） | `comment`      | 即使没有 @ 也要派发到对应 Session，保持 review 流连续                                |
+| CI 失败                                                          | `ci-failure`   | 派发到对应 Session，标记为高优                                                       |
+| CI 取消                                                          | `ci-cancelled` | 忽略                                                                                 |
+| cherry-pick PR（`[<branch_name>]` 开头）                         | `cherry-pick`  | 跳过，不处理                                                                         |
+| Renovate / 依赖更新 PR                                           | `dependency`   | 标记为低优，记录供 dev-neko 低频任务处理                                             |
 
 ### 3. Session 路由
 
@@ -45,9 +45,10 @@
    - **匹配到活跃 Session** → 用 `session_message_send` 发送 `kind: inform` 到该 Session，附带通知分类和摘要
    - **匹配到活跃 review Session 的普通回复 / `author` 通知** → 即使没有 @，也必须发送 `kind: inform` 到该 Session
    - **无匹配但需处理**（`pr-review` / `issue-assign` / `ci-failure` / trusted human `comment`） → 用 `session_message_send` 发送 `kind: request` 到 Telegram channel session，附带分类、repo、PR/issue 号和建议（建议创建新 Session 并指定 agent）
-4. 对已处理通知用 `gh api` 标记为已读
+4. 对已处理通知用 `gh api -X DELETE notifications/threads/<thread_id>` 标记为 `done`
 
 路由示例：
+
 ```
 // 匹配到已有 Session
 session_message_send(toSessionId="sess_dev_neko_xxx", kind="inform", intent="github.notification.ci_failure", payload={repo, pr, summary})
@@ -72,7 +73,7 @@ session_message_send(toSessionId="telegram_XXXXXXXXX", kind="request", intent="g
 - `classified`
 - `routed`
 - `unmatched`
-- `marked_read_or_acknowledged`
+- `marked_done`
 - `duration_ms`
 - `errors`（为空则 `[]`）
 
@@ -91,7 +92,7 @@ session_message_send(toSessionId="telegram_XXXXXXXXX", kind="request", intent="g
 1. **不做深度分析**——只分类和路由，深度分析交给对应的 Agent。
 2. **不漏报关键通知**——宁可多一条冗余通知，不可漏掉重要信号。
 3. **cherry-pick PR 一律跳过**——以 `[<branch_name>]` 开头或描述含 `Cherry-pick of` 字样的 PR，不处理。
-4. **通知去重**——同一通知不重复派发。
+4. **通知去重**——同一通知不重复派发，但不允许简单通过 `notification_id`、`head_sha` 去重，因为状态变更可能导致同一通知多次触发不同事件（如 review request → review submit → merged）。必须结合 thread id、当前状态摘要和 Session 反查进行智能去重。GitHub inbox 通知处理完成后要标记 `done`，不要把“只标已读”当成消费完成。
 5. **轻量运行**——使用最少的 token 完成路由判断。
 6. **禁止深挖代码细节**——监控喵只做信号分发，不做 PR 深度审查。
 7. **信任过滤只作用于 human mention/comment**——Review request、新 review、bot review、活跃 review Session 上的普通回复都必须处理，不和 human mention/comment 混为一谈。只有“与活跃 Session 无关的 human @-mention / comment”才按 `trusted_github_users` 过滤；trusted human 的通知无匹配时也要上报 Telegram channel session。

@@ -11,13 +11,13 @@
 
 ## 🐱 团队成员
 
-| Agent                | 角色       | 职责                            | 配置位置 |
-| -------------------- | ---------- | ------------------------------- | -------- |
-| 🐱 **nyako**         | 团队管理者 | 交互 · 调度 · Session 管理      | `agents/nyako/agent.toml` |
-| 👀 **monitor-neko**  | 哨兵       | 高频轮询 GitHub 通知            | `agents/monitor-neko/agent.toml` |
-| ⌨️ **dev-neko**      | 工程师     | 开发 · PR 处理 · 调用 coding agent | `agents/dev-neko/agent.toml` |
-| 🔍 **research-neko** | 情报员     | 技术调研 · 方案分析             | `agents/research-neko/agent.toml` |
-| 📋 **plan-neko**     | 策略师     | 任务拆解 · 优先级评估           | `agents/plan-neko/agent.toml` |
+| Agent                | 角色       | 职责                               | 配置位置                          |
+| -------------------- | ---------- | ---------------------------------- | --------------------------------- |
+| 🐱 **nyako**         | 团队管理者 | 交互 · 调度 · Session 管理         | `agents/nyako/agent.toml`         |
+| 👀 **monitor-neko**  | 哨兵       | 高频轮询 GitHub 通知               | `agents/monitor-neko/agent.toml`  |
+| ⌨️ **dev-neko**      | 工程师     | 开发 · PR 处理 · 调用 coding agent | `agents/dev-neko/agent.toml`      |
+| 🔍 **research-neko** | 情报员     | 技术调研 · 方案分析                | `agents/research-neko/agent.toml` |
+| 📋 **plan-neko**     | 策略师     | 任务拆解 · 优先级评估              | `agents/plan-neko/agent.toml`     |
 
 ## 快速开始
 
@@ -153,7 +153,7 @@ memory/
 ## 特别感谢
 
 - OpenAI 提供的 [Codex for Open Source](https://developers.openai.com/community/codex-for-oss) 计划，为喵子提供了强大的基座模型支持。
-    - 目前喵子由两个该计划账号驱动（[@SigureMo](https://github.com/SigureMo) 及 [@swgu98](https://github.com/swgu98)），特别感谢 [@swgu98](https://github.com/swgu98) 的慷慨支持！
+   - 目前喵子由两个该计划账号驱动（[@SigureMo](https://github.com/SigureMo) 及 [@swgu98](https://github.com/swgu98)），特别感谢 [@swgu98](https://github.com/swgu98) 的慷慨支持！
 
 ## License
 

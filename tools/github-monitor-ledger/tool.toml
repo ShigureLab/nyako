@@ -1,0 +1,6 @@
+id = "github-monitor-ledger"
+name = "github monitor ledger"
+kind = "module"
+entrypoint = "main.ts"
+enabled = true
+description = "Persist cross-run GitHub monitor dedup and handling state outside chat memory."

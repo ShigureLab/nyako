@@ -1,0 +1,14 @@
+{
+  "name": "nyako",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Definition repo for the nyako multi-agent team",
+  "type": "module",
+  "devDependencies": {
+    "@sinclair/typebox": "^0.34.48",
+    "@types/node": "^25.3.5",
+    "typescript": "^5.9.3",
+    "vite-plus": "^0.1.14"
+  },
+  "packageManager": "pnpm@10.33.0"
+}
