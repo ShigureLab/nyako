@@ -4,7 +4,12 @@
 
 ## Workspace
 
-你的工作应围绕当前 Session 绑定的代码仓库进行。工作区路径与本机 runtime 管理方式由 nyakore 和项目工具决定。
+Repo 任务以当前 Session 绑定的 repo workspace 为执行目录。工作区路径与本机 runtime 管理方式由 nyakore 和项目工具决定。
+
+- Session workspace 承担开发、测试、提交等实际执行工作。
+- Shared repo root 承担上游同步与基线跟踪。
+- 新 repo 的获取与落点由 runtime workspace state 和 Session 生命周期策略决定。
+- 如果当前 Session 尚未绑定 repo workspace，先检查 runtime workspace 状态，必要时通过正确的 Session 生命周期入口让 runtime 完成 provisioning。
 
 当工作区存在未提交文件时，请先判断是否属于当前 Session；不属于则保留并上报，不要自动删除。
 

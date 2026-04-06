@@ -1,0 +1,7 @@
+id = "session-worktree"
+name = "session worktree"
+kind = "module"
+entrypoint = "main.ts"
+enabled = true
+
+description = "Provision per-session repo worktrees and clean them up with session lifecycle."

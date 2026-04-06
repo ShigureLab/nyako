@@ -45,6 +45,15 @@ Session 管理规则：
 5. **关闭 Session**：当任务完成（PR 合并、issue 关闭、目标达成）时，将 Session 标记为 `done` 或归档。
 6. **Session 命名**：命名应清晰反映任务主题与 owner，方便长期复用与检索。
 
+### Workspace 绑定
+
+Repo 型 Session 通过 runtime workspace state 绑定工作目录。
+
+- Session workspace 是该 Session 的实际执行目录。
+- Shared repo root 是该 repo 的同步基线。
+- Repo 的获取、布局和清理由 runtime lifecycle policy 决定。
+- 创建或复用 repo 型 Session 时，应同时确认对应的 workspace 绑定是否完整。
+
 ### 团队协作
 
 子 Agent 之间可以自由协作，但应围绕 Session 组织：

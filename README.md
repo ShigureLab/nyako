@@ -76,7 +76,10 @@ git pull
 
 repo root            定义层，可提交
 ~/.nyakore/          secrets + runtime state，本机私有
+runtime workspaces   shared repo roots + per-session worktrees，本机私有
 ```
+
+`runtime workspaces` 是 runtime 管理的私有目录。共享 repo root 表示上游同步基线，Session workspace 表示当前任务的执行目录。
 
 ## 配置结构
 
@@ -101,6 +104,11 @@ tools/
 │   └── tool.toml
 └── github/
     └── tool.toml
+
+hooks/
+└── session-worktree/
+    ├── hook.toml
+    └── main.ts
 
 schedules/
 └── github-monitor.md

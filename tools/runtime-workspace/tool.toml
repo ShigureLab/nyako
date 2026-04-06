@@ -4,4 +4,4 @@ kind = "runtime"
 entrypoint = "nyakore"
 enabled = true
 
-description = "Inspect and update nyakore workspace bindings for sessions."
+description = "Inspect and update runtime workspace bindings for sessions. These bindings define session execution directories, shared synchronization roots, and the project-managed workspace layout under NYAKORE_DATA_ROOT/workspaces."
