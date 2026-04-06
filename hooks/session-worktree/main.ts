@@ -32,6 +32,7 @@ type WorkspaceRecord = {
 
 type WorkspaceRegistryLike = {
   deleteWorkspace(workspaceId: string): Promise<WorkspaceRecord | null>
+  listWorkspaces(): Promise<WorkspaceRecord[]>
   listSessionWorkspaces(sessionId: string): Promise<WorkspaceRecord[]>
   upsertWorkspace(workspace: Omit<WorkspaceRecord, 'updatedAt'>): Promise<WorkspaceRecord>
 }
@@ -70,6 +71,19 @@ function parseRepoSlug(repo: string): { owner: string; repoName: string } | null
     owner: match[1]!,
     repoName: match[2]!,
   }
+}
+
+function buildSessionWorkspaceRoot(dataRoot: string, sessionId: string): string {
+  return path.join(dataRoot, 'workspaces', 'sessions', sessionId)
+}
+
+function isPathWithin(parentDir: string, candidatePath: string | null | undefined): boolean {
+  if (!candidatePath) {
+    return false
+  }
+  const parent = path.resolve(parentDir)
+  const candidate = path.resolve(candidatePath)
+  return candidate === parent || candidate.startsWith(`${parent}${path.sep}`)
 }
 
 function resolveRemoteUrl(repo: string, remoteUrl?: string): string {
@@ -273,8 +287,12 @@ export async function cleanupSessionWorkspace(params: {
 }): Promise<void> {
   const rootPath = params.workspace.rootPath?.trim() || null
   const branch = params.workspace.branch?.trim() || null
+  const isHookManagedWorktree =
+    params.workspace.managedBy === HOOK_ID &&
+    Boolean(rootPath) &&
+    path.resolve(rootPath!) !== path.resolve(params.workspace.path)
 
-  if (rootPath && existsSync(rootPath)) {
+  if (isHookManagedWorktree && rootPath && existsSync(rootPath)) {
     await readGit(['worktree', 'remove', '--force', params.workspace.path], rootPath)
     await execGit(['worktree', 'prune'], rootPath)
     if (branch) {
@@ -299,9 +317,16 @@ async function cleanupManagedSessionWorkspaces(params: {
   context: HookContext
   session: SessionRecord
 }): Promise<void> {
-  const workspaces = await params.context.workspace.listSessionWorkspaces(params.session.id)
+  const sessionRoot = buildSessionWorkspaceRoot(params.context.dataRoot, params.session.id)
+  const workspaces = await params.context.workspace.listWorkspaces()
   for (const workspace of workspaces) {
-    if (workspace.managedBy !== HOOK_ID || workspace.kind !== 'session') {
+    const isSessionScopedWorkspace =
+      workspace.kind === 'session' &&
+      (workspace.currentSessionId === params.session.id ||
+        isPathWithin(sessionRoot, workspace.path) ||
+        isPathWithin(sessionRoot, workspace.rootPath))
+
+    if (!isSessionScopedWorkspace) {
       continue
     }
     await cleanupSessionWorkspace({

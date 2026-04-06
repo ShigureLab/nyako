@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vite-plus/test'
@@ -27,6 +27,9 @@ function createWorkspaceRegistryStub() {
       const existing = records.get(workspaceId) ?? null
       records.delete(workspaceId)
       return existing
+    },
+    async listWorkspaces() {
+      return [...records.values()]
     },
     async listSessionWorkspaces(sessionId: string) {
       return [...records.values()].filter((workspace) => workspace.currentSessionId === sessionId)
@@ -137,5 +140,49 @@ describe('session-worktree hook helpers', () => {
 
     expect(result).toBeUndefined()
     expect(workspace.records.size).toBe(0)
+  })
+
+  it('cleans legacy manual session workspaces under the session workspace root', async () => {
+    const dataRoot = await mkdtemp(path.join(os.tmpdir(), 'nyako-worktree-legacy-'))
+    cleanupRoots.push(dataRoot)
+    const workspace = createWorkspaceRegistryStub()
+    const sessionId = 'sess_dev_neko_legacy_cleanup'
+    const legacyPath = path.join(
+      dataRoot,
+      'workspaces',
+      'sessions',
+      sessionId,
+      'PaddlePaddle',
+      'docs'
+    )
+    await mkdir(legacyPath, { recursive: true })
+    await writeFile(path.join(legacyPath, 'README.md'), '# legacy workspace\n', 'utf8')
+    await workspace.upsertWorkspace({
+      id: 'ws_paddlepaddle_docs',
+      repo: 'PaddlePaddle/docs',
+      path: legacyPath,
+      branch: 'develop',
+      dirty: false,
+      kind: 'session',
+      currentSessionId: null,
+      rootPath: legacyPath,
+      managedBy: 'manual',
+    })
+
+    await sessionWorktreeHook.beforeSessionArchive(
+      {
+        session: {
+          id: sessionId,
+        },
+      },
+      {
+        dataRoot,
+        runtimeConfig: createRuntimeConfigStub(),
+        workspace,
+      }
+    )
+
+    await expect(access(legacyPath)).rejects.toThrow()
+    expect(workspace.records.has('ws_paddlepaddle_docs')).toBe(false)
   })
 })
