@@ -2,6 +2,7 @@ id = "dev-neko"
 name = "dev-neko"
 role = "software-engineer"
 tools = [
+  "dependency-update-ledger",
   "read",
   "bash",
   "edit",

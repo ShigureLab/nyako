@@ -98,6 +98,9 @@ agents/
 └── monitor-neko/
 
 tools/
+├── dependency-update-ledger/
+│   ├── main.ts
+│   └── tool.toml
 ├── runtime-session/
 │   └── tool.toml
 ├── runtime-team/
@@ -111,7 +114,8 @@ hooks/
     └── main.ts
 
 schedules/
-└── github-monitor.md
+├── github-monitor.md
+└── paddle-weekly-tooling-upgrade.md
 
 skills/
 ├── github-contribution-guidelines/

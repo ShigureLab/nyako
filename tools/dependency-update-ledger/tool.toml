@@ -1,0 +1,7 @@
+id = "dependency-update-ledger"
+name = "dependency update ledger"
+kind = "module"
+entrypoint = "main.ts"
+enabled = true
+
+description = "Persist cross-run dependency minor upgrade handling state outside chat memory."
