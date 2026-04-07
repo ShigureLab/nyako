@@ -115,6 +115,7 @@ hooks/
 
 schedules/
 ├── github-monitor.md
+├── session-cleanup.md
 └── paddle-weekly-tooling-upgrade.md
 
 skills/
