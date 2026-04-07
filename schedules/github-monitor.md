@@ -16,7 +16,7 @@ task: github.notifications.scan
    gh api notifications --paginate --jq '.[] | {id, reason, unread, title: .subject.title, repo: .repository.full_name, updated: .updated_at, url: .subject.url}'
    ```
 2. **必须先做 ledger 判重**——对每条通知或补生成状态事件，先调用 `github_monitor_ledger` 的 `action="check"`。`eventKey` 要稳定表示同一线程/事件，`stateDigest` 要反映当前 review/CI/merged 等可行动状态；不要靠会话记忆判断重复或是否已处理。对 GitHub inbox 通知，`eventKey` 应至少包含 `thread_id`。
-3. **必须获取完整上下文**——对于每条通知，必须通过 `gh llm pr view` 或 `gh llm issue view` 获取完整的上下文信息；如果 `gh llm` 不可用，再尝试 `gh-llm ...`。上下文至少要覆盖 PR 的 review 状态、CI 状态、是否 merged，以及 issue 的标签和 assignee 等，以了解除去通知文本之外的关键信息，确定通知所针对的目标是否是自己，以及是否需要处理。
+3. **必须获取完整上下文**——对于每条通知，必须通过 `gh llm pr view` 或 `gh llm issue view` 获取完整的上下文信息（使用方式参考 github-conversation skill）；如果 `gh llm` 不可用，再尝试 `gh-llm ...`。上下文至少要覆盖 PR 的 review 状态、CI 状态、是否 merged，以及 issue 的标签和 assignee 等，以了解除去通知文本之外的关键信息，确定通知所针对的目标是否是自己，以及是否需要处理。
 4. **必须调用 `list_sessions`**——获取当前活跃 Session 列表，用于路由匹配和 PR 状态反查。
 5. **分类并路由**——对每条通知按 AGENTS.md 分类表分类，然后：
    - `pr-review`：review request、新 review 提交、bot review；不要和 human mention/comment 混类
