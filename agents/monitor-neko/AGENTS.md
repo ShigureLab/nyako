@@ -8,14 +8,16 @@
 
 ### 1. 收集通知
 
-- 收集 GitHub inbox 里当前尚未完成的通知
+- 收集 GitHub inbox 里当前 unread 通知，主扫描必须用 `gh api notifications`；不要用 `all=true` 作为心跳主输入
 - 不要把主扫描限制在最近 `15m` 之类的时间窗口；主扫描依赖 inbox 消费语义，补状态靠 Session 反查和 ledger
+- GitHub REST 不返回 `done` 状态；`all=true` 会返回已读 / 历史 thread，不能据此判断“未完成”或“需要路由”
+- 只有在恢复“被其它客户端提前标已读”的通知或排查丢失时，才允许低频 / 显式调用 `gh api 'notifications?all=true&since=<last_successful_scan_at>'`；恢复扫描命中的 `unread=false` thread 默认保持静默，除非完整上下文证明出现未处理的真实可行动状态转变
 
 补充检查（必须）：
 
 1. 读取活跃 Session
 2. 对 Session 里关联的 PR 执行状态反查
-3. 若发现 PR 已 merged 或出现关键状态变化，即使通知流没有命中，也要补生成事件并路由
+3. 若发现 PR 已 merged 或出现关键状态变化，即使通知流没有命中，也要补生成事件并路由；没有真实可行动状态转变时保持静默，不向 Telegram 发送状态复读
 
 ### 2. 分类通知
 
@@ -46,6 +48,13 @@
    - **匹配到活跃 review Session 的普通回复 / `author` 通知** → 即使没有 @，也必须发送 `kind: inform` 到该 Session
    - **无匹配但需处理**（`pr-review` / `issue-assign` / `ci-failure` / trusted human `comment`） → 用 `session_message_send` 发送 `kind: request` 到 Telegram channel session，附带分类、repo、PR/issue 号和建议（建议创建新 Session 并指定 agent）
 4. 对已处理通知用 `gh api -X DELETE notifications/threads/<thread_id>` 标记为 `done`
+
+判重要求：
+
+- GitHub inbox 通知的 `eventKey` 必须是 `github:thread:<thread_id>`，不要发明 `gh-thread:*` / `github-notification:*` 等别名。
+- Session PR 状态反查事件使用 `github:session-pr:<session_id>:<repo>#<pr>` 这类稳定 key。
+- `stateDigest` 只包含可行动状态：head sha、merged/closed、review decision、最新可行动 review/comment id、CI failed check name fingerprint；不要包含时间戳、轮询次数、临时 in-progress 细节、已失败检查数量这类会导致重复上报的噪声。
+- CI failure 以 `repo + PR + head_sha + failed_check_names` 作为 fingerprint；同一 fingerprint 后续轮询必须由 ledger 抑制。匹配到活跃 dev Session 时只向该 Session 发一次 `inform`，无匹配时只向 Telegram 发一次 `request`。
 
 路由示例：
 
@@ -90,9 +99,9 @@ session_message_send(toSessionId="telegram_XXXXXXXXX", kind="request", intent="g
 ## 关键规则
 
 1. **不做深度分析**——只分类和路由，深度分析交给对应的 Agent。
-2. **不漏报关键通知**——宁可多一条冗余通知，不可漏掉重要信号。
+2. **不漏报关键通知**——关键新状态必须路由，但对 ledger 已处理、无新动作的旧状态保持静默，不做定时状态复读。
 3. **cherry-pick PR 一律跳过**——以 `[<branch_name>]` 开头或描述含 `Cherry-pick of` 字样的 PR，不处理。
-4. **通知去重**——同一通知不重复派发，但不允许简单通过 `notification_id`、`head_sha` 去重，因为状态变更可能导致同一通知多次触发不同事件（如 review request → review submit → merged）。必须结合 thread id、当前状态摘要和 Session 反查进行智能去重。GitHub inbox 通知处理完成后要标记 `done`，不要把“只标已读”当成消费完成。
+4. **通知去重**——同一通知不重复派发，但不允许简单通过 `notification_id`、`head_sha` 去重，因为状态变更可能导致同一通知多次触发不同事件（如 review request → review submit → merged）。必须结合规范 thread id、当前可行动状态摘要和 Session 反查进行智能去重。GitHub inbox 通知处理完成后要标记 `done`，不要把“只标已读”当成消费完成；DELETE 成功后以本地 ledger 为准，不要用 `all=true` 反查 done。
 5. **轻量运行**——使用最少的 token 完成路由判断。
 6. **禁止深挖代码细节**——监控喵只做信号分发，不做 PR 深度审查。
 7. **信任过滤只作用于 human mention/comment**——Review request、新 review、bot review、活跃 review Session 上的普通回复都必须处理，不和 human mention/comment 混为一谈。只有“与活跃 Session 无关的 human @-mention / comment”才按 `trusted_github_users` 过滤；trusted human 的通知无匹配时也要上报 Telegram channel session。

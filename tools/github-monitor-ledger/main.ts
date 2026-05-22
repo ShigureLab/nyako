@@ -132,6 +132,27 @@ function normalizeLogin(login: string | undefined): string | null {
   return trimmed ? trimmed.toLowerCase() : null
 }
 
+function canonicalizeEventKey(eventKey: string): string {
+  const trimmed = eventKey.trim()
+  const sessionPrMatch =
+    /^(?:github:)?session-pr(?:-state)?[\s:#_-]+([^:\s]+):([^:#\s]+\/[^:#\s]+)[:#](\d+)$/i.exec(
+      trimmed
+    )
+  if (sessionPrMatch) {
+    return `github:session-pr:${sessionPrMatch[1]}:${sessionPrMatch[2]}#${sessionPrMatch[3]}`
+  }
+  const threadMatch =
+    /^(?:github:thread|github-thread|gh:thread|gh-thread|github:notification|github-notification|github_notification|gh:notification|gh-notification|notification|thread)[\s:#_-]*(\d+)(?:\b.*)?$/i.exec(
+      trimmed
+    )
+  return threadMatch ? `github:thread:${threadMatch[1]}` : trimmed
+}
+
+function normalizeEventInput(event: LedgerEventInput): LedgerEventInput {
+  const eventKey = canonicalizeEventKey(event.eventKey)
+  return eventKey === event.eventKey ? event : { ...event, eventKey }
+}
+
 function slugifySegment(value: string): string {
   const slug = value.replace(/[^a-zA-Z0-9._-]+/g, '_')
   return slug || 'project'
@@ -261,7 +282,7 @@ function ensureEvents(input: GithubMonitorLedgerInput): LedgerEventInput[] {
   if (!Array.isArray(input.events) || input.events.length === 0) {
     throw new Error('github_monitor_ledger requires a non-empty events array')
   }
-  return input.events
+  return input.events.map(normalizeEventInput)
 }
 
 function ensureOutcome(event: LedgerEventInput): LedgerOutcome {

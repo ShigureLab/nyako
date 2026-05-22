@@ -142,4 +142,90 @@ describe('github-monitor-ledger tool', () => {
       targetSessionId: 'sess_monitor_neko_github_watch',
     })
   })
+
+  it('canonicalizes GitHub notification thread key aliases', async () => {
+    const tool = registerTool()
+
+    const firstCheck = await tool.execute('call_1', {
+      action: 'check',
+      events: [
+        {
+          eventKey: 'github:notification:23960089331',
+          stateDigest: 'ci=failure|head=abc|failed=Check PR Template',
+        },
+      ],
+    })
+
+    expect(firstCheck.details.results[0]).toMatchObject({
+      eventKey: 'github:thread:23960089331',
+      seenStatus: 'new',
+      shouldAct: true,
+    })
+
+    await tool.execute('call_2', {
+      action: 'record',
+      events: [
+        {
+          eventKey: 'github-notification:23960089331:thread',
+          stateDigest: 'ci=failure|head=abc|failed=Check PR Template',
+          outcome: 'routed',
+        },
+      ],
+    })
+
+    const secondCheck = await tool.execute('call_3', {
+      action: 'check',
+      events: [
+        {
+          eventKey: 'gh-thread:23960089331:ci_activity:PaddlePaddle/Paddle',
+          stateDigest: 'ci=failure|head=abc|failed=Check PR Template',
+        },
+      ],
+    })
+
+    expect(secondCheck.details.results[0]).toMatchObject({
+      eventKey: 'github:thread:23960089331',
+      seenStatus: 'seen_repeat',
+      handledStatus: 'handled_repeat',
+      shouldAct: false,
+    })
+
+    const ledgerPath = secondCheck.details.ledgerPath as string
+    const ledger = JSON.parse(await readFile(ledgerPath, 'utf8')) as {
+      entries: Record<string, unknown>
+    }
+
+    expect(Object.keys(ledger.entries)).toEqual(['github:thread:23960089331'])
+  })
+
+  it('canonicalizes session PR state key aliases', async () => {
+    const tool = registerTool()
+
+    await tool.execute('call_1', {
+      action: 'record',
+      events: [
+        {
+          eventKey: 'session-pr:sess_dev:PaddlePaddle/Paddle#79104',
+          stateDigest: 'head=abc|review=required|ci=failed:Check approval',
+          outcome: 'routed',
+        },
+      ],
+    })
+
+    const check = await tool.execute('call_2', {
+      action: 'check',
+      events: [
+        {
+          eventKey: 'github:session-pr-state:sess_dev:PaddlePaddle/Paddle:79104',
+          stateDigest: 'head=abc|review=required|ci=failed:Check approval',
+        },
+      ],
+    })
+
+    expect(check.details.results[0]).toMatchObject({
+      eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79104',
+      handledStatus: 'handled_repeat',
+      shouldAct: false,
+    })
+  })
 })
