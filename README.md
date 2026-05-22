@@ -101,6 +101,8 @@ tools/
 ├── dependency-update-ledger/
 │   ├── main.ts
 │   └── tool.toml
+├── runtime-memory/
+│   └── tool.toml
 ├── runtime-session/
 │   └── tool.toml
 ├── runtime-team/
@@ -114,6 +116,7 @@ hooks/
     └── main.ts
 
 schedules/
+├── memory-review.md
 ├── github-monitor.md
 ├── session-cleanup.md
 └── paddle-weekly-tooling-upgrade.md
@@ -135,7 +138,7 @@ memory/
 ~/.nyakore/
 ├── providers/
 │   ├── minimax-default.toml
-│   └── openai-codex-default.toml
+│   └── openai-codex-swgu98.toml
 └── projects/
     └── <repo-slug>-<hash>/
 ```
@@ -160,7 +163,7 @@ memory/
 5. `USER.md`
 6. repo 级 `memory/*.md`
 7. agent 级 `MEMORY.md`
-8. `~/.nyakore/projects/<project>/memory/summary.md`
+8. `~/.nyakore/projects/<project>/memory/projections/summary.md`
 
 ## 特别感谢
 

@@ -14,6 +14,6 @@ tools = [
 ]
 
 [model]
-model = "minimax-cn/MiniMax-M2.7"
-credential = "minimax-default"
-thinking = "high"
+model = "openai-codex/gpt-5.5"
+credential = "openai-codex-swgu98"
+thinking = "medium"

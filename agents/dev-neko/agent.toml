@@ -18,6 +18,6 @@ tools = [
 ]
 
 [model]
-model = "openai-codex/gpt-5.4"
+model = "openai-codex/gpt-5.5"
 credential = "openai-codex-swgu98"
 thinking = "xhigh"

@@ -10,6 +10,8 @@ task: scheduled.paddle.weekly_tooling_upgrade
 
 请处理一个周期性维护任务：检查 `PaddlePaddle/Paddle` 中 `ast-grep`、`typos`、`ruff`、`yamlfmt` 是否出现新的 minor 版本；如果有，在修复升级带来的新问题后提交 PR。不要因为同一个 minor 内的 patch 漂移反复开 PR。
 
+更新之后请同步在 `PaddlePaddle/docs` repo 更新相关工具版本说明。并同步升级 `PaddlePaddle/docs` 相关工具的版本（如果有的话），保持一致。
+
 ## 强制要求
 
 1. 由当前 Telegram channel session 负责接手这条周期任务，并继续路由到合适的 `dev-neko` Session；不要停留在仅确认收到。

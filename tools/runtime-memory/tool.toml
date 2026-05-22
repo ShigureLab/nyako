@@ -1,0 +1,7 @@
+id = "runtime-memory"
+name = "runtime memory tools"
+kind = "runtime"
+entrypoint = "nyakore"
+enabled = true
+
+description = "Inspect runtime-managed memory, review pending memory candidates, and promote durable memory records."
