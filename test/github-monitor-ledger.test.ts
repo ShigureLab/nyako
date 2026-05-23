@@ -198,7 +198,7 @@ describe('github-monitor-ledger tool', () => {
     expect(Object.keys(ledger.entries)).toEqual(['github:thread:23960089331'])
   })
 
-  it('auto-suppresses PaddlePaddle-bot events as ignored actors', async () => {
+  it('auto-suppresses configured Paddle bot events as ignored actors', async () => {
     const tool = registerTool()
 
     const firstCheck = await tool.execute('call_1', {
@@ -255,6 +255,26 @@ describe('github-monitor-ledger tool', () => {
       isIgnoredActor: true,
       lastHandledOutcome: 'suppressed',
       intent: 'github.notification.ignored_actor',
+    })
+
+    const ciBotCheck = await tool.execute('call_3', {
+      action: 'check',
+      events: [
+        {
+          eventKey: 'github:thread:30002',
+          stateDigest: 'ci=commented|comment=bot-status-1',
+          actorLogin: 'Paddle-CI-Bot',
+        },
+      ],
+    })
+
+    expect(ciBotCheck.details.results[0]).toMatchObject({
+      eventKey: 'github:thread:30002',
+      actorLogin: 'paddle-ci-bot',
+      isIgnoredActor: true,
+      shouldAct: false,
+      lastHandledOutcome: 'suppressed',
+      handledCount: 1,
     })
   })
 
