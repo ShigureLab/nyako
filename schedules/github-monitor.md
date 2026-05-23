@@ -17,22 +17,23 @@ task: github.notifications.scan
    ```
 2. **`all=true` 只能做恢复扫描**——只有在需要恢复“被其它客户端提前标已读”的通知、或排查丢失时，才允许低频 / 显式调用 `gh api 'notifications?all=true&since=<last_successful_scan_at>'`。恢复扫描命中的 `unread=false` thread 默认视为历史/已读候选，必须先做 ledger 判重并获取完整上下文；只有确认出现未处理的真实可行动状态转变（新 human review/comment、新 head、merged/closed、approval gate 变化、CI failure fingerprint 变化）时才允许路由。否则记录 `suppressed`，必要时 DELETE 消费，但禁止向 Telegram 发送“旧 CI / 已路由 / 无新动作”的 request。
 3. **必须先做 ledger 判重**——对每条通知或补生成状态事件，先调用 `github_monitor_ledger` 的 `action="check"`。GitHub inbox 通知的 `eventKey` 必须使用规范格式 `github:thread:<thread_id>`，不要发明 `gh-thread:*` / `github-notification:*` 等别名。Session PR 状态反查事件使用 `github:session-pr:<session_id>:<repo>#<pr>` 这类稳定 key。`stateDigest` 只包含可行动状态：head sha、merged/closed、review decision、最新可行动 review/comment id、CI failed check name fingerprint；不要包含时间戳、轮询次数、临时 in-progress 细节、已失败检查数量这类会导致重复上报的噪声。不要靠会话记忆判断重复或是否已处理。
-4. **必须获取完整上下文**——对于每条通知，必须通过 `gh llm pr view` 或 `gh llm issue view` 获取完整的上下文信息（使用方式参考 github-conversation skill）；如果 `gh llm` 不可用，再尝试 `gh-llm ...`。上下文至少要覆盖 PR 的 review 状态、CI 状态、是否 merged，以及 issue 的标签和 assignee 等，以了解除去通知文本之外的关键信息，确定通知所针对的目标是否是自己，以及是否需要处理。
-5. **必须调用 `list_sessions`**——获取当前活跃 Session 列表，用于路由匹配和 PR 状态反查。
-6. **分类并路由**——对每条通知按 AGENTS.md 分类表分类，然后：
-   - `pr-review`：review request、新 review 提交、bot review；不要和 human mention/comment 混类
+4. **ignored actor 硬忽略**——如果通知、review、comment 或状态上下文的作者 / 触发者 login 命中 `runtime.toml` 的 `[policy.github_monitor].ignored_actor_logins`，必须把 `actorLogin` 设为该 login 调用 `github_monitor_ledger action="check"`；ledger 会返回 `isIgnoredActor=true`、`shouldAct=false` 并自动 suppressed。此类事件不获取更多深度上下文、不调用 `session_message_send`、不发 Telegram request；只在最后 DELETE 对应 inbox thread 标记 done。
+5. **必须获取完整上下文**——对于非 ignored actor 的每条通知，必须通过 `gh llm pr view` 或 `gh llm issue view` 获取完整的上下文信息（使用方式参考 github-conversation skill）；如果 `gh llm` 不可用，再尝试 `gh-llm ...`。上下文至少要覆盖 PR 的 review 状态、CI 状态、是否 merged，以及 issue 的标签和 assignee 等，以了解除去通知文本之外的关键信息，确定通知所针对的目标是否是自己，以及是否需要处理。
+6. **必须调用 `list_sessions`**——获取当前活跃 Session 列表，用于路由匹配和 PR 状态反查。
+7. **分类并路由**——对每条非 ignored-bot 通知按 AGENTS.md 分类表分类，然后：
+   - `pr-review`：review request、新 review 提交、非 ignored bot review；不要和 human mention/comment 混类
    - `comment`：trusted human mention/comment，以及活跃 review Session 上 PR 未 merged 的普通回复 / `author` 通知
    - `pr-merged`：通知流明确显示已 merged，或对 `author` / reply 类通知反查后确认已 merged
    - **匹配到活跃 Session** → 用 `session_message_send` 将通知内容作为 `inform` 发送到该 Session
    - **活跃 review Session 上的普通回复 / `author` 通知** → 即使没有 @，也要路由到对应 Session
    - **无匹配但需处理**（`pr-review` / `issue-assign` / `ci-failure` / trusted human `comment`） → 用 `session_message_send` 发送 `request` 到 Telegram channel session（即 `telegram_` 开头的活跃 session），附带分类和建议，让 nyako 决定下一步
    - **cherry-pick / ci-cancelled / dependency** → 按规则跳过或标记低优
-7. **Session PR 状态反查**——对活跃 Session 关联的 PR，以及所有 `author` / reply 类通知，检查是否有 merged / new review / CI 状态变化；已 merged 时优先补发 `pr-merged inform`，未 merged 且处于活跃 review Session 时普通回复也要补路由。没有真实可行动状态转变时必须保持静默，不要向 Telegram 发送“仍在失败 / 已经路由 / 等待 approval”的状态复读。
-8. **CI 失败聚合**——CI failure 以 `repo + PR + head_sha + failed_check_names` 作为 fingerprint。匹配到活跃 dev Session 时只向该 Session 发一次 `inform`；无匹配时只向 Telegram 发一次 `request`。同一 fingerprint 后续轮询命中必须由 ledger 抑制，除非 head sha 或 failed check set 发生变化。连续 CI 失败只在首次确认连续失败时作为 high priority，不要每轮重复升级。
-9. **紧急信号**——@SigureMo 的 review 意见、高优 issue 分配、首次确认的连续 CI 失败 → 用 `session_message_send` 发送 `priority: high` 的 request 到 Telegram channel session。已经发给活跃 dev Session 且无新决策需求的事件，不要再发 Telegram request。
-10.   **交付语义**——凡是需要下游 Session 知晓的结果，必须已经通过 `session_message_send` 显式发送 `inform` / `reply`；凡是需要 nyako 决策或派发下一步的，必须显式发送 `request`；这条 schedule 直接唤起当前 Session，不存在上游 sender，不要为了定时心跳补发无意义 `reply`。
-11.   **必须记录处理结果**——对已经成功派发的事件，且 `session_message_send` 明确返回成功 / message id 后，立即调用 `github_monitor_ledger` 的 `action="record"` 并记录 `outcome="routed"`；对明确决定忽略且后续不应重复上报的事件，记录 `outcome="suppressed"`。如果发送失败、工具不可用、目标 Session 未确认、或无法确认交付，不要记录。
-12.   **必须消费 inbox 通知**——凡是本轮已经成功处理完的 GitHub inbox 通知，无论是已路由还是明确抑制，都必须在最后用 thread id 调 `gh api -X DELETE notifications/threads/<thread_id>` 标记为 `done`。GitHub 里的 `done` 不是 `read`；不要只做 `PATCH .../threads/<thread_id>` 标记已读。DELETE 成功后以本地 ledger 记录为准；不要再用 `all=true` 反查是否 done。只有在处理失败、路由失败、上下文未拿全时，才允许保留未完成状态以便下轮继续处理。
+8. **Session PR 状态反查**——对活跃 Session 关联的 PR，以及所有 `author` / reply 类通知，检查是否有 merged / new review / CI 状态变化；已 merged 时优先补发 `pr-merged inform`，未 merged 且处于活跃 review Session 时普通回复也要补路由。没有真实可行动状态转变时必须保持静默，不要向 Telegram 发送“仍在失败 / 已经路由 / 等待 approval”的状态复读。
+9. **CI 失败聚合**——CI failure 以 `repo + PR + head_sha + failed_check_names` 作为 fingerprint。匹配到活跃 dev Session 时只向该 Session 发一次 `inform`；无匹配时只向 Telegram 发一次 `request`。同一 fingerprint 后续轮询命中必须由 ledger 抑制，除非 head sha 或 failed check set 发生变化。连续 CI 失败只在首次确认连续失败时作为 high priority，不要每轮重复升级。
+10.   **紧急信号**——@SigureMo 的 review 意见、高优 issue 分配、首次确认的连续 CI 失败 → 用 `session_message_send` 发送 `priority: high` 的 request 到 Telegram channel session。已经发给活跃 dev Session 且无新决策需求的事件，不要再发 Telegram request。
+11.   **交付语义**——凡是需要下游 Session 知晓的结果，必须已经通过 `session_message_send` 显式发送 `inform` / `reply`；凡是需要 nyako 决策或派发下一步的，必须显式发送 `request`；这条 schedule 直接唤起当前 Session，不存在上游 sender，不要为了定时心跳补发无意义 `reply`。
+12.   **必须记录处理结果**——对已经成功派发的事件，且 `session_message_send` 明确返回成功 / message id 后，立即调用 `github_monitor_ledger` 的 `action="record"` 并记录 `outcome="routed"`；对明确决定忽略且后续不应重复上报的事件，记录 `outcome="suppressed"`。ignored actor 由 ledger check 自动 suppressed，无需重复 record。如果发送失败、工具不可用、目标 Session 未确认、或无法确认交付，不要记录。
+13.   **必须消费 inbox 通知**——凡是本轮已经成功处理完的 GitHub inbox 通知，无论是已路由还是明确抑制，都必须在最后用 thread id 调 `gh api -X DELETE notifications/threads/<thread_id>` 标记为 `done`。GitHub 里的 `done` 不是 `read`；不要只做 `PATCH .../threads/<thread_id>` 标记已读。DELETE 成功后以本地 ledger 记录为准；不要再用 `all=true` 反查是否 done。只有在处理失败、路由失败、上下文未拿全时，才允许保留未完成状态以便下轮继续处理。
 
 **注意**：不要发送到 `nyako` session——该 session 不活跃。所有需要 nyako 处理的信号都发到 Telegram channel session。
 

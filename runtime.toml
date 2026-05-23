@@ -32,3 +32,6 @@ trusted_github_users = [
   "sunzhongkai588",
   "DrRyanHuang",
 ]
+
+[policy.github_monitor]
+ignored_actor_logins = ["PaddlePaddle-bot"]

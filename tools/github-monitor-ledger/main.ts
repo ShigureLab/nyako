@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdirSync, realpathSync } from 'node:fs'
+import { mkdirSync, readFileSync, realpathSync } from 'node:fs'
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -60,6 +60,12 @@ const githubMonitorLedgerSchema = Type.Object(
           'GitHub logins that should count as self-authored when matching actorLogin values.',
       })
     ),
+    ignoredActorLogins: Type.Optional(
+      Type.Array(Type.String(), {
+        description:
+          'Additional GitHub logins that should be auto-suppressed when matching actorLogin values. Project defaults are loaded from [policy.github_monitor].ignored_actor_logins in runtime.toml.',
+      })
+    ),
     events: Type.Optional(
       Type.Array(ledgerEventSchema, {
         description: 'Events to check or record.',
@@ -83,6 +89,7 @@ type LedgerEntry = {
   seenCount: number
   actorLogin: string | null
   isSelfAuthored: boolean
+  isIgnoredActor: boolean
   lastHandledAt: string | null
   lastHandledDigest: string | null
   lastHandledOutcome: LedgerOutcome | null
@@ -105,6 +112,7 @@ type CheckResult = {
   stateDigest: string
   actorLogin: string | null
   isSelfAuthored: boolean
+  isIgnoredActor: boolean
   seenStatus: SeenStatus
   handledStatus: HandledStatus
   shouldAct: boolean
@@ -121,6 +129,7 @@ type RecordResult = {
   handledStatus: HandledStatus
   actorLogin: string | null
   isSelfAuthored: boolean
+  isIgnoredActor: boolean
   handledCount: number
   targetSessionId: string | null
   messageKind: string | null
@@ -130,6 +139,14 @@ type RecordResult = {
 function normalizeLogin(login: string | undefined): string | null {
   const trimmed = login?.trim()
   return trimmed ? trimmed.toLowerCase() : null
+}
+
+function buildLoginSet(logins: readonly string[] | undefined, defaults: readonly string[] = []) {
+  return new Set(
+    [...defaults, ...(logins ?? [])]
+      .map((login) => normalizeLogin(login))
+      .filter((login): login is string => login !== null)
+  )
 }
 
 function canonicalizeEventKey(eventKey: string): string {
@@ -163,6 +180,31 @@ function resolveProjectRoot(): string {
     return realpathSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..'))
   } catch {
     return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
+  }
+}
+
+function parseTomlStringArray(section: string, key: string): string[] {
+  const pattern = new RegExp(`(?:^|\\n)\\s*${key}\\s*=\\s*\\[([\\s\\S]*?)\\]`, 'm')
+  const match = pattern.exec(section)
+  if (!match) {
+    return []
+  }
+  return Array.from(match[1].matchAll(/"((?:\\.|[^"\\])*)"/g), (item) => {
+    try {
+      return JSON.parse(`"${item[1]}"`) as string
+    } catch {
+      return item[1]
+    }
+  }).filter((item) => item.trim())
+}
+
+function readConfiguredIgnoredActorLogins(projectRoot = resolveProjectRoot()): string[] {
+  try {
+    const raw = readFileSync(path.join(projectRoot, 'runtime.toml'), 'utf8')
+    const sectionMatch = /(?:^|\n)\[policy\.github_monitor\]\s*\n([\s\S]*?)(?=\n\[|$)/.exec(raw)
+    return sectionMatch ? parseTomlStringArray(sectionMatch[1], 'ignored_actor_logins') : []
+  } catch {
+    return []
   }
 }
 
@@ -297,6 +339,7 @@ function ensureOutcome(event: LedgerEventInput): LedgerOutcome {
 function createEmptyEntry(
   event: LedgerEventInput,
   isSelfAuthored: boolean,
+  isIgnoredActor: boolean,
   now: string
 ): LedgerEntry {
   return {
@@ -307,6 +350,7 @@ function createEmptyEntry(
     seenCount: 0,
     actorLogin: normalizeLogin(event.actorLogin),
     isSelfAuthored,
+    isIgnoredActor,
     lastHandledAt: null,
     lastHandledDigest: null,
     lastHandledOutcome: null,
@@ -339,6 +383,7 @@ function summarizeCheck(results: CheckResult[]): string {
     total: results.length,
     shouldAct: results.filter((item) => item.shouldAct).length,
     selfAuthored: results.filter((item) => item.isSelfAuthored).length,
+    ignoredActor: results.filter((item) => item.isIgnoredActor).length,
     seenNew: results.filter((item) => item.seenStatus === 'new').length,
     seenChanged: results.filter((item) => item.seenStatus === 'seen_changed').length,
     handledRepeat: results.filter((item) => item.handledStatus === 'handled_repeat').length,
@@ -347,6 +392,7 @@ function summarizeCheck(results: CheckResult[]): string {
     `checked ${summary.total} event(s)`,
     `should_act=${summary.shouldAct}`,
     `self_authored=${summary.selfAuthored}`,
+    `ignored_actor=${summary.ignoredActor}`,
     `seen_new=${summary.seenNew}`,
     `seen_changed=${summary.seenChanged}`,
     `handled_repeat=${summary.handledRepeat}`,
@@ -366,7 +412,11 @@ function summarizeRecord(results: RecordResult[]): string {
 }
 
 async function handleCheck(input: GithubMonitorLedgerInput) {
-  const selfLogins = new Set((input.selfLogins ?? []).map(normalizeLogin).filter(Boolean))
+  const selfLogins = buildLoginSet(input.selfLogins)
+  const ignoredActorLogins = buildLoginSet(
+    input.ignoredActorLogins,
+    readConfiguredIgnoredActorLogins()
+  )
   const results = await withLedgerState(async (state) => {
     const now = new Date().toISOString()
     return ensureEvents(input).map((event) => {
@@ -375,6 +425,9 @@ async function handleCheck(input: GithubMonitorLedgerInput) {
       const isSelfAuthored = actorLogin
         ? selfLogins.has(actorLogin)
         : (existing?.isSelfAuthored ?? false)
+      const isIgnoredActor = actorLogin
+        ? ignoredActorLogins.has(actorLogin)
+        : (existing?.isIgnoredActor ?? false)
       const seenStatus = resolveSeenStatus(existing, event)
       const handledStatus = resolveHandledStatus(existing, event)
       const next = existing
@@ -382,20 +435,31 @@ async function handleCheck(input: GithubMonitorLedgerInput) {
             ...existing,
             actorLogin: actorLogin ?? existing.actorLogin,
             isSelfAuthored,
+            isIgnoredActor,
             lastSeenAt: now,
             lastSeenDigest: event.stateDigest,
           }
-        : createEmptyEntry(event, isSelfAuthored, now)
+        : createEmptyEntry(event, isSelfAuthored, isIgnoredActor, now)
       next.seenCount += 1
+      if (isIgnoredActor && next.lastHandledDigest !== event.stateDigest) {
+        next.lastHandledAt = now
+        next.lastHandledDigest = event.stateDigest
+        next.lastHandledOutcome = 'suppressed'
+        next.handledCount += 1
+        next.targetSessionId = null
+        next.messageKind = null
+        next.intent = 'github.notification.ignored_actor'
+      }
       state.entries[event.eventKey] = next
       return {
         eventKey: event.eventKey,
         stateDigest: event.stateDigest,
         actorLogin: next.actorLogin,
         isSelfAuthored,
+        isIgnoredActor,
         seenStatus,
         handledStatus,
-        shouldAct: next.lastHandledDigest !== event.stateDigest,
+        shouldAct: !isIgnoredActor && next.lastHandledDigest !== event.stateDigest,
         lastHandledOutcome: next.lastHandledOutcome,
         lastHandledAt: next.lastHandledAt,
         seenCount: next.seenCount,
@@ -415,7 +479,11 @@ async function handleCheck(input: GithubMonitorLedgerInput) {
 }
 
 async function handleRecord(input: GithubMonitorLedgerInput) {
-  const selfLogins = new Set((input.selfLogins ?? []).map(normalizeLogin).filter(Boolean))
+  const selfLogins = buildLoginSet(input.selfLogins)
+  const ignoredActorLogins = buildLoginSet(
+    input.ignoredActorLogins,
+    readConfiguredIgnoredActorLogins()
+  )
   const results = await withLedgerState(async (state) => {
     const now = new Date().toISOString()
     return ensureEvents(input).map((event) => {
@@ -424,6 +492,9 @@ async function handleRecord(input: GithubMonitorLedgerInput) {
       const isSelfAuthored = actorLogin
         ? selfLogins.has(actorLogin)
         : (existing?.isSelfAuthored ?? false)
+      const isIgnoredActor = actorLogin
+        ? ignoredActorLogins.has(actorLogin)
+        : (existing?.isIgnoredActor ?? false)
       const outcome = ensureOutcome(event)
       const handledStatus = resolveHandledStatus(existing, event)
       const next = existing
@@ -431,10 +502,11 @@ async function handleRecord(input: GithubMonitorLedgerInput) {
             ...existing,
             actorLogin,
             isSelfAuthored,
+            isIgnoredActor,
             lastSeenAt: existing.lastSeenAt,
             lastSeenDigest: existing.lastSeenDigest,
           }
-        : createEmptyEntry(event, isSelfAuthored, now)
+        : createEmptyEntry(event, isSelfAuthored, isIgnoredActor, now)
       if (!existing) {
         next.seenCount = 1
       }
@@ -453,6 +525,7 @@ async function handleRecord(input: GithubMonitorLedgerInput) {
         handledStatus,
         actorLogin: next.actorLogin,
         isSelfAuthored,
+        isIgnoredActor,
         handledCount: next.handledCount,
         targetSessionId: next.targetSessionId,
         messageKind: next.messageKind,
@@ -482,6 +555,7 @@ async function handleStats() {
       totalEntries: entries.length,
       selfAuthoredEntries: entries.filter((entry) => entry.isSelfAuthored).length,
       handledEntries: entries.filter((entry) => entry.lastHandledDigest !== null).length,
+      ignoredActorEntries: entries.filter((entry) => entry.isIgnoredActor).length,
       updatedAt: state.updatedAt,
     }
   })

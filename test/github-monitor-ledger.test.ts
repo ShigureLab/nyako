@@ -198,6 +198,66 @@ describe('github-monitor-ledger tool', () => {
     expect(Object.keys(ledger.entries)).toEqual(['github:thread:23960089331'])
   })
 
+  it('auto-suppresses PaddlePaddle-bot events as ignored actors', async () => {
+    const tool = registerTool()
+
+    const firstCheck = await tool.execute('call_1', {
+      action: 'check',
+      events: [
+        {
+          eventKey: 'github:thread:30001',
+          stateDigest: 'review=commented|comment=bot-review-1',
+          actorLogin: 'PaddlePaddle-bot',
+        },
+      ],
+    })
+
+    expect(firstCheck.details.results[0]).toMatchObject({
+      eventKey: 'github:thread:30001',
+      actorLogin: 'paddlepaddle-bot',
+      isIgnoredActor: true,
+      shouldAct: false,
+      lastHandledOutcome: 'suppressed',
+      handledCount: 1,
+    })
+
+    const secondCheck = await tool.execute('call_2', {
+      action: 'check',
+      events: [
+        {
+          eventKey: 'github:notification:30001',
+          stateDigest: 'review=commented|comment=bot-review-1',
+          actorLogin: 'PaddlePaddle-bot',
+        },
+      ],
+    })
+
+    expect(secondCheck.details.results[0]).toMatchObject({
+      handledStatus: 'handled_repeat',
+      isIgnoredActor: true,
+      shouldAct: false,
+      handledCount: 1,
+    })
+
+    const ledgerPath = secondCheck.details.ledgerPath as string
+    const ledger = JSON.parse(await readFile(ledgerPath, 'utf8')) as {
+      entries: Record<
+        string,
+        {
+          isIgnoredActor: boolean
+          lastHandledOutcome: string | null
+          intent: string | null
+        }
+      >
+    }
+
+    expect(ledger.entries['github:thread:30001']).toMatchObject({
+      isIgnoredActor: true,
+      lastHandledOutcome: 'suppressed',
+      intent: 'github.notification.ignored_actor',
+    })
+  })
+
   it('canonicalizes session PR state key aliases', async () => {
     const tool = registerTool()
 
