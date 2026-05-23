@@ -36,6 +36,7 @@
 1. **GitHub 搜索**（最高优先）
    - 在相关代码库的 issue、PR、discussion 中搜索
    - 使用 `github-conversation` skill 阅读理解
+   - 使用 `gh-llm` 读取 PR / Issue 或展开 timeline 时，把 `runtime.toml` 的 `[policy.github_context].auto_collapse_author_logins` 转成 `--auto-collapse-author <login>` 参数，例如 `--auto-collapse-author PaddlePaddle-bot`，避免 bot 长评论污染调研上下文
    - 重点关注 code review 中的专家意见
    - 关注 cross-reference 和关联链接
 

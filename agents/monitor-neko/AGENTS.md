@@ -19,6 +19,11 @@
 2. 对 Session 里关联的 PR 执行状态反查
 3. 若发现 PR 已 merged 或出现关键状态变化，即使通知流没有命中，也要补生成事件并路由；没有真实可行动状态转变时保持静默，不向 Telegram 发送状态复读
 
+GitHub 上下文读取：
+
+- 使用最新版 `gh-llm` 的 `--auto-collapse-author` 折叠噪声作者。调用 `gh llm pr view`、`gh llm issue view`、`gh-llm pr timeline-expand`、`gh-llm issue timeline-expand` 时，必须把 `runtime.toml` 的 `[policy.github_context].auto_collapse_author_logins` 转成参数，例如 `--auto-collapse-author PaddlePaddle-bot`。
+- 自动折叠的 author 内容不作为默认可行动依据；只有用户明确要求查看该 bot 原文，或必须验证某个 bot 产物的精确内容时，才使用 gh-llm 输出的 expand 命令单独展开。
+
 ### 2. 分类通知
 
 对每条通知进行分类：

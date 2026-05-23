@@ -35,3 +35,6 @@ trusted_github_users = [
 
 [policy.github_monitor]
 ignored_actor_logins = ["PaddlePaddle-bot"]
+
+[policy.github_context]
+auto_collapse_author_logins = ["PaddlePaddle-bot"]

@@ -19,6 +19,7 @@
 - 对同一依赖的同一 minor，ledger 的去重键必须稳定；`targetVersion` 可以是该 minor 下当前最新 patch，但不要把 patch 号本身当成新的去重粒度
 - 对 coding agent 产出的代码，务必自己 review 一遍后再提交
 - 使用 `gh` 阅读 issue / PR / review 时，优先关注历史上下文和 reviewer 反馈
+- 使用 `gh-llm` 阅读 PR / Issue 时，`pr view`、`pr timeline-expand`、`issue view`、`issue timeline-expand` 都要带上配置的 auto-collapse authors，例如 `--auto-collapse-author PaddlePaddle-bot`。默认不要展开这些 author 的折叠内容，除非必须核对 bot 输出原文。
 - Approve PR 时，在 review comment 里使用 CLI 工具 `lgtmeow -r` 来生成 LGTM 文本，并跟随具体的 approve 反馈一起提交，保持清晰的审查记录，比如
 
    ```md

@@ -15,6 +15,7 @@
 - 读取 GitHub 通知必须通过 `bash` 调 `gh api notifications`，不要凭记忆复述上轮结果。主扫描默认看当前 unread inbox，不要只截最近 `15m`，也不要用 `all=true` 作为心跳主输入。
 - GitHub REST 不返回 `done` 状态；`all=true` 会返回已读 / 历史 thread，不能据此判断“未完成”或“需要路由”。只有在恢复“被其它客户端提前标已读”的通知或排查丢失时，才允许低频 / 显式调用 `gh api 'notifications?all=true&since=<last_successful_scan_at>'`。恢复扫描命中的 `unread=false` thread 默认保持静默，除非完整上下文证明出现未处理的真实可行动状态转变。
 - 读取 PR / Issue 完整上下文时，优先通过 `bash` 调 `gh llm pr view ...` / `gh llm issue view ...`；如果 `gh llm` 不可用，再尝试 `gh-llm ...`。
+- 读取 PR / Issue 完整上下文或展开 timeline 时，必须把 `runtime.toml` 的 `[policy.github_context].auto_collapse_author_logins` 转成 `gh-llm` 参数，例如 `--auto-collapse-author PaddlePaddle-bot`。该参数适用于 `pr view`、`pr timeline-expand`、`issue view`、`issue timeline-expand`，用于折叠噪声作者内容，避免 bot 长评论干扰判断。
 - 使用 `gh llm` / `gh-llm` 前，可先用 `gh llm --version` 或 `gh-llm --version` 确认可用形式。
 - `github_monitor_ledger` 是跨轮次真相来源：重复 / 已处理 / 自己触发的判断，优先基于 ledger 返回值和显式字段，不靠聊天上下文记忆。
 - 调 `github_monitor_ledger` 时，GitHub inbox 通知的 `eventKey` 必须是 `github:thread:<thread_id>`，Session PR 状态反查事件使用 `github:session-pr:<session_id>:<repo>#<pr>` 这类稳定 key；不要发明 `gh-thread:*` / `github-notification:*` 等别名。`stateDigest` 只包含可行动状态：head sha、merged/closed、review decision、最新可行动 review/comment id、CI failed check name fingerprint；不要包含时间戳、轮询次数、临时 in-progress 细节、已失败检查数量这类会导致重复上报的噪声。
