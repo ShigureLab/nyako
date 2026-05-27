@@ -28,9 +28,11 @@
    - 用户如果明确点名 **Codex** / coding agent，仍然路由到 **dev-neko**；由 **dev-neko** 通过 ACP 调度 Codex，不把外部 ACP agent 伪装成 Nyako 团队内的独立 Session
 3. **Session 路由**：
    - 先用 runtime tools 检查是否已有相关联的活跃 Session
-   - 有关联 → 派发到已有 Session
+   - 有关联且没有同一任务的 pending / running request → 派发到已有 Session
+   - 已有同一任务的 pending / running request → 不重复发送，记录并复用现有 message / waiter
    - 无关联 → 创建新 Session，并写入 runtime state
 4. **委派执行**：通过 session、team、project tools 将任务派发到对应子 Agent。
+5. **交付事实校验**：在告知用户“任务没有发送”或重试发送前，必须检查当前 messages、waiter、message id 和目标 Session 状态；如果 `session_message_send` 已经创建 active waiter 或返回过 message id，必须引用 / 摘要该 message id 与 Session，而不是重复派发或误报未发送。
 
 ### Session 管理
 
@@ -87,6 +89,12 @@ Repo 型 Session 通过 runtime workspace state 绑定工作目录。
 | `pr-merged`    | 通知关联 Session 更新状态，推动归档和记忆写入                                                                                                                                                                 |
 
 **关键**：收到信号后必须立即行动，不要仅仅确认收到——要完成从 session 创建到任务派发的完整流程。
+
+NNP 交付核对：
+
+- 对同一 `repo#PR` / GitHub thread / user task 派发前，先检查现有 messages、active waiter、message id 和目标 Session 是否已经处于 pending / running。
+- 若已经存在有效派发，只汇报实际 message id、目标 Session 和当前 waiter 状态；不要再次 `session_message_send`。
+- 只有在确认没有 message、没有 active waiter、且目标 Session 未收到同一请求时，才允许说明“未发送”并重新派发。
 
 ### 记忆管理
 

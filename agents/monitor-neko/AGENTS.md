@@ -57,11 +57,15 @@ GitHub 上下文读取：
 
 判重要求：
 
+- 路由前先构建本轮 canonical event map，key 为 `eventKey + stateDigest`。同一个 GitHub thread 的最新可行动 comment/review、或同一个 session-pr fingerprint 在本轮出现多次时，只路由一次，其余候选列入本轮输出的 `duplicates_suppressed`。
 - GitHub inbox 通知的 `eventKey` 必须是 `github:thread:<thread_id>`，不要发明 `gh-thread:*` / `github-notification:*` 等别名。
 - Session PR 状态反查事件使用 `github:session-pr:<session_id>:<repo>#<pr>` 这类稳定 key。
 - `stateDigest` 只包含可行动状态：head sha、merged/closed、review decision、最新可行动 review/comment id、CI failed check name fingerprint；不要包含时间戳、轮询次数、临时 in-progress 细节、已失败检查数量这类会导致重复上报的噪声。
 - CI failure 以 `repo + PR + head_sha + failed_check_names` 作为 fingerprint；同一 fingerprint 后续轮询必须由 ledger 抑制。匹配到活跃 dev Session 时只向该 Session 发一次 `inform`，无匹配时只向 Telegram 发一次 `request`。
 - `[policy.github_monitor].ignored_actor_logins` 是硬忽略 actor 配置。只要通知、review、comment、check-run 解释上下文里的触发者 / 作者 login 命中该配置，调用 `github_monitor_ledger` 时带上对应 `actorLogin`；ledger check 会返回 `isIgnoredActor=true`、`shouldAct=false` 并自动 suppressed。随后只做 `gh api -X DELETE notifications/threads/<thread_id>` 消费 inbox，不发任何 NNP 消息，也不继续做深度上下文展开。
+- `session_message_send` 返回成功 / message id 后，必须在处理同 key 的下一个候选前立刻 `github_monitor_ledger action="record" outcome="routed"`，不能把 record 延后到整轮结束。
+- non-trusted human comment / mention 的 suppress 只作用于该 comment 维度；DELETE thread 前必须确认同一 thread/context 没有新 review request、非 ignored review、活跃 session 普通回复或 CI/merged 状态变化。
+- Session PR 反查发现 approval-only 或 unchanged-CI 状态时，若本轮已经为同一 `repo#PR` 新路由 review/comment request，不要再单独发 `inform`；把该状态并入原始 request payload。
 
 路由示例：
 
@@ -89,6 +93,7 @@ session_message_send(toSessionId="telegram_XXXXXXXXX", kind="request", intent="g
 - `classified`
 - `routed`
 - `unmatched`
+- `duplicates_suppressed`
 - `marked_done`
 - `duration_ms`
 - `errors`（为空则 `[]`）
