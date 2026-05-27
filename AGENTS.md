@@ -71,7 +71,7 @@ All commits created from agent-driven work must use:
 All commits created from agent-driven work must also include an agent co-author trailer:
 
 ```text
-Co-authored-by: Codex <codex@openai.com>
+Co-authored-by: Codex <noreply@openai.com>
 ```
 
 ## Repo Rules
