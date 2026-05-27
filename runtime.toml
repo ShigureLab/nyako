@@ -31,8 +31,6 @@ trusted_github_users = [
   "gouzil",
   "sunzhongkai588",
   "DrRyanHuang",
-  "omoYang",
-  "zrr1999",
 ]
 
 [policy.github_monitor]
