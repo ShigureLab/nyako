@@ -360,6 +360,76 @@ describe('github-monitor-ledger tool', () => {
     })
   })
 
+  it('builds stable fingerprints from structured state facts', async () => {
+    const tool = registerTool()
+    const headSha = 'd84bac1eda8eff12145d5ef9781d5e2fef1f1484'
+
+    await tool.execute('call_1', {
+      action: 'record',
+      events: [
+        {
+          eventKey: 'session-pr:sess_dev:PaddlePaddle/Paddle#79107',
+          state: {
+            repo: 'PaddlePaddle/Paddle',
+            pr: 79107,
+            headSha,
+            state: 'OPEN',
+            merged: false,
+            reviewDecision: 'REVIEW_REQUIRED',
+            failedChecks: ['Slice / Slice test', 'Approval/Check approval', 'Coverage test'],
+          },
+          outcome: 'routed',
+        },
+      ],
+    })
+
+    const repeatCheck = await tool.execute('call_2', {
+      action: 'check',
+      events: [
+        {
+          eventKey: 'github:session-pr-state:sess_dev:PaddlePaddle/Paddle:79107',
+          state: {
+            repo: 'PaddlePaddle/Paddle',
+            pr: '79107',
+            headSha: headSha.toUpperCase(),
+            state: 'open',
+            reviewDecision: 'review_required',
+            failedChecks: ['Coverage test', 'Check approval', 'Slice / Slice test'],
+          },
+        },
+      ],
+    })
+
+    expect(repeatCheck.details.results[0]).toMatchObject({
+      eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79107',
+      stateDigest:
+        'head=d84bac1eda8eff12145d5ef9781d5e2fef1f1484;state=open;review=review_required;failed=check approval|coverage test|slice / slice test',
+      handledStatus: 'handled_repeat',
+      shouldAct: false,
+    })
+
+    const newCommentCheck = await tool.execute('call_3', {
+      action: 'check',
+      events: [
+        {
+          eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79107',
+          state: {
+            headSha,
+            state: 'OPEN',
+            reviewDecision: 'REVIEW_REQUIRED',
+            latestCommentId: 'gouzil:4582462739',
+            failedChecks: ['Coverage test', 'Check approval', 'Slice / Slice test'],
+          },
+        },
+      ],
+    })
+
+    expect(newCommentCheck.details.results[0]).toMatchObject({
+      handledStatus: 'handled_changed',
+      shouldAct: true,
+    })
+  })
+
   it('treats repeated merged PR backchecks as terminal no-op state', async () => {
     const tool = registerTool()
 
@@ -382,6 +452,45 @@ describe('github-monitor-ledger tool', () => {
           eventKey: 'session-pr:sess_dev:PaddlePaddle/Paddle#79119',
           stateDigest:
             'head:50ad302f5da18f8ec0debb8e9bc7dfff6e6a9c90;state:MERGED;review:APPROVED;failed_checks:Check approval|Coverage test',
+        },
+      ],
+    })
+
+    expect(check.details.results[0]).toMatchObject({
+      stateDigest: 'terminal=merged;head=50ad302f5da18f8ec0debb8e9bc7dfff6e6a9c90;review=approved',
+      handledStatus: 'handled_repeat',
+      shouldAct: false,
+    })
+  })
+
+  it('matches structured terminal state against legacy digest records', async () => {
+    const tool = registerTool()
+
+    await tool.execute('call_1', {
+      action: 'record',
+      events: [
+        {
+          eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79119',
+          stateDigest:
+            'repo=PaddlePaddle/Paddle;pr=79119;head=50ad302f5da18f8ec0debb8e9bc7dfff6e6a9c90;merged=true;review=APPROVED;failed=Linux-DCU / Test',
+          outcome: 'routed',
+        },
+      ],
+    })
+
+    const check = await tool.execute('call_2', {
+      action: 'check',
+      events: [
+        {
+          eventKey: 'session-pr:sess_dev:PaddlePaddle/Paddle#79119',
+          state: {
+            repo: 'PaddlePaddle/Paddle',
+            pr: 79119,
+            headSha: '50ad302f5da18f8ec0debb8e9bc7dfff6e6a9c90',
+            terminal: 'merged',
+            reviewDecision: 'APPROVED',
+            failedChecks: ['Check approval', 'Coverage test'],
+          },
         },
       ],
     })

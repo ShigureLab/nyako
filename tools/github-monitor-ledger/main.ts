@@ -13,15 +13,71 @@ const MAX_ENTRIES = 5000
 const LOCK_TIMEOUT_MS = 5000
 const LOCK_RETRY_MS = 50
 
+function stringOrNumberSchema(description: string) {
+  return Type.Union([Type.String(), Type.Number()], { description })
+}
+
+const ledgerStateSchema = Type.Object(
+  {
+    repo: Type.Optional(
+      Type.String({
+        description:
+          'GitHub repository in owner/name form. Used for context, not as a noisy digest input.',
+      })
+    ),
+    pr: Type.Optional(stringOrNumberSchema('Pull request number when this event is PR-scoped.')),
+    issue: Type.Optional(stringOrNumberSchema('Issue number when this event is issue-scoped.')),
+    headSha: Type.Optional(
+      Type.String({
+        description: 'Current PR head sha. Short or full hex sha is accepted.',
+      })
+    ),
+    state: Type.Optional(
+      Type.String({
+        description: 'GitHub lifecycle state such as OPEN, MERGED, or CLOSED.',
+      })
+    ),
+    terminal: Type.Optional(
+      Type.String({
+        description: 'Terminal state when known, usually merged or closed.',
+      })
+    ),
+    merged: Type.Optional(Type.Boolean({ description: 'Whether the PR has been merged.' })),
+    closed: Type.Optional(
+      Type.Boolean({ description: 'Whether the PR or issue has been closed.' })
+    ),
+    reviewDecision: Type.Optional(
+      Type.String({
+        description: 'Current PR review decision, such as REVIEW_REQUIRED or APPROVED.',
+      })
+    ),
+    latestReviewId: Type.Optional(
+      stringOrNumberSchema('Stable id for the latest actionable review.')
+    ),
+    latestCommentId: Type.Optional(
+      stringOrNumberSchema('Stable id for the latest actionable human comment.')
+    ),
+    failedChecks: Type.Optional(
+      Type.Array(Type.String(), {
+        description: 'Names of currently failed CI checks. Order does not matter.',
+      })
+    ),
+  },
+  { additionalProperties: false }
+)
+
 const ledgerEventSchema = Type.Object(
   {
     eventKey: Type.String({
       description: 'Stable dedup key for one GitHub notification or synthesized state event.',
     }),
-    stateDigest: Type.String({
-      description:
-        'Digest of the current actionable state. It is normalized by the tool, so include stable facts such as head sha, terminal state, review/comment id, and failed check names instead of timestamps or poll counters.',
-    }),
+    state: Type.Optional(ledgerStateSchema),
+    stateDigest: Type.Optional(
+      Type.String({
+        description:
+          'Legacy free-form digest of the current actionable state. Prefer state for new callers; this field remains supported and is normalized by the tool.',
+      })
+    ),
     actorLogin: Type.Optional(
       Type.String({
         description: 'GitHub login that authored or triggered the event when known.',
@@ -78,6 +134,8 @@ const githubMonitorLedgerSchema = Type.Object(
 
 type GithubMonitorLedgerInput = Static<typeof githubMonitorLedgerSchema>
 type LedgerEventInput = Static<typeof ledgerEventSchema>
+type LedgerStateInput = Static<typeof ledgerStateSchema>
+type NormalizedLedgerEventInput = Omit<LedgerEventInput, 'stateDigest'> & { stateDigest: string }
 type LedgerOutcome = 'routed' | 'suppressed'
 type SeenStatus = 'new' | 'seen_repeat' | 'seen_changed'
 type HandledStatus = 'unhandled' | 'handled_repeat' | 'handled_changed'
@@ -214,6 +272,12 @@ function normalizeCheckName(value: string): string {
   return normalized
 }
 
+function normalizeCheckNames(values: readonly string[] | undefined): string[] {
+  return Array.from(
+    new Set((values ?? []).map((item) => normalizeCheckName(item)).filter(Boolean))
+  ).sort()
+}
+
 function extractFailedChecks(digest: string): string[] {
   const explicitMatch =
     /(?:^|[;\n])\s*(?:failed(?:_checks)?|ci_failed|checks|failures?)\s*[:=]\s*([^;\n]+)/i.exec(
@@ -221,14 +285,7 @@ function extractFailedChecks(digest: string): string[] {
     )
   const ciMatch = /\bci\s*[:=]\s*failed(?::([^;|,\n]+))?/i.exec(digest)
   const raw = explicitMatch?.[1] ?? ciMatch?.[1] ?? ''
-  return Array.from(
-    new Set(
-      raw
-        .split(/[|,]/)
-        .map((item) => normalizeCheckName(item))
-        .filter(Boolean)
-    )
-  ).sort()
+  return normalizeCheckNames(raw.split(/[|,]/))
 }
 
 function extractActionValue(digest: string, keys: readonly string[]): string | null {
@@ -299,12 +356,72 @@ function canonicalizeStateDigest(stateDigest: string): string {
   return canonicalParts.join(';')
 }
 
-function normalizeEventInput(event: LedgerEventInput): LedgerEventInput {
+function normalizeStructuredValue(value: string | number | undefined): string | null {
+  if (value === undefined) {
+    return null
+  }
+  const normalized = normalizeDigestToken(String(value))
+  return normalized || null
+}
+
+function normalizeStructuredSha(value: string | undefined): string | null {
+  const normalized = normalizeStructuredValue(value)
+  return normalized ? normalized.toLowerCase() : null
+}
+
+function canonicalizeStructuredState(state: LedgerStateInput): string | null {
+  const head = normalizeStructuredSha(state.headSha)
+  const terminal = normalizeStructuredValue(state.terminal)
+  const lifecycleState = normalizeStructuredValue(state.state)
+  const review = normalizeStructuredValue(state.reviewDecision)
+  const latestReview = normalizeStructuredValue(state.latestReviewId)
+  const latestComment = normalizeStructuredValue(state.latestCommentId)
+  const failedChecks = normalizeCheckNames(state.failedChecks)
+
+  const isMerged = terminal === 'merged' || state.merged === true || lifecycleState === 'merged'
+  const isClosed = terminal === 'closed' || state.closed === true || lifecycleState === 'closed'
+  if (isMerged || isClosed) {
+    return [
+      `terminal=${isMerged ? 'merged' : 'closed'}`,
+      head ? `head=${head}` : null,
+      review ? `review=${review}` : null,
+    ]
+      .filter((item): item is string => item !== null)
+      .join(';')
+  }
+
+  const canonicalParts = [
+    head ? `head=${head}` : null,
+    lifecycleState ? `state=${lifecycleState}` : null,
+    state.merged === true ? 'merged=true' : null,
+    state.closed === true ? 'closed=true' : null,
+    review ? `review=${review}` : null,
+    latestReview ? `latest_review=${latestReview}` : null,
+    latestComment ? `comment=${latestComment}` : null,
+    failedChecks.length > 0 ? `failed=${failedChecks.join('|')}` : null,
+  ].filter((item): item is string => item !== null)
+
+  return canonicalParts.length > 0 ? canonicalParts.join(';') : null
+}
+
+function buildStateDigest(event: LedgerEventInput): string {
+  const structuredDigest = event.state ? canonicalizeStructuredState(event.state) : null
+  if (structuredDigest) {
+    return structuredDigest
+  }
+  const rawDigest = event.stateDigest?.trim()
+  if (!rawDigest) {
+    throw new Error(
+      `github_monitor_ledger requires state or stateDigest for ${event.eventKey}. Prefer structured state for new callers.`
+    )
+  }
+  return canonicalizeStateDigest(rawDigest)
+}
+
+function normalizeEventInput(event: LedgerEventInput): NormalizedLedgerEventInput {
   const eventKey = canonicalizeEventKey(event.eventKey)
-  const stateDigest = canonicalizeStateDigest(event.stateDigest)
-  return eventKey === event.eventKey && stateDigest === event.stateDigest
-    ? event
-    : { ...event, eventKey, stateDigest }
+  const stateDigest = buildStateDigest(event)
+  return { ...event, eventKey, stateDigest }
 }
 
 function mergeLedgerEntries(left: LedgerEntry, right: LedgerEntry): LedgerEntry {
@@ -504,14 +621,14 @@ function pruneLedgerState(state: LedgerState): void {
   state.entries = Object.fromEntries(entries.slice(0, MAX_ENTRIES))
 }
 
-function ensureEvents(input: GithubMonitorLedgerInput): LedgerEventInput[] {
+function ensureEvents(input: GithubMonitorLedgerInput): NormalizedLedgerEventInput[] {
   if (!Array.isArray(input.events) || input.events.length === 0) {
     throw new Error('github_monitor_ledger requires a non-empty events array')
   }
   return input.events.map(normalizeEventInput)
 }
 
-function ensureOutcome(event: LedgerEventInput): LedgerOutcome {
+function ensureOutcome(event: NormalizedLedgerEventInput): LedgerOutcome {
   if (event.outcome === 'routed' || event.outcome === 'suppressed') {
     return event.outcome
   }
@@ -521,7 +638,7 @@ function ensureOutcome(event: LedgerEventInput): LedgerOutcome {
 }
 
 function createEmptyEntry(
-  event: LedgerEventInput,
+  event: NormalizedLedgerEventInput,
   isSelfAuthored: boolean,
   isIgnoredActor: boolean,
   now: string
@@ -545,7 +662,10 @@ function createEmptyEntry(
   }
 }
 
-function resolveSeenStatus(entry: LedgerEntry | undefined, event: LedgerEventInput): SeenStatus {
+function resolveSeenStatus(
+  entry: LedgerEntry | undefined,
+  event: NormalizedLedgerEventInput
+): SeenStatus {
   if (!entry) {
     return 'new'
   }
@@ -554,7 +674,7 @@ function resolveSeenStatus(entry: LedgerEntry | undefined, event: LedgerEventInp
 
 function resolveHandledStatus(
   entry: LedgerEntry | undefined,
-  event: LedgerEventInput
+  event: NormalizedLedgerEventInput
 ): HandledStatus {
   if (!entry?.lastHandledDigest) {
     return 'unhandled'
@@ -763,7 +883,7 @@ export default function registerGithubMonitorLedgerTool(pi: ExtensionAPI): void 
     name: 'github_monitor_ledger',
     label: 'github monitor ledger',
     description:
-      'Persist cross-run GitHub monitor dedup state outside chat memory. Use check before routing and record after a successful route or intentional suppression.',
+      'Persist cross-run GitHub monitor dedup state outside chat memory. Use check before routing and record after a successful route or intentional suppression. Prefer structured state over free-form stateDigest.',
     parameters: githubMonitorLedgerSchema,
     execute: async (_toolCallId, input: GithubMonitorLedgerInput) => {
       if (input.action === 'check') {
