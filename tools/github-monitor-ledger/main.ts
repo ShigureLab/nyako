@@ -19,7 +19,8 @@ const ledgerEventSchema = Type.Object(
       description: 'Stable dedup key for one GitHub notification or synthesized state event.',
     }),
     stateDigest: Type.String({
-      description: 'Digest of the current actionable state, not just the raw notification id.',
+      description:
+        'Digest of the current actionable state. It is normalized by the tool, so include stable facts such as head sha, terminal state, review/comment id, and failed check names instead of timestamps or poll counters.',
     }),
     actorLogin: Type.Optional(
       Type.String({
@@ -165,9 +166,192 @@ function canonicalizeEventKey(eventKey: string): string {
   return threadMatch ? `github:thread:${threadMatch[1]}` : trimmed
 }
 
+function compactDigest(value: string): string {
+  return value.trim().replace(/\s+/g, ' ')
+}
+
+function extractDigestValue(digest: string, keys: readonly string[]): string | null {
+  for (const key of keys) {
+    const match = new RegExp(`(?:^|[;|,\\n])\\s*${key}\\s*[:=]\\s*([^;|,\\n]+)`, 'i').exec(digest)
+    const value = match?.[1]?.trim()
+    if (value) {
+      return value
+    }
+  }
+  return null
+}
+
+function extractDigestBool(digest: string, keys: readonly string[]): boolean | null {
+  const value = extractDigestValue(digest, keys)?.toLowerCase()
+  if (value === 'true' || value === 'yes' || value === '1') {
+    return true
+  }
+  if (value === 'false' || value === 'no' || value === '0') {
+    return false
+  }
+  return null
+}
+
+function extractDigestSha(digest: string, keys: readonly string[]): string | null {
+  for (const key of keys) {
+    const match = new RegExp(`\\b${key}\\s*[:=]\\s*([0-9a-f]{7,40})\\b`, 'i').exec(digest)
+    if (match?.[1]) {
+      return match[1].toLowerCase()
+    }
+  }
+  return null
+}
+
+function normalizeDigestToken(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+function normalizeCheckName(value: string): string {
+  let normalized = normalizeDigestToken(value)
+  if (/^[^/]+\/[^/]+$/.test(normalized) && !normalized.includes(' / ')) {
+    normalized = normalized.split('/').at(-1) ?? normalized
+  }
+  return normalized
+}
+
+function extractFailedChecks(digest: string): string[] {
+  const explicitMatch =
+    /(?:^|[;\n])\s*(?:failed(?:_checks)?|ci_failed|checks|failures?)\s*[:=]\s*([^;\n]+)/i.exec(
+      digest
+    )
+  const ciMatch = /\bci\s*[:=]\s*failed(?::([^;|,\n]+))?/i.exec(digest)
+  const raw = explicitMatch?.[1] ?? ciMatch?.[1] ?? ''
+  return Array.from(
+    new Set(
+      raw
+        .split(/[|,]/)
+        .map((item) => normalizeCheckName(item))
+        .filter(Boolean)
+    )
+  ).sort()
+}
+
+function extractActionValue(digest: string, keys: readonly string[]): string | null {
+  for (const key of keys) {
+    const match = new RegExp(`(?:^|[;|,\\n])\\s*${key}\\s*[:=]\\s*([^;|\\n]+)`, 'i').exec(digest)
+    const value = match?.[1]?.trim()
+    if (value) {
+      return normalizeDigestToken(value)
+    }
+  }
+  return null
+}
+
+function canonicalizeStateDigest(stateDigest: string): string {
+  const compact = compactDigest(stateDigest)
+  if (!compact) {
+    return compact
+  }
+
+  const head = extractDigestSha(compact, ['head', 'head_sha', 'headRefOid', 'headRef', 'sha'])
+  const terminal = extractDigestValue(compact, ['terminal'])?.toLowerCase()
+  const state = extractDigestValue(compact, ['state'])?.toLowerCase()
+  const merged = extractDigestBool(compact, ['merged'])
+  const closed = extractDigestBool(compact, ['closed'])
+  const review = extractDigestValue(compact, ['reviewDecision', 'review'])?.toLowerCase()
+  const latestReview = extractActionValue(compact, [
+    'latest_review',
+    'latestReview',
+    'review_id',
+    'reviewId',
+  ])
+  const latestComment = extractActionValue(compact, [
+    'latest_comment',
+    'latestComment',
+    'comment_id',
+    'commentId',
+    'comment',
+  ])
+  const failedChecks = extractFailedChecks(compact)
+
+  const isMerged = terminal === 'merged' || merged === true || state === 'merged'
+  const isClosed = terminal === 'closed' || closed === true || state === 'closed'
+  if (isMerged || isClosed) {
+    return [
+      `terminal=${isMerged ? 'merged' : 'closed'}`,
+      head ? `head=${head}` : null,
+      review ? `review=${review}` : null,
+    ]
+      .filter((item): item is string => item !== null)
+      .join(';')
+  }
+
+  const canonicalParts = [
+    head ? `head=${head}` : null,
+    state ? `state=${state}` : null,
+    merged === true ? 'merged=true' : null,
+    closed === true ? 'closed=true' : null,
+    review ? `review=${review}` : null,
+    latestReview ? `latest_review=${latestReview}` : null,
+    latestComment ? `comment=${latestComment}` : null,
+    failedChecks.length > 0 ? `failed=${failedChecks.join('|')}` : null,
+  ].filter((item): item is string => item !== null)
+
+  if (canonicalParts.length === 0) {
+    return compact
+  }
+
+  return canonicalParts.join(';')
+}
+
 function normalizeEventInput(event: LedgerEventInput): LedgerEventInput {
   const eventKey = canonicalizeEventKey(event.eventKey)
-  return eventKey === event.eventKey ? event : { ...event, eventKey }
+  const stateDigest = canonicalizeStateDigest(event.stateDigest)
+  return eventKey === event.eventKey && stateDigest === event.stateDigest
+    ? event
+    : { ...event, eventKey, stateDigest }
+}
+
+function mergeLedgerEntries(left: LedgerEntry, right: LedgerEntry): LedgerEntry {
+  const rightSeenIsNewer = right.lastSeenAt.localeCompare(left.lastSeenAt) >= 0
+  const leftHandledAt = left.lastHandledAt ?? ''
+  const rightHandledAt = right.lastHandledAt ?? ''
+  const rightHandledIsNewer = rightHandledAt.localeCompare(leftHandledAt) >= 0
+  return {
+    eventKey: left.eventKey,
+    firstSeenAt:
+      left.firstSeenAt.localeCompare(right.firstSeenAt) <= 0 ? left.firstSeenAt : right.firstSeenAt,
+    lastSeenAt: rightSeenIsNewer ? right.lastSeenAt : left.lastSeenAt,
+    lastSeenDigest: rightSeenIsNewer ? right.lastSeenDigest : left.lastSeenDigest,
+    seenCount: left.seenCount + right.seenCount,
+    actorLogin: right.actorLogin ?? left.actorLogin,
+    isSelfAuthored: left.isSelfAuthored || right.isSelfAuthored,
+    isIgnoredActor: left.isIgnoredActor || right.isIgnoredActor,
+    lastHandledAt: rightHandledIsNewer ? right.lastHandledAt : left.lastHandledAt,
+    lastHandledDigest: rightHandledIsNewer ? right.lastHandledDigest : left.lastHandledDigest,
+    lastHandledOutcome: rightHandledIsNewer ? right.lastHandledOutcome : left.lastHandledOutcome,
+    handledCount: left.handledCount + right.handledCount,
+    targetSessionId: rightHandledIsNewer ? right.targetSessionId : left.targetSessionId,
+    messageKind: rightHandledIsNewer ? right.messageKind : left.messageKind,
+    intent: rightHandledIsNewer ? right.intent : left.intent,
+  }
+}
+
+function normalizeLedgerEntry(entry: LedgerEntry, fallbackKey: string): LedgerEntry {
+  const eventKey = canonicalizeEventKey(entry.eventKey || fallbackKey)
+  return {
+    ...entry,
+    eventKey,
+    lastSeenDigest: canonicalizeStateDigest(entry.lastSeenDigest),
+    lastHandledDigest: entry.lastHandledDigest
+      ? canonicalizeStateDigest(entry.lastHandledDigest)
+      : null,
+  }
+}
+
+function normalizeLedgerEntries(entries: Record<string, LedgerEntry>): Record<string, LedgerEntry> {
+  const normalized: Record<string, LedgerEntry> = {}
+  for (const [key, entry] of Object.entries(entries)) {
+    const next = normalizeLedgerEntry(entry, key)
+    const existing = normalized[next.eventKey]
+    normalized[next.eventKey] = existing ? mergeLedgerEntries(existing, next) : next
+  }
+  return normalized
 }
 
 function slugifySegment(value: string): string {
@@ -256,7 +440,7 @@ async function readLedgerState(
       projectRoot: parsed.projectRoot,
       updatedAt:
         typeof parsed.updatedAt === 'string' ? parsed.updatedAt : defaultState(location).updatedAt,
-      entries: parsed.entries as Record<string, LedgerEntry>,
+      entries: normalizeLedgerEntries(parsed.entries as Record<string, LedgerEntry>),
     }
   } catch {
     return defaultState(location)
@@ -510,13 +694,17 @@ async function handleRecord(input: GithubMonitorLedgerInput) {
       if (!existing) {
         next.seenCount = 1
       }
-      next.lastHandledAt = now
-      next.lastHandledDigest = event.stateDigest
-      next.lastHandledOutcome = outcome
-      next.handledCount += 1
-      next.targetSessionId = event.targetSessionId?.trim() || null
-      next.messageKind = event.messageKind?.trim() || null
-      next.intent = event.intent?.trim() || null
+      const isDuplicateRecord =
+        existing?.lastHandledDigest === event.stateDigest && existing.lastHandledOutcome === outcome
+      if (!isDuplicateRecord) {
+        next.lastHandledAt = now
+        next.lastHandledDigest = event.stateDigest
+        next.lastHandledOutcome = outcome
+        next.handledCount += 1
+        next.targetSessionId = event.targetSessionId?.trim() || null
+        next.messageKind = event.messageKind?.trim() || null
+        next.intent = event.intent?.trim() || null
+      }
       state.entries[event.eventKey] = next
       return {
         eventKey: event.eventKey,

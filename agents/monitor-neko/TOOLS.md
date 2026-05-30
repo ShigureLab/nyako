@@ -3,7 +3,7 @@
 ## 核心工具
 
 - **`bash`**：GitHub 通知扫描的主执行入口。`gh`、`gh llm`、`gh-llm`、`date`、`jq` 都是通过 `bash` 调用的命令，不是独立 tool。
-- **`github_monitor_ledger`**：跨轮次判重和处理账本。先用 `action="check"` 判断同一事件/状态是否已经处理过，再在成功路由或明确抑制后用 `action="record"` 落账；不要靠会话记忆判断重复事件。
+- **`github_monitor_ledger`**：跨轮次判重和处理账本。先用 `action="check"` 判断同一事件/状态是否已经处理过；返回 `shouldAct=false` 时必须停止路由，不调用 `session_message_send`，也不改写成 Telegram request；成功路由或明确抑制后用 `action="record"` 落账；不要靠会话记忆判断重复事件。
 - **`read` / `grep` / `find` / `ls`**：读取项目定义、查看本地上下文、定位相关文件。
 - **runtime session tools**：查看活跃 Session、匹配目标 Session、向目标 Session 发送 `inform` / `request`。
 - **runtime team / task tools**：只在确认团队状态或任务上下文时使用，不替代 GitHub 扫描本身。
@@ -17,7 +17,7 @@
 - 读取 PR / Issue 完整上下文时，优先通过 `bash` 调 `gh llm pr view ...` / `gh llm issue view ...`；如果 `gh llm` 不可用，再尝试 `gh-llm ...`。
 - 读取 PR / Issue 完整上下文或展开 timeline 时，必须把 `runtime.toml` 的 `[policy.github_context].auto_collapse_author_logins` 转成 `gh-llm` 参数，例如 `--auto-collapse-author PaddlePaddle-bot`。该参数适用于 `pr view`、`pr timeline-expand`、`issue view`、`issue timeline-expand`，用于折叠噪声作者内容，避免 bot 长评论干扰判断。
 - 使用 `gh llm` / `gh-llm` 前，可先用 `gh llm --version` 或 `gh-llm --version` 确认可用形式。
-- `github_monitor_ledger` 是跨轮次真相来源：重复 / 已处理 / 自己触发的判断，优先基于 ledger 返回值和显式字段，不靠聊天上下文记忆。
+- `github_monitor_ledger` 是跨轮次真相来源：重复 / 已处理 / 自己触发的判断，优先基于 ledger 返回值和显式字段，不靠聊天上下文记忆；`shouldAct=false` 是硬停止。
 - 调 `github_monitor_ledger` 时，GitHub inbox 通知的 `eventKey` 必须是 `github:thread:<thread_id>`，Session PR 状态反查事件使用 `github:session-pr:<session_id>:<repo>#<pr>` 这类稳定 key；不要发明 `gh-thread:*` / `github-notification:*` 等别名。`stateDigest` 只包含可行动状态：head sha、merged/closed、review decision、最新可行动 review/comment id、CI failed check name fingerprint；不要包含时间戳、轮询次数、临时 in-progress 细节、已失败检查数量这类会导致重复上报的噪声。
 - `github_monitor_ledger` 会从 `runtime.toml` 的 `[policy.github_monitor].ignored_actor_logins` 读取 ignored actor。确认通知 / review / comment / check-run 的 `actorLogin` 后，用该 actorLogin 做 `action="check"`；若返回 `isIgnoredActor=true`，不要发送 NNP，也不要继续深挖，只 DELETE 对应 inbox thread 标记 done。
 - CI failure 以 `repo + PR + head_sha + failed_check_names` 作为 fingerprint；同一 fingerprint 后续轮询必须由 ledger 抑制。匹配到活跃 dev Session 时只向该 Session 发一次 `inform`，无匹配时只向 Telegram 发一次 `request`。

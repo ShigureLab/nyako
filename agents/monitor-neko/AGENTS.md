@@ -58,6 +58,7 @@ GitHub 上下文读取：
 判重要求：
 
 - 路由前先构建本轮 canonical event map，key 为 `eventKey + stateDigest`。同一个 GitHub thread 的最新可行动 comment/review、或同一个 session-pr fingerprint 在本轮出现多次时，只路由一次，其余候选列入本轮输出的 `duplicates_suppressed`。
+- 每条 canonical event 必须先调用 `github_monitor_ledger action="check"`，再决定是否路由；返回 `shouldAct=false` 时是硬停止，不调用 `session_message_send`，不发 Telegram request，只记录摘要并在符合条件时消费已完成的 inbox thread。
 - GitHub inbox 通知的 `eventKey` 必须是 `github:thread:<thread_id>`，不要发明 `gh-thread:*` / `github-notification:*` 等别名。
 - Session PR 状态反查事件使用 `github:session-pr:<session_id>:<repo>#<pr>` 这类稳定 key。
 - `stateDigest` 只包含可行动状态：head sha、merged/closed、review decision、最新可行动 review/comment id、CI failed check name fingerprint；不要包含时间戳、轮询次数、临时 in-progress 细节、已失败检查数量这类会导致重复上报的噪声。
