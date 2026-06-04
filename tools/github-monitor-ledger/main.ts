@@ -185,6 +185,7 @@ type RecordResult = {
   eventKey: string
   stateDigest: string
   outcome: LedgerOutcome
+  requestedOutcome: LedgerOutcome
   handledStatus: HandledStatus
   actorLogin: string | null
   isSelfAuthored: boolean
@@ -416,6 +417,134 @@ function buildStateDigest(event: LedgerEventInput): string {
     )
   }
   return canonicalizeStateDigest(rawDigest)
+}
+
+type DigestComponent = {
+  key: string
+  value: string
+}
+
+type TerminalDigest = {
+  terminal: 'merged' | 'closed'
+  head: string | null
+}
+
+function parseDigestComponents(stateDigest: string): DigestComponent[] | null {
+  const compact = compactDigest(stateDigest)
+  if (!compact) {
+    return []
+  }
+
+  const components: DigestComponent[] = []
+  for (const rawPart of compact.split(';')) {
+    const part = rawPart.trim()
+    const match = /^([a-z][a-z0-9_-]*)=([^;]+)$/i.exec(part)
+    if (!match) {
+      return null
+    }
+    components.push({ key: match[1], value: match[2] })
+  }
+  return components
+}
+
+function digestHeadShasMatch(left: string, right: string): boolean {
+  const leftSha = left.toLowerCase()
+  const rightSha = right.toLowerCase()
+  if (!/^[0-9a-f]{7,40}$/.test(leftSha) || !/^[0-9a-f]{7,40}$/.test(rightSha)) {
+    return false
+  }
+  return leftSha.startsWith(rightSha) || rightSha.startsWith(leftSha)
+}
+
+function parseCanonicalTerminalDigest(
+  components: readonly DigestComponent[]
+): TerminalDigest | null {
+  let terminal: TerminalDigest['terminal'] | null = null
+  let head: string | null = null
+  let hasReview = false
+
+  for (const component of components) {
+    const key = component.key.toLowerCase()
+    const value = normalizeDigestToken(component.value)
+    if (key === 'terminal') {
+      if (terminal !== null || (value !== 'merged' && value !== 'closed')) {
+        return null
+      }
+      terminal = value
+      continue
+    }
+    if (key === 'head') {
+      if (head !== null) {
+        return null
+      }
+      head = value
+      continue
+    }
+    if (key === 'review') {
+      if (hasReview) {
+        return null
+      }
+      hasReview = true
+      continue
+    }
+    return null
+  }
+
+  return terminal ? { terminal, head } : null
+}
+
+function terminalDigestHeadsMatch(left: string | null, right: string | null): boolean {
+  if (left === right) {
+    return true
+  }
+  if (!left || !right) {
+    return false
+  }
+  return digestHeadShasMatch(left, right)
+}
+
+function stateDigestsMatch(
+  left: string | null | undefined,
+  right: string | null | undefined
+): boolean {
+  if (left === right) {
+    return true
+  }
+  if (!left || !right) {
+    return false
+  }
+
+  const leftComponents = parseDigestComponents(left)
+  const rightComponents = parseDigestComponents(right)
+  if (!leftComponents || !rightComponents) {
+    return false
+  }
+
+  const leftTerminal = parseCanonicalTerminalDigest(leftComponents)
+  const rightTerminal = parseCanonicalTerminalDigest(rightComponents)
+  if (leftTerminal && rightTerminal) {
+    return (
+      leftTerminal.terminal === rightTerminal.terminal &&
+      terminalDigestHeadsMatch(leftTerminal.head, rightTerminal.head)
+    )
+  }
+
+  if (leftComponents.length !== rightComponents.length) {
+    return false
+  }
+
+  return leftComponents.every((leftComponent, index) => {
+    const rightComponent = rightComponents[index]
+    if (leftComponent.key !== rightComponent.key) {
+      return false
+    }
+    if (leftComponent.value === rightComponent.value) {
+      return true
+    }
+    return (
+      leftComponent.key === 'head' && digestHeadShasMatch(leftComponent.value, rightComponent.value)
+    )
+  })
 }
 
 function normalizeEventInput(event: LedgerEventInput): NormalizedLedgerEventInput {
@@ -669,7 +798,7 @@ function resolveSeenStatus(
   if (!entry) {
     return 'new'
   }
-  return entry.lastSeenDigest === event.stateDigest ? 'seen_repeat' : 'seen_changed'
+  return stateDigestsMatch(entry.lastSeenDigest, event.stateDigest) ? 'seen_repeat' : 'seen_changed'
 }
 
 function resolveHandledStatus(
@@ -679,7 +808,9 @@ function resolveHandledStatus(
   if (!entry?.lastHandledDigest) {
     return 'unhandled'
   }
-  return entry.lastHandledDigest === event.stateDigest ? 'handled_repeat' : 'handled_changed'
+  return stateDigestsMatch(entry.lastHandledDigest, event.stateDigest)
+    ? 'handled_repeat'
+    : 'handled_changed'
 }
 
 function summarizeCheck(results: CheckResult[]): string {
@@ -745,7 +876,7 @@ async function handleCheck(input: GithubMonitorLedgerInput) {
           }
         : createEmptyEntry(event, isSelfAuthored, isIgnoredActor, now)
       next.seenCount += 1
-      if (isIgnoredActor && next.lastHandledDigest !== event.stateDigest) {
+      if (isIgnoredActor && !stateDigestsMatch(next.lastHandledDigest, event.stateDigest)) {
         next.lastHandledAt = now
         next.lastHandledDigest = event.stateDigest
         next.lastHandledOutcome = 'suppressed'
@@ -763,7 +894,7 @@ async function handleCheck(input: GithubMonitorLedgerInput) {
         isIgnoredActor,
         seenStatus,
         handledStatus,
-        shouldAct: !isIgnoredActor && next.lastHandledDigest !== event.stateDigest,
+        shouldAct: !isIgnoredActor && !stateDigestsMatch(next.lastHandledDigest, event.stateDigest),
         lastHandledOutcome: next.lastHandledOutcome,
         lastHandledAt: next.lastHandledAt,
         seenCount: next.seenCount,
@@ -814,9 +945,16 @@ async function handleRecord(input: GithubMonitorLedgerInput) {
       if (!existing) {
         next.seenCount = 1
       }
-      const isDuplicateRecord =
-        existing?.lastHandledDigest === event.stateDigest && existing.lastHandledOutcome === outcome
-      if (!isDuplicateRecord) {
+      const matchesLastHandledDigest = stateDigestsMatch(
+        existing?.lastHandledDigest,
+        event.stateDigest
+      )
+      const isDuplicateRecord = matchesLastHandledDigest && existing?.lastHandledOutcome === outcome
+      const preservesExistingSuppression =
+        matchesLastHandledDigest &&
+        existing?.lastHandledOutcome === 'suppressed' &&
+        outcome === 'routed'
+      if (!isDuplicateRecord && !preservesExistingSuppression) {
         next.lastHandledAt = now
         next.lastHandledDigest = event.stateDigest
         next.lastHandledOutcome = outcome
@@ -829,7 +967,8 @@ async function handleRecord(input: GithubMonitorLedgerInput) {
       return {
         eventKey: event.eventKey,
         stateDigest: event.stateDigest,
-        outcome,
+        outcome: next.lastHandledOutcome ?? outcome,
+        requestedOutcome: outcome,
         handledStatus,
         actorLogin: next.actorLogin,
         isSelfAuthored,

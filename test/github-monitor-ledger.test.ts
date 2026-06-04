@@ -463,6 +463,68 @@ describe('github-monitor-ledger tool', () => {
     })
   })
 
+  it('matches terminal merged digests when head SHA length changes', async () => {
+    const tool = registerTool()
+    const fullSha = '50ad302f5da18f8ec0debb8e9bc7dfff6e6a9c90'
+    const shortSha = fullSha.slice(0, 12)
+
+    await tool.execute('call_1', {
+      action: 'record',
+      events: [
+        {
+          eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79120',
+          stateDigest: `terminal=merged;head=${shortSha};review=APPROVED`,
+          outcome: 'routed',
+        },
+      ],
+    })
+
+    const fullCheck = await tool.execute('call_2', {
+      action: 'check',
+      events: [
+        {
+          eventKey: 'session-pr:sess_dev:PaddlePaddle/Paddle#79120',
+          stateDigest: `terminal=merged;head=${fullSha};review=APPROVED`,
+        },
+      ],
+    })
+
+    expect(fullCheck.details.results[0]).toMatchObject({
+      stateDigest: `terminal=merged;head=${fullSha};review=approved`,
+      seenStatus: 'seen_repeat',
+      handledStatus: 'handled_repeat',
+      shouldAct: false,
+    })
+
+    await tool.execute('call_3', {
+      action: 'record',
+      events: [
+        {
+          eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79121',
+          stateDigest: `terminal=merged;head=${fullSha};review=APPROVED`,
+          outcome: 'routed',
+        },
+      ],
+    })
+
+    const shortCheck = await tool.execute('call_4', {
+      action: 'check',
+      events: [
+        {
+          eventKey: 'session-pr:sess_dev:PaddlePaddle/Paddle#79121',
+          stateDigest: `terminal=merged;head=${shortSha};review=APPROVED`,
+        },
+      ],
+    })
+
+    expect(shortCheck.details.results[0]).toMatchObject({
+      stateDigest: `terminal=merged;head=${shortSha};review=approved`,
+      seenStatus: 'seen_repeat',
+      handledStatus: 'handled_repeat',
+      shouldAct: false,
+    })
+  })
+
   it('matches structured terminal state against legacy digest records', async () => {
     const tool = registerTool()
 
@@ -502,6 +564,182 @@ describe('github-monitor-ledger tool', () => {
     })
   })
 
+  it('keeps suppressed Paddle PR terminal states handled when head SHA length changes', async () => {
+    const tool = registerTool()
+    const eventKey =
+      'github:session-pr:sess_dev_neko_triage_paddle_pr_79233_follow_up_ci_failures:PaddlePaddle/Paddle#79233'
+    const fullSha = 'fb301d72c2725f4fcabf78c513b91a1b5b108364'
+    const shortSha = 'fb301d72c272'
+
+    await tool.execute('call_1', {
+      action: 'record',
+      events: [
+        {
+          eventKey,
+          stateDigest: `terminal=merged;head=${shortSha}`,
+          outcome: 'suppressed',
+        },
+      ],
+    })
+
+    const repeatCheck = await tool.execute('call_2', {
+      action: 'check',
+      events: [
+        {
+          eventKey,
+          state: {
+            repo: 'PaddlePaddle/Paddle',
+            pr: 79233,
+            headSha: fullSha,
+            state: 'MERGED',
+            terminal: 'merged',
+            merged: true,
+            reviewDecision: 'APPROVED',
+          },
+        },
+      ],
+    })
+
+    expect(repeatCheck.details.results[0]).toMatchObject({
+      eventKey,
+      stateDigest: `terminal=merged;head=${fullSha};review=approved`,
+      handledStatus: 'handled_repeat',
+      shouldAct: false,
+      lastHandledOutcome: 'suppressed',
+      handledCount: 1,
+    })
+
+    const staleRoutedRecord = await tool.execute('call_3', {
+      action: 'record',
+      events: [
+        {
+          eventKey,
+          state: {
+            repo: 'PaddlePaddle/Paddle',
+            pr: 79233,
+            headSha: fullSha,
+            state: 'MERGED',
+            terminal: 'merged',
+            merged: true,
+            reviewDecision: 'APPROVED',
+          },
+          outcome: 'routed',
+          targetSessionId: 'sess_stale_monitor',
+          messageKind: 'inform',
+          intent: 'github.notification.session_pr',
+        },
+      ],
+    })
+
+    expect(staleRoutedRecord.details.results[0]).toMatchObject({
+      handledStatus: 'handled_repeat',
+      handledCount: 1,
+      outcome: 'suppressed',
+      requestedOutcome: 'routed',
+      targetSessionId: null,
+      messageKind: null,
+      intent: null,
+    })
+
+    const followUpCheck = await tool.execute('call_4', {
+      action: 'check',
+      events: [
+        {
+          eventKey,
+          state: {
+            repo: 'PaddlePaddle/Paddle',
+            pr: 79233,
+            headSha: fullSha,
+            state: 'MERGED',
+            terminal: 'merged',
+            merged: true,
+            reviewDecision: 'APPROVED',
+          },
+        },
+      ],
+    })
+
+    expect(followUpCheck.details.results[0]).toMatchObject({
+      handledStatus: 'handled_repeat',
+      shouldAct: false,
+      lastHandledOutcome: 'suppressed',
+      handledCount: 1,
+    })
+  })
+
+  it('keeps suppressed Paddle PR backcheck state-object variants handled', async () => {
+    const tool = registerTool()
+    const eventKey =
+      'github:session-pr:sess_dev_neko_review_paddle_pr_79153_error_format_mismatches:PaddlePaddle/Paddle#79153'
+    const fullSha = 'c0e2bbfecd5406472c0be7806b8464be38e7ad04'
+
+    const priorSuppressionRecord = await tool.execute('call_1', {
+      action: 'record',
+      events: [
+        {
+          eventKey,
+          stateDigest: `repo=PaddlePaddle/Paddle;pr=79153;head=${fullSha};merged=true;review=APPROVED`,
+          outcome: 'suppressed',
+        },
+      ],
+    })
+
+    expect(priorSuppressionRecord.details.results[0]).toMatchObject({
+      stateDigest: `terminal=merged;head=${fullSha};review=approved`,
+      handledCount: 1,
+      outcome: 'suppressed',
+    })
+
+    const repeatCheck = await tool.execute('call_2', {
+      action: 'check',
+      events: [
+        {
+          eventKey,
+          state: {
+            repo: 'PaddlePaddle/Paddle',
+            pr: 79153,
+            headSha: fullSha,
+            state: 'MERGED',
+            reviewDecision: 'APPROVED',
+          },
+        },
+      ],
+    })
+
+    expect(repeatCheck.details.results[0]).toMatchObject({
+      eventKey,
+      stateDigest: `terminal=merged;head=${fullSha};review=approved`,
+      handledStatus: 'handled_repeat',
+      shouldAct: false,
+      lastHandledOutcome: 'suppressed',
+      handledCount: 1,
+    })
+
+    const duplicateSuppressedRecord = await tool.execute('call_3', {
+      action: 'record',
+      events: [
+        {
+          eventKey,
+          state: {
+            repo: 'PaddlePaddle/Paddle',
+            pr: '79153',
+            headSha: fullSha,
+            terminal: 'merged',
+            reviewDecision: 'approved',
+          },
+          outcome: 'suppressed',
+        },
+      ],
+    })
+
+    expect(duplicateSuppressedRecord.details.results[0]).toMatchObject({
+      stateDigest: `terminal=merged;head=${fullSha};review=approved`,
+      handledStatus: 'handled_repeat',
+      handledCount: 1,
+      outcome: 'suppressed',
+    })
+  })
+
   it('does not inflate handled count for duplicate records', async () => {
     const tool = registerTool()
     const event = {
@@ -518,6 +756,15 @@ describe('github-monitor-ledger tool', () => {
       action: 'record',
       events: [event],
     })
+    const abbreviatedRecord = await tool.execute('call_3', {
+      action: 'record',
+      events: [
+        {
+          ...event,
+          stateDigest: 'head=647a7c539c58;merged=true',
+        },
+      ],
+    })
 
     expect(firstRecord.details.results[0]).toMatchObject({
       handledCount: 1,
@@ -525,6 +772,67 @@ describe('github-monitor-ledger tool', () => {
     expect(secondRecord.details.results[0]).toMatchObject({
       handledStatus: 'handled_repeat',
       handledCount: 1,
+    })
+    expect(abbreviatedRecord.details.results[0]).toMatchObject({
+      handledStatus: 'handled_repeat',
+      handledCount: 1,
+    })
+  })
+
+  it('allows later suppression to replace prior routed handling for the same state', async () => {
+    const tool = registerTool()
+    const eventKey = 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79083'
+    const stateDigest = 'head=647a7c539c58a29ff053de3397ddc5c56defd348;merged=true'
+
+    await tool.execute('call_1', {
+      action: 'record',
+      events: [
+        {
+          eventKey,
+          stateDigest,
+          outcome: 'routed',
+          targetSessionId: 'sess_monitor_neko_github_watch',
+          messageKind: 'inform',
+          intent: 'github.notification.session_pr',
+        },
+      ],
+    })
+
+    const suppressionRecord = await tool.execute('call_2', {
+      action: 'record',
+      events: [
+        {
+          eventKey,
+          stateDigest,
+          outcome: 'suppressed',
+        },
+      ],
+    })
+
+    expect(suppressionRecord.details.results[0]).toMatchObject({
+      handledStatus: 'handled_repeat',
+      handledCount: 2,
+      outcome: 'suppressed',
+      targetSessionId: null,
+      messageKind: null,
+      intent: null,
+    })
+
+    const check = await tool.execute('call_3', {
+      action: 'check',
+      events: [
+        {
+          eventKey,
+          stateDigest,
+        },
+      ],
+    })
+
+    expect(check.details.results[0]).toMatchObject({
+      handledStatus: 'handled_repeat',
+      shouldAct: false,
+      lastHandledOutcome: 'suppressed',
+      handledCount: 2,
     })
   })
 })
