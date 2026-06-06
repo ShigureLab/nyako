@@ -22,6 +22,7 @@
 GitHub 上下文读取：
 
 - 使用最新版 `gh-llm` 的 `--auto-collapse-author` 折叠噪声作者。调用 `gh llm pr view`、`gh llm issue view`、`gh-llm pr timeline-expand`、`gh-llm issue timeline-expand` 时，必须把 `runtime.toml` 的 `[policy.github_context].auto_collapse_author_logins` 转成参数，例如 `--auto-collapse-author PaddlePaddle-bot`。
+- 读取本项目配置时只读当前项目根的 `runtime.toml`；不要递归扫描 `$HOME` / 用户 home 目录查找 `runtime.toml`。
 - 自动折叠的 author 内容不作为默认可行动依据；只有用户明确要求查看该 bot 原文，或必须验证某个 bot 产物的精确内容时，才使用 gh-llm 输出的 expand 命令单独展开。
 
 ### 2. 分类通知
@@ -33,7 +34,7 @@ GitHub 上下文读取：
 | `[policy.github_monitor].ignored_actor_logins` 配置 actor 触发的任意通知、review、comment | `ignored-bot`  | 完全忽略：不路由、不上报、不深挖；ledger 自动 suppressed 后 DELETE thread 标记 done  |
 | 被分配 issue                                                                              | `issue-assign` | 通知 nyako（通过 Telegram channel session），建议创建新 Session 或派发到现有 Session |
 | 被分配 PR / review request / 新 review 提交（不含 ignored bot）                           | `pr-review`    | 派发到对应 Session，或建议创建新 Session；不要和 human mention/comment 混类          |
-| PR 被合并                                                                                 | `pr-merged`    | 通知对应 Session 关闭，触发记忆写入                                                  |
+| PR 被合并，且没有新的可行动 comment / review                                              | `pr-merged`    | 通知对应 Session 关闭，触发记忆写入                                                  |
 | trusted human @mention / comment                                                          | `comment`      | 派发到对应 Session；无匹配时上报 nyako（通过 Telegram channel session）              |
 | 活跃 review Session 上的普通回复 / `author` 通知（PR 未 merged）                          | `comment`      | 即使没有 @ 也要派发到对应 Session，保持 review 流连续                                |
 | CI 失败                                                                                   | `ci-failure`   | 派发到对应 Session，标记为高优                                                       |
@@ -46,8 +47,9 @@ GitHub 上下文读取：
 对于非忽略的通知：
 
 1. 调用 `list_sessions` 获取活跃 Session 列表
-2. 对 PR 相关的 `author` / reply 类通知先反查 PR 状态：
-   - 若 PR 已 `merged`，优先按 `pr-merged` 处理，不再继续走 `comment` / `pr-review`
+2. 对 PR 相关通知先抽取本轮最新可行动信号，再反查 PR 状态：
+   - 若存在新的非 ignored review / review request，或 trusted human mention/comment，必须优先按 `pr-review` / `comment` 路由；即使 PR 已 `merged` / `closed` 也不能降级成 `pr-merged`
+   - 若 PR 已 `merged` / `closed` 且没有新的可行动 review/comment，才按 `pr-merged` 处理
    - 若 PR 未 `merged` 且存在活跃 review Session，普通回复也必须继续路由
 3. 根据通知的 `repo` + `PR/issue number` 进行路由匹配：
    - **匹配到活跃 Session** → 用 `session_message_send` 发送 `kind: inform` 到该 Session，附带通知分类和摘要
@@ -61,7 +63,7 @@ GitHub 上下文读取：
 - 每条 canonical event 必须先调用 `github_monitor_ledger action="check"`，再决定是否路由；返回 `shouldAct=false` 时是硬停止，不调用 `session_message_send`，不发 Telegram request，只记录摘要并在符合条件时消费已完成的 inbox thread。
 - GitHub inbox 通知的 `eventKey` 必须是 `github:thread:<thread_id>`，不要发明 `gh-thread:*` / `github-notification:*` 等别名。
 - Session PR 状态反查事件使用 `github:session-pr:<session_id>:<repo>#<pr>` 这类稳定 key。
-- 调 ledger 时优先传结构化 `state`，字段只包含可行动事实：`repo`、`pr` / `issue`、`headSha`、`state` / `terminal`、`merged` / `closed`、`reviewDecision`、`latestReviewId`、`latestCommentId`、`failedChecks`。不要手写 `stateDigest`，除非工具环境暂时不支持 `state`；fallback `stateDigest` 也不能包含时间戳、轮询次数、临时 in-progress 细节、已失败检查数量这类会导致重复上报的噪声。
+- 调 ledger 时优先传结构化 `state`，字段只包含可行动事实：`repo`、`pr` / `issue`、`headSha`、`state` / `terminal`、`merged` / `closed`、`reviewDecision`、`latestReviewId`、`latestCommentId`、`failedChecks`。如果 PR 已 `merged` / `closed` 但本轮触发点是新的 review/comment，仍必须在 terminal state 里带上 `latestReviewId` / `latestCommentId`；不能只传 merged/closed digest。不要手写 `stateDigest`，除非工具环境暂时不支持 `state`；fallback `stateDigest` 也不能包含时间戳、轮询次数、临时 in-progress 细节、已失败检查数量这类会导致重复上报的噪声。
 - CI failure 以 `repo + PR + head_sha + failed_check_names` 作为 fingerprint；同一 fingerprint 后续轮询必须由 ledger 抑制。匹配到活跃 dev Session 时只向该 Session 发一次 `inform`，无匹配时只向 Telegram 发一次 `request`。
 - `[policy.github_monitor].ignored_actor_logins` 是硬忽略 actor 配置。只要通知、review、comment、check-run 解释上下文里的触发者 / 作者 login 命中该配置，调用 `github_monitor_ledger` 时带上对应 `actorLogin`；ledger check 会返回 `isIgnoredActor=true`、`shouldAct=false` 并自动 suppressed。随后只做 `gh api -X DELETE notifications/threads/<thread_id>` 消费 inbox，不发任何 NNP 消息，也不继续做深度上下文展开。
 - `session_message_send` 返回成功 / message id 后，必须在处理同 key 的下一个候选前立刻 `github_monitor_ledger action="record" outcome="routed"`，不能把 record 延后到整轮结束。
@@ -118,5 +120,5 @@ session_message_send(toSessionId="telegram_XXXXXXXXX", kind="request", intent="g
 5. **轻量运行**——使用最少的 token 完成路由判断。
 6. **禁止深挖代码细节**——监控喵只做信号分发，不做 PR 深度审查。
 7. **信任过滤只作用于 human mention/comment**——Review request、新 review、bot review、活跃 review Session 上的普通回复都必须处理，不和 human mention/comment 混为一谈。只有“与活跃 Session 无关的 human @-mention / comment”才按 `trusted_github_users` 过滤；trusted human 的通知无匹配时也要上报 Telegram channel session。
-8. **先判 merged 再判 author/comment**——遇到 `author` / 普通回复类通知，先反查 PR 是否已 `merged`；已 merged 优先产出 `pr-merged`，未 merged 再按 `comment` / `pr-review` 路由。
+8. **新 review/comment 优先于 merged closeout**——遇到 `author` / 普通回复类通知，先从完整上下文抽取最新可行动 review/comment。只要存在新的非 ignored review / review request，或 trusted human mention/comment，就按 `pr-review` / `comment` 路由，并在 ledger state 中带 `latestReviewId` / `latestCommentId`；只有没有新可行动 review/comment 时，merged / closed PR 才产出 `pr-merged`。
 9. **ignored actor 硬忽略**——`runtime.toml` 的 `[policy.github_monitor].ignored_actor_logins` 中配置的 actor，其所有消息、review、comment、状态提示都不构成可行动信号；不要转发给 dev-neko 或 Telegram，也不要因为它出现在活跃 Session 关联 PR 上就保持 review 流连续。
