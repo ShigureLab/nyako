@@ -334,6 +334,8 @@ function canonicalizeStateDigest(stateDigest: string): string {
       `terminal=${isMerged ? 'merged' : 'closed'}`,
       head ? `head=${head}` : null,
       review ? `review=${review}` : null,
+      latestReview ? `latest_review=${latestReview}` : null,
+      latestComment ? `comment=${latestComment}` : null,
     ]
       .filter((item): item is string => item !== null)
       .join(';')
@@ -386,6 +388,8 @@ function canonicalizeStructuredState(state: LedgerStateInput): string | null {
       `terminal=${isMerged ? 'merged' : 'closed'}`,
       head ? `head=${head}` : null,
       review ? `review=${review}` : null,
+      latestReview ? `latest_review=${latestReview}` : null,
+      latestComment ? `comment=${latestComment}` : null,
     ]
       .filter((item): item is string => item !== null)
       .join(';')

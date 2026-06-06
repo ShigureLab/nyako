@@ -564,6 +564,101 @@ describe('github-monitor-ledger tool', () => {
     })
   })
 
+  it('treats a new comment on an already merged notification thread as actionable', async () => {
+    const tool = registerTool()
+    const eventKey = 'github:thread:24079121135'
+    const headSha = 'fc5b0a279004160a05e894129d73c0c9d1a25573'
+
+    await tool.execute('call_1', {
+      action: 'record',
+      events: [
+        {
+          eventKey,
+          state: {
+            repo: 'PaddlePaddle/Paddle',
+            pr: 79219,
+            headSha,
+            terminal: 'merged',
+            merged: true,
+            reviewDecision: 'APPROVED',
+          },
+          outcome: 'routed',
+          intent: 'github.notification.pr_merged',
+        },
+      ],
+    })
+
+    const newCommentCheck = await tool.execute('call_2', {
+      action: 'check',
+      events: [
+        {
+          eventKey,
+          actorLogin: 'gouzil',
+          state: {
+            repo: 'PaddlePaddle/Paddle',
+            pr: 79219,
+            headSha,
+            terminal: 'merged',
+            merged: true,
+            reviewDecision: 'APPROVED',
+            latestCommentId: '4639687500',
+          },
+        },
+      ],
+    })
+
+    expect(newCommentCheck.details.results[0]).toMatchObject({
+      eventKey,
+      stateDigest: `terminal=merged;head=${headSha};review=approved;comment=4639687500`,
+      handledStatus: 'handled_changed',
+      shouldAct: true,
+    })
+
+    await tool.execute('call_3', {
+      action: 'record',
+      events: [
+        {
+          eventKey,
+          state: {
+            repo: 'PaddlePaddle/Paddle',
+            pr: 79219,
+            headSha,
+            terminal: 'merged',
+            merged: true,
+            reviewDecision: 'APPROVED',
+            latestCommentId: '4639687500',
+          },
+          outcome: 'routed',
+          intent: 'github.notification.comment',
+        },
+      ],
+    })
+
+    const repeatCommentCheck = await tool.execute('call_4', {
+      action: 'check',
+      events: [
+        {
+          eventKey,
+          state: {
+            repo: 'PaddlePaddle/Paddle',
+            pr: 79219,
+            headSha: headSha.slice(0, 12),
+            terminal: 'merged',
+            merged: true,
+            reviewDecision: 'APPROVED',
+            latestCommentId: '4639687500',
+          },
+        },
+      ],
+    })
+
+    expect(repeatCommentCheck.details.results[0]).toMatchObject({
+      stateDigest: `terminal=merged;head=${headSha.slice(0, 12)};review=approved;comment=4639687500`,
+      handledStatus: 'handled_repeat',
+      shouldAct: false,
+    })
+  })
+
   it('keeps suppressed Paddle PR terminal states handled when head SHA length changes', async () => {
     const tool = registerTool()
     const eventKey =
