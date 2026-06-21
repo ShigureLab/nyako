@@ -430,6 +430,84 @@ describe('github-monitor-ledger tool', () => {
     })
   })
 
+  it('uses an explicit approval gate marker instead of inferring gate checks by name', async () => {
+    const tool = registerTool()
+    const headSha = 'e363e34cbfda0b38828626a77e2833b6984daaba'
+
+    await tool.execute('call_1', {
+      action: 'record',
+      events: [
+        {
+          eventKey:
+            'github:session-pr:sess_dev_neko_handle_paddle_pr_79329_missed_review_follow_up:PaddlePaddle/Paddle#79329',
+          state: {
+            repo: 'PaddlePaddle/Paddle',
+            pr: 79329,
+            headSha,
+            state: 'OPEN',
+            reviewDecision: 'REVIEW_REQUIRED',
+            latestReviewId: 'siguremo:commented:2026-06-18t05:33:24z',
+            latestCommentId: 'ic_kwdoa-qtos8aaaabgswbma',
+            failedChecks: ['project-specific gate a'],
+            gate: 'approval',
+          },
+          outcome: 'routed',
+          intent: 'github.notification.ci_failure',
+        },
+      ],
+    })
+
+    const repeatedGateCheck = await tool.execute('call_2', {
+      action: 'check',
+      events: [
+        {
+          eventKey:
+            'github:session-pr-state:sess_dev_neko_handle_paddle_pr_79329_missed_review_follow_up:PaddlePaddle/Paddle:79329',
+          state: {
+            repo: 'PaddlePaddle/Paddle',
+            pr: 79329,
+            headSha: headSha.slice(0, 7),
+            state: 'open',
+            reviewDecision: 'review_required',
+            failedChecks: ['renamed gate b', 'project-specific gate a'],
+            gate: 'approval',
+          },
+        },
+      ],
+    })
+
+    expect(repeatedGateCheck.details.results[0]).toMatchObject({
+      eventKey:
+        'github:session-pr:sess_dev_neko_handle_paddle_pr_79329_missed_review_follow_up:PaddlePaddle/Paddle#79329',
+      stateDigest: `head=${headSha.slice(0, 7)};state=open;review=review_required;gate=approval`,
+      handledStatus: 'handled_repeat',
+      shouldAct: false,
+    })
+
+    const actualFailureCheck = await tool.execute('call_3', {
+      action: 'check',
+      events: [
+        {
+          eventKey:
+            'github:session-pr:sess_dev_neko_handle_paddle_pr_79329_missed_review_follow_up:PaddlePaddle/Paddle#79329',
+          state: {
+            repo: 'PaddlePaddle/Paddle',
+            pr: 79329,
+            headSha,
+            state: 'open',
+            reviewDecision: 'review_required',
+            failedChecks: ['project-specific gate a', 'Linux-CPU / Build and test'],
+          },
+        },
+      ],
+    })
+
+    expect(actualFailureCheck.details.results[0]).toMatchObject({
+      handledStatus: 'handled_changed',
+      shouldAct: true,
+    })
+  })
+
   it('treats repeated merged PR backchecks as terminal no-op state', async () => {
     const tool = registerTool()
 

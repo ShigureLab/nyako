@@ -7,6 +7,14 @@ skills_dir = "skills"
 memory_dir = "memory"
 schedules_dir = "schedules"
 
+[agent_backend]
+kind = "pi"
+
+[worker]
+queue_enabled = true
+schedules_enabled = true
+detached_messages_enabled = true
+
 [[skills.external]]
 provider = "github"
 repo = "ShigureLab/gh-llm"

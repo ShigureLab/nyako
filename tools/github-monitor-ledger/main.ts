@@ -62,6 +62,12 @@ const ledgerStateSchema = Type.Object(
         description: 'Names of currently failed CI checks. Order does not matter.',
       })
     ),
+    gate: Type.Optional(
+      Type.String({
+        description:
+          'Optional explicit non-CI blocker classification, such as approval. The ledger never infers this from check names.',
+      })
+    ),
   },
   { additionalProperties: false }
 )
@@ -312,6 +318,7 @@ function canonicalizeStateDigest(stateDigest: string): string {
   const merged = extractDigestBool(compact, ['merged'])
   const closed = extractDigestBool(compact, ['closed'])
   const review = extractDigestValue(compact, ['reviewDecision', 'review'])?.toLowerCase()
+  const gate = extractDigestValue(compact, ['gate'])?.toLowerCase()
   const latestReview = extractActionValue(compact, [
     'latest_review',
     'latestReview',
@@ -326,6 +333,7 @@ function canonicalizeStateDigest(stateDigest: string): string {
     'comment',
   ])
   const failedChecks = extractFailedChecks(compact)
+  const explicitGate = gate ? `gate=${gate}` : null
 
   const isMerged = terminal === 'merged' || merged === true || state === 'merged'
   const isClosed = terminal === 'closed' || closed === true || state === 'closed'
@@ -347,9 +355,10 @@ function canonicalizeStateDigest(stateDigest: string): string {
     merged === true ? 'merged=true' : null,
     closed === true ? 'closed=true' : null,
     review ? `review=${review}` : null,
-    latestReview ? `latest_review=${latestReview}` : null,
-    latestComment ? `comment=${latestComment}` : null,
-    failedChecks.length > 0 ? `failed=${failedChecks.join('|')}` : null,
+    latestReview && !explicitGate ? `latest_review=${latestReview}` : null,
+    latestComment && !explicitGate ? `comment=${latestComment}` : null,
+    explicitGate,
+    failedChecks.length > 0 && !explicitGate ? `failed=${failedChecks.join('|')}` : null,
   ].filter((item): item is string => item !== null)
 
   if (canonicalParts.length === 0) {
@@ -380,6 +389,8 @@ function canonicalizeStructuredState(state: LedgerStateInput): string | null {
   const latestReview = normalizeStructuredValue(state.latestReviewId)
   const latestComment = normalizeStructuredValue(state.latestCommentId)
   const failedChecks = normalizeCheckNames(state.failedChecks)
+  const gate = normalizeStructuredValue(state.gate)
+  const explicitGate = gate ? `gate=${gate}` : null
 
   const isMerged = terminal === 'merged' || state.merged === true || lifecycleState === 'merged'
   const isClosed = terminal === 'closed' || state.closed === true || lifecycleState === 'closed'
@@ -401,9 +412,10 @@ function canonicalizeStructuredState(state: LedgerStateInput): string | null {
     state.merged === true ? 'merged=true' : null,
     state.closed === true ? 'closed=true' : null,
     review ? `review=${review}` : null,
-    latestReview ? `latest_review=${latestReview}` : null,
-    latestComment ? `comment=${latestComment}` : null,
-    failedChecks.length > 0 ? `failed=${failedChecks.join('|')}` : null,
+    latestReview && !explicitGate ? `latest_review=${latestReview}` : null,
+    latestComment && !explicitGate ? `comment=${latestComment}` : null,
+    explicitGate,
+    failedChecks.length > 0 && !explicitGate ? `failed=${failedChecks.join('|')}` : null,
   ].filter((item): item is string => item !== null)
 
   return canonicalParts.length > 0 ? canonicalParts.join(';') : null
