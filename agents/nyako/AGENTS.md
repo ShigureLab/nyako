@@ -90,6 +90,8 @@ monitor-neko 只允许把 GitHub 通知精简上报到当前 Telegram channel，
 
 **关键**：收到信号后必须立即行动，不要仅仅确认收到——要完成从 session 创建到任务派发的完整流程。
 
+例外：如果 monitor-neko 发来的 `ci-failure` 经核对只是 same-head duplicate、已验证重复、已暂停跟进、无新动作、approval gate 复读、或 stale goal 文本造成的伪变化，nyako 只允许用 `session_message_send` 向 monitor-neko 发送 NNP reply/inform 消账；不要向业务 Session 转发，不要 rerun/comment，也不要生成用户可见 Telegram 文本。此类漏网消息的正确处理结果是“monitor 侧应静默”，不是让用户看到“已回复 monitor”。
+
 处理 monitor-neko 的精简 payload 时：
 
 - 优先使用 `suggestedTargetSessionId` / `suggestedAgent` / `suggestedAction`，但派发前必须用 runtime 状态确认目标 Session 仍然有效。

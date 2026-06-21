@@ -218,7 +218,7 @@ function buildLoginSet(logins: readonly string[] | undefined, defaults: readonly
 function canonicalizeEventKey(eventKey: string): string {
   const trimmed = eventKey.trim()
   const sessionPrMatch =
-    /^(?:github:)?session-pr(?:-state)?[\s:#_-]+([^:\s]+):([^:#\s]+\/[^:#\s]+)[:#](\d+)$/i.exec(
+    /^(?:github:)?session-pr(?:-state)?[\s:#_-]+([^:\s]+):([^:#\s]+\/[^:#\s]+)[:#](\d+)(?::(?:ci|ci-failure|ci_failure))?$/i.exec(
       trimmed
     )
   if (sessionPrMatch) {
@@ -563,6 +563,77 @@ function stateDigestsMatch(
   })
 }
 
+function digestComponentValue(components: readonly DigestComponent[], key: string): string | null {
+  const item = components.find((component) => component.key.toLowerCase() === key)
+  return item ? normalizeDigestToken(item.value) : null
+}
+
+function digestComponentValuesAreCompatible(
+  leftComponents: readonly DigestComponent[],
+  rightComponents: readonly DigestComponent[],
+  key: string
+): boolean {
+  const left = digestComponentValue(leftComponents, key)
+  const right = digestComponentValue(rightComponents, key)
+  return !left || !right || left === right
+}
+
+function suppressedSameHeadCiBackcheckMatches(
+  entry: LedgerEntry | undefined,
+  event: NormalizedLedgerEventInput
+): boolean {
+  if (entry?.lastHandledOutcome !== 'suppressed' || !entry.lastHandledDigest) {
+    return false
+  }
+  const leftComponents = parseDigestComponents(entry.lastHandledDigest)
+  const rightComponents = parseDigestComponents(event.stateDigest)
+  if (!leftComponents || !rightComponents) {
+    return false
+  }
+  if (
+    digestComponentValue(leftComponents, 'terminal') ||
+    digestComponentValue(rightComponents, 'terminal')
+  ) {
+    return false
+  }
+  const leftHead = digestComponentValue(leftComponents, 'head')
+  const rightHead = digestComponentValue(rightComponents, 'head')
+  if (!leftHead || !rightHead || !digestHeadShasMatch(leftHead, rightHead)) {
+    return false
+  }
+  if (
+    !digestComponentValue(leftComponents, 'failed') ||
+    !digestComponentValue(rightComponents, 'failed')
+  ) {
+    return false
+  }
+  if (
+    !digestComponentValuesAreCompatible(leftComponents, rightComponents, 'state') ||
+    !digestComponentValuesAreCompatible(leftComponents, rightComponents, 'review')
+  ) {
+    return false
+  }
+
+  const previousComment = digestComponentValue(leftComponents, 'comment')
+  const currentComment = digestComponentValue(rightComponents, 'comment')
+  if (
+    (!previousComment && currentComment) ||
+    (previousComment && currentComment && previousComment !== currentComment)
+  ) {
+    return false
+  }
+  const previousReview = digestComponentValue(leftComponents, 'latest_review')
+  const currentReview = digestComponentValue(rightComponents, 'latest_review')
+  if (
+    (!previousReview && currentReview) ||
+    (previousReview && currentReview && previousReview !== currentReview)
+  ) {
+    return false
+  }
+
+  return true
+}
+
 function normalizeEventInput(event: LedgerEventInput): NormalizedLedgerEventInput {
   const eventKey = canonicalizeEventKey(event.eventKey)
   const stateDigest = buildStateDigest(event)
@@ -824,7 +895,8 @@ function resolveHandledStatus(
   if (!entry?.lastHandledDigest) {
     return 'unhandled'
   }
-  return stateDigestsMatch(entry.lastHandledDigest, event.stateDigest)
+  return stateDigestsMatch(entry.lastHandledDigest, event.stateDigest) ||
+    suppressedSameHeadCiBackcheckMatches(entry, event)
     ? 'handled_repeat'
     : 'handled_changed'
 }
@@ -910,7 +982,7 @@ async function handleCheck(input: GithubMonitorLedgerInput) {
         isIgnoredActor,
         seenStatus,
         handledStatus,
-        shouldAct: !isIgnoredActor && !stateDigestsMatch(next.lastHandledDigest, event.stateDigest),
+        shouldAct: !isIgnoredActor && handledStatus !== 'handled_repeat',
         lastHandledOutcome: next.lastHandledOutcome,
         lastHandledAt: next.lastHandledAt,
         seenCount: next.seenCount,

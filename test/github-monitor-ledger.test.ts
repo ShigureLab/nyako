@@ -309,6 +309,124 @@ describe('github-monitor-ledger tool', () => {
     })
   })
 
+  it('canonicalizes session PR CI suffixes into the base PR fingerprint', async () => {
+    const tool = registerTool()
+
+    await tool.execute('call_1', {
+      action: 'record',
+      events: [
+        {
+          eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79104',
+          state: {
+            repo: 'PaddlePaddle/Paddle',
+            pr: 79104,
+            headSha: '64dc4a69acb6559037d2c1f59bb06c96c84249d9',
+            state: 'open',
+            reviewDecision: 'review_required',
+            failedChecks: ['Linux-CPU / Build and test'],
+          },
+          outcome: 'suppressed',
+        },
+      ],
+    })
+
+    const check = await tool.execute('call_2', {
+      action: 'check',
+      events: [
+        {
+          eventKey: 'github:session-pr-state:sess_dev:PaddlePaddle/Paddle:79104:ci',
+          state: {
+            repo: 'PaddlePaddle/Paddle',
+            pr: 79104,
+            headSha: '64dc4a69',
+            state: 'OPEN',
+            reviewDecision: 'REVIEW_REQUIRED',
+            failedChecks: ['Linux-CPU / Build and test'],
+          },
+        },
+      ],
+    })
+
+    expect(check.details.results[0]).toMatchObject({
+      eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79104',
+      handledStatus: 'handled_repeat',
+      shouldAct: false,
+    })
+  })
+
+  it('keeps suppressed same-head CI backchecks quiet when check display sets fluctuate', async () => {
+    const tool = registerTool()
+    const headSha = '64dc4a69acb6559037d2c1f59bb06c96c84249d9'
+
+    await tool.execute('call_1', {
+      action: 'record',
+      events: [
+        {
+          eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79189',
+          state: {
+            repo: 'PaddlePaddle/Paddle',
+            pr: 79189,
+            headSha,
+            state: 'open',
+            reviewDecision: 'review_required',
+            latestCommentId: 'non_trusted_status_comment',
+            failedChecks: [
+              'Check approval',
+              'Coverage build',
+              'Linux-CPU / Build and test',
+              'Slice / Slice test',
+            ],
+          },
+          outcome: 'suppressed',
+        },
+      ],
+    })
+
+    const sameHeadFluctuation = await tool.execute('call_2', {
+      action: 'check',
+      events: [
+        {
+          eventKey: 'github:session-pr-state:sess_dev:PaddlePaddle/Paddle:79189:ci',
+          state: {
+            repo: 'PaddlePaddle/Paddle',
+            pr: 79189,
+            headSha: headSha.slice(0, 8),
+            state: 'OPEN',
+            reviewDecision: 'REVIEW_REQUIRED',
+            failedChecks: ['Coverage build', 'Linux-CPU / Build and test', 'Slice / Slice test'],
+          },
+        },
+      ],
+    })
+
+    expect(sameHeadFluctuation.details.results[0]).toMatchObject({
+      eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79189',
+      handledStatus: 'handled_repeat',
+      shouldAct: false,
+    })
+
+    const newCommentSignal = await tool.execute('call_3', {
+      action: 'check',
+      events: [
+        {
+          eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79189',
+          state: {
+            headSha,
+            state: 'open',
+            reviewDecision: 'review_required',
+            latestCommentId: 'trusted_new_comment',
+            failedChecks: ['Coverage build', 'Linux-CPU / Build and test', 'Slice / Slice test'],
+          },
+        },
+      ],
+    })
+
+    expect(newCommentSignal.details.results[0]).toMatchObject({
+      handledStatus: 'handled_changed',
+      shouldAct: true,
+    })
+  })
+
   it('canonicalizes noisy CI state digests before deciding whether to route', async () => {
     const tool = registerTool()
 

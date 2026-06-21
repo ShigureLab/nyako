@@ -71,11 +71,12 @@ GitHub 上下文读取：
 - Session PR 状态反查事件使用 `github:session-pr:<session_id>:<repo>#<pr>` 这类稳定 key。
 - 调 ledger 时优先传结构化 `state`，字段只包含可行动事实：`repo`、`pr` / `issue`、`headSha`、`state` / `terminal`、`merged` / `closed`、`reviewDecision`、`latestReviewId`、`latestCommentId`、`failedChecks`、`gate`。如果 PR 已 `merged` / `closed` 但本轮触发点是新的 review/comment，仍必须在 terminal state 里带上 `latestReviewId` / `latestCommentId`；不能只传 merged/closed digest。不要手写 `stateDigest`，除非工具环境暂时不支持 `state`；fallback `stateDigest` 也不能包含时间戳、轮询次数、临时 in-progress 细节、已失败检查数量这类会导致重复上报的噪声。
 - CI failure 以 `repo + PR + head_sha + failed_check_names` 作为 fingerprint；同一 fingerprint 后续轮询必须由 ledger 抑制。无论是否匹配到活跃 dev Session，都只向 Telegram 主控入口发一次精简 `request`；匹配结果放进 `suggestedTargetSessionId`，不要直发业务 Session。
+- Session PR backcheck 对已有业务 Session 的同 head CI 状态默认由 monitor 自己消化。仅 failed check 集合出现增删、顺序变化、workflow 展示名变化、approval/check 上下文分拆，不足以构成可上报新事件；必须先用完整 GitHub 上下文确认存在新的可行动事实（新 head、新 trusted human review/comment、merged/closed、或真实新失败根因）才允许上报主控。否则调用 ledger `record outcome="suppressed"` 并保持静默，不要发送 “duplicate_ack” 请求给 Telegram channel。
 - PR 仍是 `REVIEW_REQUIRED`，且完整上下文显示当前 blocker 只是审批/评审 gate、不是新的测试或构建失败时，按 `approval-gate` 处理：调用 ledger 时传结构化 `state.gate="approval"`，同一 head 后续必须 `record outcome="suppressed"` 并保持静默；不要每轮发 `ci-failure` 给主控，也不要要求 nyako 回复 duplicate ack。不要用固定 check 名称列表判断 approval gate。
 - `[policy.github_monitor].ignored_actor_logins` 是硬忽略 actor 配置。只要通知、review、comment、check-run 解释上下文里的触发者 / 作者 login 命中该配置，调用 `github_monitor_ledger` 时带上对应 `actorLogin`；ledger check 会返回 `isIgnoredActor=true`、`shouldAct=false` 并自动 suppressed。随后只做 `gh api -X DELETE notifications/threads/<thread_id>` 消费 inbox，不发任何 NNP 消息，也不继续做深度上下文展开。
 - `session_message_send` 返回成功 / message id 后，必须在处理同 key 的下一个候选前立刻 `github_monitor_ledger action="record" outcome="routed"`，不能把 record 延后到整轮结束。
 - non-trusted human comment / mention 的 suppress 只作用于该 comment 维度；DELETE thread 前必须确认同一 thread/context 没有新 review request、非 ignored review、活跃 session 普通回复或 CI/merged 状态变化。
-- Session PR 反查发现 approval-only 或 unchanged-CI 状态时，若本轮已经为同一 `repo#PR` 新路由 review/comment request，不要再单独发 `inform`；把该状态并入原始 request payload。
+- Session PR 反查发现 approval-only、unchanged-CI、same-head duplicate、或已验证无新动作状态时，必须由 monitor 内部记录 suppressed；不要发给 Telegram 让 nyako 再回复 monitor。若本轮已经为同一 `repo#PR` 新路由 review/comment request，把该状态并入原始 request payload，不要单独发 `inform`。
 
 路由示例：
 
@@ -130,3 +131,4 @@ session_message_send(toSessionId="telegram_XXXXXXXXX", kind="request", intent="g
 8. **新 review/comment 优先于 merged closeout**——遇到 `author` / 普通回复类通知，先从完整上下文抽取最新可行动 review/comment。只要存在新的非 ignored review / review request，或 trusted human mention/comment，就按 `pr-review` / `comment` 路由，并在 ledger state 中带 `latestReviewId` / `latestCommentId`；只有没有新可行动 review/comment 时，merged / closed PR 才产出 `pr-merged`。
 9. **ignored actor 硬忽略**——`runtime.toml` 的 `[policy.github_monitor].ignored_actor_logins` 中配置的 actor，其所有消息、review、comment、状态提示都不构成可行动信号；不要转发给 dev-neko 或 Telegram，也不要因为它出现在活跃 Session 关联 PR 上就保持 review 流连续。
 10.   **approval gate 不复读**——同一 head 上当前 blocker 只是审批/评审 gate 且 `reviewDecision=REVIEW_REQUIRED` 时，不构成新的 CI failure。调用 ledger 时显式传 `state.gate="approval"`；除非 head、review/comment、merged/closed 或真实 CI failed check 发生变化，否则只记录 suppressed，不上报主控。approval gate 的识别必须来自 GitHub PR/branch protection/check 上下文，不允许靠固定 check 名称列表。
+11.   **同 head CI 状态不复读**——已有业务 Session 的 session PR backcheck 若仍是同一 head，且没有 trusted human 新信号、没有 terminal state、没有经完整 GitHub 上下文确认的新失败根因，则 monitor 必须自行 suppressed；不要把“已验证重复 / 已暂停跟进 / 无新动作 / stale goal 文本”这类信息发到 Telegram channel。
