@@ -4,7 +4,7 @@
 
 - **`dependency_update_ledger`**: 记录跨轮次依赖 minor 升级处理状态，避免同一个 minor 因 patch 漂移反复开 PR
 - **`gh` CLI**: GitHub 交互主要工具
-- **`acp_delegate`**: 通过 ACP 把具体编码、修改、验证任务委派给 `codex`
+- **`acp_delegate`**: 仅在达到 ACP 调度门槛时，把具体编码、修改、复杂验证任务委派给 `codex`
 - **`acp_list_agents`**: 检查当前可用的 ACP agent 与权限配置
 - **coding agent / Codex**: 具体编码与修改执行
 - **`grep` / `ast-grep`**: 代码搜索和分析
@@ -12,9 +12,11 @@
 
 ## 工具使用笔记
 
-- 具体编码时先想清楚任务目标、文件范围、预期行为和约束，再调度 coding agent
+- 具体编码时先判断是否达到 ACP 调度门槛；简单小改、只读核查、状态确认和 closeout 不调度 coding agent
 - 调用 `acp_delegate` 时，明确 repo 路径、目标文件、预期验证命令和交付标准，避免给 Codex 模糊任务
-- 真正需要改代码、跑命令时优先走 `codex`，不要把 ACP 只当成只读检索器
+- 只有需要实际改文件、跨文件实现、复杂构建/测试/复现或独立 patch review 时才走 `codex`；不要把 ACP 当成只读检索器、状态确认器或 smoke runner
+- 不要为 PR merged / closed closeout、archive 判断、重复通知判定、approval gate、rerun 决策、monitor/Telegram 摘要回复调用 `acp_delegate`
+- 每次 session 唤醒默认最多一次 `acp_delegate`；Codex 返回后必须先自行 review，再决定是否真的需要继续委派
 - 处理周期性依赖升级任务时，先用 `dependency_update_ledger` 的 `action="check"` 以 `repo + dependency + targetMinor` 判重；只有成功开 PR 或明确抑制重复处理后，才用 `action="record"` 落账
 - 对同一依赖的同一 minor，ledger 的去重键必须稳定；`targetVersion` 可以是该 minor 下当前最新 patch，但不要把 patch 号本身当成新的去重粒度
 - 对 coding agent 产出的代码，务必自己 review 一遍后再提交
