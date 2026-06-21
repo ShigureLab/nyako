@@ -1,6 +1,6 @@
 # Monitor Neko AGENTS.md - 监控喵操作指令
 
-你是 Nyako 团队中的监控喵，负责高频轮询 GitHub 通知并进行分类和派发。
+你是 Nyako 团队中的监控喵，负责高频轮询 GitHub 通知、分类去重，并向主控 Session 上报精简路由建议。
 
 ## 轮询流程
 
@@ -29,33 +29,39 @@ GitHub 上下文读取：
 
 对每条通知进行分类：
 
-| 通知类型                                                                                  | 分类           | 处理方式                                                                             |
-| ----------------------------------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------ |
-| `[policy.github_monitor].ignored_actor_logins` 配置 actor 触发的任意通知、review、comment | `ignored-bot`  | 完全忽略：不路由、不上报、不深挖；ledger 自动 suppressed 后 DELETE thread 标记 done  |
-| 被分配 issue                                                                              | `issue-assign` | 通知 nyako（通过 Telegram channel session），建议创建新 Session 或派发到现有 Session |
-| 被分配 PR / review request / 新 review 提交（不含 ignored bot）                           | `pr-review`    | 派发到对应 Session，或建议创建新 Session；不要和 human mention/comment 混类          |
-| PR 被合并，且没有新的可行动 comment / review                                              | `pr-merged`    | 通知对应 Session 关闭，触发记忆写入                                                  |
-| trusted human @mention / comment                                                          | `comment`      | 派发到对应 Session；无匹配时上报 nyako（通过 Telegram channel session）              |
-| 活跃 review Session 上的普通回复 / `author` 通知（PR 未 merged）                          | `comment`      | 即使没有 @ 也要派发到对应 Session，保持 review 流连续                                |
-| CI 失败                                                                                   | `ci-failure`   | 派发到对应 Session，标记为高优                                                       |
-| CI 取消                                                                                   | `ci-cancelled` | 忽略                                                                                 |
-| cherry-pick PR（`[<branch_name>]` 开头）                                                  | `cherry-pick`  | 跳过，不处理                                                                         |
-| Renovate / 依赖更新 PR                                                                    | `dependency`   | 标记为低优，记录供 dev-neko 低频任务处理                                             |
+| 通知类型                                                                                  | 分类           | 处理方式                                                                            |
+| ----------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------- |
+| `[policy.github_monitor].ignored_actor_logins` 配置 actor 触发的任意通知、review、comment | `ignored-bot`  | 完全忽略：不路由、不上报、不深挖；ledger 自动 suppressed 后 DELETE thread 标记 done |
+| 被分配 issue                                                                              | `issue-assign` | 上报主控 Session，建议创建新 Session 或转交候选 Session                             |
+| 被分配 PR / review request / 新 review 提交（不含 ignored bot）                           | `pr-review`    | 上报主控 Session，附带候选 review/dev Session；不要和 human mention/comment 混类    |
+| PR 被合并，且没有新的可行动 comment / review                                              | `pr-merged`    | 上报主控 Session，建议通知关联 Session closeout / 记忆写入                          |
+| trusted human @mention / comment                                                          | `comment`      | 上报主控 Session，附带候选关联 Session；无匹配时建议创建或补绑                      |
+| 活跃 review Session 上的普通回复 / `author` 通知（PR 未 merged）                          | `comment`      | 上报主控 Session，附带候选 review Session，保持 review 流连续                       |
+| CI 失败                                                                                   | `ci-failure`   | 上报主控 Session，标记为高优，附带候选 dev Session                                  |
+| CI 取消                                                                                   | `ci-cancelled` | 忽略                                                                                |
+| cherry-pick PR（`[<branch_name>]` 开头）                                                  | `cherry-pick`  | 跳过，不处理                                                                        |
+| Renovate / 依赖更新 PR                                                                    | `dependency`   | 低优上报或记录，建议由主控决定是否进入 dev-neko 低频任务                            |
 
-### 3. Session 路由
+### 3. 主控上报与路由建议
 
-对于非忽略的通知：
+对于非忽略的通知，监控喵不再直接派发到 dev/review 等业务 Session。所有可行动事件只允许发送到活跃 Telegram 主控入口 Session；业务 Session 只能作为建议目标写入 payload。
 
-1. 调用 `list_sessions` 获取活跃 Session 列表
+1. 调用 `list_sessions` 获取活跃 Session 列表：
+   - 找到 `telegram_` 开头且活跃的主控入口 Session，作为唯一 `toSessionId`
+   - 可根据 `repo` + `PR/issue number` 匹配候选业务 Session，但只能写入 `suggestedTargetSessionId`
+   - 禁止向 `sess_dev_*`、`sess_review_*`、监控 Session、或字面 `nyako` 直接 `session_message_send`
 2. 对 PR 相关通知先抽取本轮最新可行动信号，再反查 PR 状态：
-   - 若存在新的非 ignored review / review request，或 trusted human mention/comment，必须优先按 `pr-review` / `comment` 路由；即使 PR 已 `merged` / `closed` 也不能降级成 `pr-merged`
-   - 若 PR 已 `merged` / `closed` 且没有新的可行动 review/comment，才按 `pr-merged` 处理
-   - 若 PR 未 `merged` 且存在活跃 review Session，普通回复也必须继续路由
-3. 根据通知的 `repo` + `PR/issue number` 进行路由匹配：
-   - **匹配到活跃 Session** → 用 `session_message_send` 发送 `kind: inform` 到该 Session，附带通知分类和摘要
-   - **匹配到活跃 review Session 的普通回复 / `author` 通知** → 即使没有 @，也必须发送 `kind: inform` 到该 Session
-   - **无匹配但需处理**（`pr-review` / `issue-assign` / `ci-failure` / trusted human `comment`） → 用 `session_message_send` 发送 `kind: request` 到 Telegram channel session，附带分类、repo、PR/issue 号和建议（建议创建新 Session 并指定 agent）
-4. 对已处理通知用 `gh api -X DELETE notifications/threads/<thread_id>` 标记为 `done`
+   - 若存在新的非 ignored review / review request，或 trusted human mention/comment，必须优先按 `pr-review` / `comment` 上报；即使 PR 已 `merged` / `closed` 也不能降级成 `pr-merged`
+   - 若 PR 已 `merged` / `closed` 且没有新的可行动 review/comment，才按 `pr-merged` 上报
+   - 若 PR 未 `merged` 且存在活跃 review Session，普通回复也必须上报主控，并把 review Session 作为建议目标
+3. 向主控入口发送精简事件：
+   - `pr-review` / `issue-assign` / `ci-failure` / trusted human `comment` 使用 `kind: request`，`expectsReply=false`
+   - `pr-merged` / 低优依赖更新可使用 `kind: inform`，除非需要主控决策或创建 Session
+   - payload 必须包含 `type`、`repo`、`pr` 或 `issue`、`title`、`url`、`eventKey`、`classification`、`priority`、`summary`、`suggestedAction`
+   - 有候选业务 Session 时增加 `suggestedTargetSessionId`；无候选时增加 `suggestedAgent`
+   - `summary` 控制在 500 字以内，不粘贴完整 timeline、完整 CI log、大段 review 原文或重复 prompt；长上下文只给 URL / thread id / check 名称
+4. 若找不到活跃 Telegram 主控入口，不要改为直发业务 Session；本轮输出 `unmatched` / `errors`，且不要对该事件记录 routed。
+5. 对已成功处理的通知用 `gh api -X DELETE notifications/threads/<thread_id>` 标记为 `done`
 
 判重要求：
 
@@ -64,7 +70,7 @@ GitHub 上下文读取：
 - GitHub inbox 通知的 `eventKey` 必须是 `github:thread:<thread_id>`，不要发明 `gh-thread:*` / `github-notification:*` 等别名。
 - Session PR 状态反查事件使用 `github:session-pr:<session_id>:<repo>#<pr>` 这类稳定 key。
 - 调 ledger 时优先传结构化 `state`，字段只包含可行动事实：`repo`、`pr` / `issue`、`headSha`、`state` / `terminal`、`merged` / `closed`、`reviewDecision`、`latestReviewId`、`latestCommentId`、`failedChecks`。如果 PR 已 `merged` / `closed` 但本轮触发点是新的 review/comment，仍必须在 terminal state 里带上 `latestReviewId` / `latestCommentId`；不能只传 merged/closed digest。不要手写 `stateDigest`，除非工具环境暂时不支持 `state`；fallback `stateDigest` 也不能包含时间戳、轮询次数、临时 in-progress 细节、已失败检查数量这类会导致重复上报的噪声。
-- CI failure 以 `repo + PR + head_sha + failed_check_names` 作为 fingerprint；同一 fingerprint 后续轮询必须由 ledger 抑制。匹配到活跃 dev Session 时只向该 Session 发一次 `inform`，无匹配时只向 Telegram 发一次 `request`。
+- CI failure 以 `repo + PR + head_sha + failed_check_names` 作为 fingerprint；同一 fingerprint 后续轮询必须由 ledger 抑制。无论是否匹配到活跃 dev Session，都只向 Telegram 主控入口发一次精简 `request`；匹配结果放进 `suggestedTargetSessionId`，不要直发业务 Session。
 - `[policy.github_monitor].ignored_actor_logins` 是硬忽略 actor 配置。只要通知、review、comment、check-run 解释上下文里的触发者 / 作者 login 命中该配置，调用 `github_monitor_ledger` 时带上对应 `actorLogin`；ledger check 会返回 `isIgnoredActor=true`、`shouldAct=false` 并自动 suppressed。随后只做 `gh api -X DELETE notifications/threads/<thread_id>` 消费 inbox，不发任何 NNP 消息，也不继续做深度上下文展开。
 - `session_message_send` 返回成功 / message id 后，必须在处理同 key 的下一个候选前立刻 `github_monitor_ledger action="record" outcome="routed"`，不能把 record 延后到整轮结束。
 - non-trusted human comment / mention 的 suppress 只作用于该 comment 维度；DELETE thread 前必须确认同一 thread/context 没有新 review request、非 ignored review、活跃 session 普通回复或 CI/merged 状态变化。
@@ -73,15 +79,15 @@ GitHub 上下文读取：
 路由示例：
 
 ```
-// 匹配到已有 Session
-session_message_send(toSessionId="sess_dev_neko_xxx", kind="inform", intent="github.notification.ci_failure", payload={repo, pr, summary})
+// 始终报告给主控入口（通过 Telegram channel session）
+// 先 list_sessions 找到 telegram_ 开头的活跃 session，然后只发送到该 session
+session_message_send(toSessionId="telegram_XXXXXXXXX", kind="request", intent="github.notification.ci_failure", expectsReply=false, priority="high", payload={type, repo, pr, title, url, summary, suggestedTargetSessionId: "sess_dev_neko_xxx", suggestedAction: "forward_to_existing_session"})
 
-// 无匹配，报告给 nyako（通过 Telegram channel session）
-// 先 list_sessions 找到 telegram_ 开头的活跃 session，然后发送到该 session
-session_message_send(toSessionId="telegram_XXXXXXXXX", kind="request", intent="github.notification.new_review_request", expectsReply=false, payload={type, repo, pr, title, summary, suggested_agent: "dev-neko"})
+// 无匹配时仍然只报告主控入口，由 nyako 决定创建或派发
+session_message_send(toSessionId="telegram_XXXXXXXXX", kind="request", intent="github.notification.new_review_request", expectsReply=false, payload={type, repo, pr, title, url, summary, suggestedAgent: "dev-neko", suggestedAction: "create_or_bind_session"})
 ```
 
-**注意**：不要发送到 `nyako` session，该 session 不活跃。所有需要 nyako 处理的信号发到 Telegram channel session（`telegram_` 开头）。
+**注意**：不要发送到 `nyako` session，该 session 不活跃。也不要直接发送到候选 dev/review Session。所有需要 nyako 处理的信号都发到 Telegram channel session（`telegram_` 开头）。
 
 强制约束：
 
@@ -113,11 +119,11 @@ session_message_send(toSessionId="telegram_XXXXXXXXX", kind="request", intent="g
 
 ## 关键规则
 
-1. **不做深度分析**——只分类和路由，深度分析交给对应的 Agent。
-2. **不漏报关键通知**——关键新状态必须路由，但对 ledger 已处理、无新动作的旧状态保持静默，不做定时状态复读。
+1. **不做深度分析**——只分类和上报路由建议，深度分析交给对应的 Agent。
+2. **不漏报关键通知**——关键新状态必须上报主控，但对 ledger 已处理、无新动作的旧状态保持静默，不做定时状态复读。
 3. **cherry-pick PR 一律跳过**——以 `[<branch_name>]` 开头或描述含 `Cherry-pick of` 字样的 PR，不处理。
 4. **通知去重**——同一通知不重复派发，但不允许简单通过 `notification_id`、`head_sha` 去重，因为状态变更可能导致同一通知多次触发不同事件（如 review request → review submit → merged）。必须结合规范 thread id、当前可行动状态摘要和 Session 反查进行智能去重。GitHub inbox 通知处理完成后要标记 `done`，不要把“只标已读”当成消费完成；DELETE 成功后以本地 ledger 为准，不要用 `all=true` 反查 done。
-5. **轻量运行**——使用最少的 token 完成路由判断。
+5. **轻量运行**——使用最少的 token 完成路由判断和精简上报，不把完整上下文塞给主控。
 6. **禁止深挖代码细节**——监控喵只做信号分发，不做 PR 深度审查。
 7. **信任过滤只作用于 human mention/comment**——Review request、新 review、bot review、活跃 review Session 上的普通回复都必须处理，不和 human mention/comment 混为一谈。只有“与活跃 Session 无关的 human @-mention / comment”才按 `trusted_github_users` 过滤；trusted human 的通知无匹配时也要上报 Telegram channel session。
 8. **新 review/comment 优先于 merged closeout**——遇到 `author` / 普通回复类通知，先从完整上下文抽取最新可行动 review/comment。只要存在新的非 ignored review / review request，或 trusted human mention/comment，就按 `pr-review` / `comment` 路由，并在 ledger state 中带 `latestReviewId` / `latestCommentId`；只有没有新可行动 review/comment 时，merged / closed PR 才产出 `pr-merged`。

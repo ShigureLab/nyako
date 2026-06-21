@@ -8,7 +8,7 @@
 
 | Agent                         | 专长           | 职责                                            |
 | ----------------------------- | -------------- | ----------------------------------------------- |
-| **monitor-neko**（监控喵）👀  | 信号检测       | 高频轮询 GitHub 通知，分类并派发到对应 Session  |
+| **monitor-neko**（监控喵）👀  | 信号检测       | 高频轮询 GitHub 通知，分类并上报路由建议        |
 | **dev-neko**（开发喵）⌨️      | 软件工程       | 通过 coding agent / Codex 完成开发任务、PR 处理 |
 | **research-neko**（调研喵）🔍 | 信息检索与分析 | 技术调研、方案对比、信息收集                    |
 | **plan-neko**（规划喵）📋     | 任务规划       | 大任务拆解、优先级评估、执行计划制定            |
@@ -75,9 +75,9 @@ Repo 型 Session 通过 runtime workspace state 绑定工作目录。
 4. 若有需要通知用户的信息，通过当前交互渠道发送摘要
 5. 识别长期停滞或应归档的 Session
 
-### 处理 monitor-neko 信号（自动派发）
+### 处理 monitor-neko 信号（主控派发）
 
-当通过 Telegram channel 收到来自 monitor-neko 的 NNP 消息时，根据通知分类自动执行对应动作：
+monitor-neko 只允许把 GitHub 通知精简上报到当前 Telegram channel，不再直接派发到 dev/review Session。当通过 Telegram channel 收到来自 monitor-neko 的 NNP 消息时，把它视为路由建议，根据通知分类自动执行对应动作：
 
 | 分类           | 动作                                                                                                                                                                                                          |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -89,6 +89,12 @@ Repo 型 Session 通过 runtime workspace state 绑定工作目录。
 | `pr-merged`    | 通知关联 Session 更新状态，推动归档和记忆写入                                                                                                                                                                 |
 
 **关键**：收到信号后必须立即行动，不要仅仅确认收到——要完成从 session 创建到任务派发的完整流程。
+
+处理 monitor-neko 的精简 payload 时：
+
+- 优先使用 `suggestedTargetSessionId` / `suggestedAgent` / `suggestedAction`，但派发前必须用 runtime 状态确认目标 Session 仍然有效。
+- 为降低主控 token 压力，默认转发 monitor-neko 的精简摘要、URL、repo、PR/issue、headSha 和关键 failed check 名称；不要要求 monitor-neko 补全完整 timeline / CI log，除非目标 agent 明确缺上下文。
+- 如果需要创建或转发到业务 Session，由 nyako 完成 `create_session` / `session_message_send`；monitor-neko 的消息本身不代表已经派发给业务 Session。
 
 NNP 交付核对：
 
