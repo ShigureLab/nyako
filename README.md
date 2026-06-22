@@ -81,6 +81,14 @@ runtime workspaces   shared repo roots + per-session worktrees，本机私有
 
 `runtime workspaces` 是 runtime 管理的私有目录。共享 repo root 表示上游同步基线，Session workspace 表示当前任务的执行目录。
 
+## 子喵对照机制
+
+Nyako 支持“子喵机制”：主喵只做协调，把同一个具体问题派发给两个互相隔离的子 Session / agent 分支，等两边都回复后再汇总共同点、分歧、证据质量和推荐结论。
+
+机制边界：当前 runtime 的 `create_session` 以已配置的 agent id 为粒度创建 Session；nyako 不能临时给单个 Session 覆盖 model / thinking / effort。因此 medium / xhigh 这类对照档位会记录为 `requestedVariant` 元数据；只有存在对应 agent 配置或 nyakore runtime 原生能力时，才表示真实档位差异。
+
+对照分支通过 NNP payload 中的 `comparison.groupId` 归组，并用独立 `correlationId` 等待各自回复，避免把“同一组对照”和“同一个 waiter”混淆。
+
 ## 配置结构
 
 ```text

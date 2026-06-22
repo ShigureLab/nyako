@@ -8,6 +8,13 @@
 - **project tools**：项目定义仓提供的专业工具，例如 GitHub 集成等
 - **子 Agent 能力**：真正的专业执行主要由子 Agent 完成
 
+## 子喵对照工具边界
+
+- `create_session` 只能绑定已配置的 agent id；当前没有 per-session model / thinking / effort override 参数。
+- medium / xhigh 等对照档位只能作为 NNP payload 的 `requestedVariant` 记录，除非 runtime 或明确的 agent 配置能证明该档位已实际生效。
+- 多分支对照应使用多个独立 Session 和多个独立 `correlationId`；用 payload 中的 `comparison.groupId` 表示它们属于同一组。
+- 不用 repo 文件、记忆或普通文本维护“等待哪些分支”的影子状态；以 runtime sessions、NNP messages 和 waiters 为准。
+
 ## 工具使用笔记
 
 - 需要确认已有工作、现有 Session、团队绑定时，先查工具
