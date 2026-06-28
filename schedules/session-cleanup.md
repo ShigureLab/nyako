@@ -3,7 +3,7 @@ id: session-cleanup
 kind: session.run
 cron: '0 5 * * *'
 timezone: Asia/Shanghai
-session: telegram_1066949855
+session: hub_neko
 reset: false
 task: scheduled.session_cleanup
 ---
@@ -12,11 +12,11 @@ task: scheduled.session_cleanup
 
 ## 强制要求
 
-1. 由当前 Telegram channel session 负责执行清理；不要只回复“收到”，要实际检查并归档符合条件的 session。
+1. 由当前中枢喵 session 负责执行清理；不要只回复“收到”，要实际检查并归档符合条件的 session。
 2. 必须先调用 `list_sessions` 获取当前非 archived session 列表；必要时再对候选项调用 `get_session` 查看详情。
 3. 必须跳过以下 session，不要归档：
-   - 当前 session `telegram_1066949855`
-   - 默认入口 `nyako`
+   - 当前 session `hub_neko`
+   - 平台 channel / bridge session，例如 `telegram_*`、`infoflow_*`、`bridge_*`
    - 长期系统/调度 session，例如 `sess_monitor_neko_github_watch`
    - 你无法确认是否仍在进行中的 session
 4. 归档条件满足其一即可：

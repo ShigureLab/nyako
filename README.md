@@ -11,13 +11,25 @@
 
 ## 🐱 团队成员
 
-| Agent                | 角色       | 职责                               | 配置位置                          |
-| -------------------- | ---------- | ---------------------------------- | --------------------------------- |
-| 🐱 **nyako**         | 团队管理者 | 交互 · 调度 · Session 管理         | `agents/nyako/agent.toml`         |
-| 👀 **monitor-neko**  | 哨兵       | 高频轮询 GitHub 通知               | `agents/monitor-neko/agent.toml`  |
-| ⌨️ **dev-neko**      | 工程师     | 开发 · PR 处理 · 调用 coding agent | `agents/dev-neko/agent.toml`      |
-| 🔍 **research-neko** | 情报员     | 技术调研 · 方案分析                | `agents/research-neko/agent.toml` |
-| 📋 **plan-neko**     | 策略师     | 任务拆解 · 优先级评估              | `agents/plan-neko/agent.toml`     |
+| Agent                | 角色     | 职责                               | 配置位置                          |
+| -------------------- | -------- | ---------------------------------- | --------------------------------- |
+| 🐱 **nyako**         | 聊天入口 | 用户交互 · 需求澄清 · 用户可见汇报 | `agents/nyako/agent.toml`         |
+| 🧭 **hub-neko**      | 中枢     | Session 编排 · 调度收口 · 周期任务 | `agents/hub-neko/agent.toml`      |
+| 👀 **monitor-neko**  | 哨兵     | 高频轮询 GitHub 通知               | `agents/monitor-neko/agent.toml`  |
+| ⌨️ **dev-neko**      | 工程师   | 开发 · PR 处理 · 调用 coding agent | `agents/dev-neko/agent.toml`      |
+| 🔍 **research-neko** | 情报员   | 技术调研 · 方案分析                | `agents/research-neko/agent.toml` |
+| 📋 **plan-neko**     | 策略师   | 任务拆解 · 优先级评估              | `agents/plan-neko/agent.toml`     |
+
+## 固定 Session
+
+| Session id | 显示名 | Owner      | 职责                                                                 |
+| ---------- | ------ | ---------- | -------------------------------------------------------------------- |
+| `nyako`    | nyako  | `nyako`    | 按需入口和直接聊天 Session                                           |
+| `hub_neko` | 中枢喵 | `hub-neko` | 唯一中枢 Session；接收 monitor / schedule 路由建议并决定是否派发下游 |
+| `conv_*`   | -      | `nyako`    | 外部平台会话，例如 Telegram / Infoflow 用户或群会话                  |
+| `bridge_*` | -      | `nyako`    | 外部平台 bridge，只做输入输出承载                                    |
+
+`hub-neko` 是独立 agent；`hub_neko` 是它的固定中枢 Session。`nyako` 仍然是聊天入口，不承担中枢 Session 职责。
 
 ## 快速开始
 
@@ -67,12 +79,12 @@ git pull
 ## 架构
 
 ```text
-用户 ──TUI/未来网关──→ 🐱 nyako ──tools──→ Session / Team / Artifacts
-                            │
-                            ├──delegate──→ ⌨️ dev-neko
-                            ├──delegate──→ 🔍 research-neko
-                            ├──delegate──→ 📋 plan-neko
-                            └──delegate──→ 👀 monitor-neko
+用户 ──TUI/未来网关──→ 🐱 nyako ──NNP request──→ 🧭 hub_neko
+                                                   │
+                                                   ├──delegate──→ ⌨️ dev-neko
+                                                   ├──delegate──→ 🔍 research-neko
+                                                   ├──delegate──→ 📋 plan-neko
+                                                   └──receive──→ 👀 monitor-neko
 
 repo root            定义层，可提交
 ~/.nyakore/          secrets + runtime state，本机私有
@@ -92,6 +104,7 @@ agents/
 │   ├── MEMORY.md
 │   ├── agent.toml
 │   └── ...
+├── hub-neko/
 ├── dev-neko/
 ├── research-neko/
 ├── plan-neko/

@@ -3,7 +3,7 @@ id: memory-review
 kind: session.run
 cron: '0 * * * *'
 timezone: Asia/Shanghai
-session: nyako
+session: hub_neko
 reset: false
 task: scheduled.memory.review
 ---

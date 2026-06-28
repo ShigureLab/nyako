@@ -3,9 +3,9 @@
 ## 核心工具
 
 - **`bash`**：GitHub 通知扫描的主执行入口。`gh`、`gh llm`、`gh-llm`、`date`、`jq` 都是通过 `bash` 调用的命令，不是独立 tool。
-- **`github_monitor_ledger`**：跨轮次判重和处理账本。先用 `action="check"` 判断同一事件/状态是否已经处理过；返回 `shouldAct=false` 时必须停止路由，不调用 `session_message_send`，也不改写成 Telegram request；成功路由或明确抑制后用 `action="record"` 落账；不要靠会话记忆判断重复事件。
+- **`github_monitor_ledger`**：跨轮次判重和处理账本。先用 `action="check"` 判断同一事件/状态是否已经处理过；返回 `shouldAct=false` 时必须停止路由，不调用 `session_message_send`，也不改写成中枢喵 request；成功路由或明确抑制后用 `action="record"` 落账；不要靠会话记忆判断重复事件。
 - **`read` / `grep` / `find` / `ls`**：读取项目定义、查看本地上下文、定位相关文件。
-- **runtime session tools**：查看活跃 Session、识别活跃 Telegram 主控入口、匹配候选业务 Session 作为建议目标；`session_message_send` 只能发给主控入口。
+- **runtime session tools**：查看活跃 Session、确认唯一中枢 Session `hub_neko`（中枢喵）、匹配候选业务 Session 作为建议目标；`session_message_send` 只能发给 `hub_neko`。
 - **runtime team / task tools**：只在确认团队状态或任务上下文时使用，不替代 GitHub 扫描本身。
 
 ## 工具使用笔记
@@ -21,10 +21,10 @@
 - `github_monitor_ledger` 是跨轮次真相来源：重复 / 已处理 / 自己触发的判断，优先基于 ledger 返回值和显式字段，不靠聊天上下文记忆；`shouldAct=false` 是硬停止。
 - 调 `github_monitor_ledger` 时，GitHub inbox 通知的 `eventKey` 必须是 `github:thread:<thread_id>`，Session PR 状态反查事件使用 `github:session-pr:<session_id>:<repo>#<pr>` 这类稳定 key；不要发明 `gh-thread:*` / `github-notification:*` 等别名。优先传结构化 `state`，字段只包含可行动事实：`repo`、`pr` / `issue`、`headSha`、`state` / `terminal`、`merged` / `closed`、`reviewDecision`、`latestReviewId`、`latestCommentId`、`failedChecks`、`gate`。如果 PR 已 `merged` / `closed` 但触发点是新的可行动 review/comment，仍必须把 `latestReviewId` / `latestCommentId` 放进同一个 terminal state；不要只传 merged/closed digest。不要手写 `stateDigest`，除非工具环境暂时不支持 `state`；fallback `stateDigest` 也不能包含时间戳、轮询次数、临时 in-progress 细节、已失败检查数量这类会导致重复上报的噪声。
 - `github_monitor_ledger` 会从 `runtime.toml` 的 `[policy.github_monitor].ignored_actor_logins` 读取 ignored actor。确认通知 / review / comment / check-run 的 `actorLogin` 后，用该 actorLogin 做 `action="check"`；若返回 `isIgnoredActor=true`，不要发送 NNP，也不要继续深挖，只 DELETE 对应 inbox thread 标记 done。
-- CI failure 以 `repo + PR + head_sha + failed_check_names` 作为 fingerprint；同一 fingerprint 后续轮询必须由 ledger 抑制。无论是否匹配到活跃 dev Session，都只向 Telegram 主控入口发一次精简 `request`；匹配结果放进 `suggestedTargetSessionId`，不要直发业务 Session。
-- 对已有业务 Session 的 session PR backcheck，同一 head 的 CI 状态默认由 monitor 内部消化；failed check 集合增删、顺序变化、workflow 展示名变化或 approval/check 上下文分拆，只有在完整 GitHub 上下文证明存在新的可行动根因时才上报。已验证重复、已暂停跟进、无新动作、stale goal 文本这类状态只 `record outcome="suppressed"`，不要发给 Telegram channel 让 nyako 回 duplicate ack。
+- CI failure 以 `repo + PR + head_sha + failed_check_names` 作为 fingerprint；同一 fingerprint 后续轮询必须由 ledger 抑制。无论是否匹配到活跃 dev Session，都只向 `hub_neko` 发一次精简 `request`；匹配结果放进 `suggestedTargetSessionId`，不要直发业务 Session。
+- 对已有业务 Session 的 session PR backcheck，同一 head 的 CI 状态默认由 monitor 内部消化；failed check 集合增删、顺序变化、workflow 展示名变化或 approval/check 上下文分拆，只有在完整 GitHub 上下文证明存在新的可行动根因时才上报。已验证重复、已暂停跟进、无新动作、stale goal 文本这类状态只 `record outcome="suppressed"`，不要发给中枢喵或平台 channel 触发 duplicate ack。
 - 如果完整 GitHub 上下文显示当前 blocker 只是审批/评审 gate、不是新的测试或构建失败，调用 `github_monitor_ledger` 时传结构化 `state.gate="approval"`。ledger 不按 check 名称猜测 gate；返回 `shouldAct=false` 时必须静默，不要生成 duplicate ack 请求。
-- 对已经成功上报主控或明确决定忽略的事件，要立刻用 `action="record"` 记录 `outcome="routed"` 或 `outcome="suppressed"`；发送失败、工具不可用、主控入口未确认、或无法确认交付时不要记录。
+- 对已经成功上报中枢喵或明确决定忽略的事件，要立刻用 `action="record"` 记录 `outcome="routed"` 或 `outcome="suppressed"`；发送失败、工具不可用、`hub_neko` 未确认、或无法确认交付时不要记录。
 - 对已经成功处理完的 GitHub inbox 通知，要用 `bash` 调 `gh api -X DELETE notifications/threads/<thread_id>` 标记为 `done`。不要只做 `PATCH .../threads/<thread_id>` 标记已读。
-- Session 路由判断先查 runtime session tools，但只用于确认主控入口和生成建议目标；不要手工假设某个 Session 活跃。
+- Session 路由判断先查 runtime session tools，但只用于确认 `hub_neko` 和生成建议目标；不要手工假设某个业务 Session 活跃。
 - 你是监控和路由建议角色，不做深度开发；GitHub 上下文只读到足够完成分类和精简上报为止。

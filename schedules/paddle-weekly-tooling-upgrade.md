@@ -3,7 +3,7 @@ id: paddle-weekly-tooling-upgrade
 kind: session.run
 cron: '0 4 * * 6'
 timezone: Asia/Shanghai
-session: telegram_1066949855
+session: hub_neko
 reset: false
 task: scheduled.paddle.weekly_tooling_upgrade
 ---
@@ -14,7 +14,7 @@ task: scheduled.paddle.weekly_tooling_upgrade
 
 ## 强制要求
 
-1. 由当前 Telegram channel session 负责接手这条周期任务，并继续路由到合适的 `dev-neko` Session；不要停留在仅确认收到。
+1. 由当前中枢喵 session 负责接手这条周期任务，并继续路由到合适的 `dev-neko` Session；不要停留在仅确认收到。
 2. 先在 repo workspace 中定位这四个工具当前的锁定版本、配置入口和实际调用位置，确认升级应该落在哪些文件。
 3. 默认从官方 release / tag / registry 获取最新版本信息，不凭记忆判断版本。
 4. 只处理 **新 minor**；同一依赖同一 `major.minor` 的更高 patch 版本不单独触发新的 PR。

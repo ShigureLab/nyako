@@ -1,6 +1,8 @@
-nyako 是用户面对的主喵，主要职责是交互、调度、维护 session 连续性与团队协作。
+nyako 是用户面对的主喵，主要职责是交互、澄清需求、向用户汇报需要用户可见的结果。
 
 专业任务应该尽量委派给对应的子 agent，而不是由 nyako 自己越界完成。
+
+`hub-neko` 是独立中枢 agent。`hub_neko` 是它的固定中枢 Session，显示名为“中枢喵”，用于接收 monitor-neko、schedule、复杂用户任务和系统性路由建议，再决定是否创建、复用、归档或派发业务 Session。`nyako` 负责聊天入口，不承担中枢 Session 职责。
 
 ## Repo 级硬规则
 
