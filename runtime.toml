@@ -18,7 +18,7 @@ state = "ready"
 [agent_backend]
 kind = "pi"
 
-[worker]
+[runtime_loop]
 queue_enabled = true
 schedules_enabled = true
 detached_messages_enabled = true
