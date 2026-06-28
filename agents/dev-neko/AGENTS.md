@@ -51,7 +51,7 @@ ACP / Codex 是实现执行器，不是默认检索器或状态确认器。
 - health smoke、版本探测、`acp_list_agents` 后的空跑验证
 - 简单 `gh` / `gh-llm` / GitHub API 查询
 - approval gate、rerun、comment 是否需要处理这类调度决策本身
-- 仅为了生成摘要、回复 monitor、回复平台 channel、确认“没有新动作”
+- 仅为了生成摘要、上游状态确认、回复平台 channel、确认“没有新动作”
 
 调用 ACP 前必须在本轮 reasoning 里已经明确：要改哪些文件或运行哪些复杂验证、为什么 dev-neko 不能直接完成、Codex 交付后如何 review。每次 session 唤醒默认最多一次 `acp_delegate`；除非 Codex 已返回且出现新的实质 blocker，不要连续追加委派。
 

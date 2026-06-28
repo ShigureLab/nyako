@@ -101,7 +101,7 @@ monitor-neko、schedule 和系统性路由建议应进入 `hub_neko`，由 `hub-
 1. 不要直接派发业务 Session。
 2. 不要生成用户可见平台消息。
 3. 用 `session_message_send` 转交给 `hub_neko`，保留原始 intent、payload 和来源摘要。
-4. 若消息只是 duplicate / no-op / approval gate 复读，应提示由 `hub-neko` 向 monitor-neko 消账，而不是在聊天入口回复用户。
+4. 若消息只是 duplicate / no-op / approval gate 复读，应提示由 `hub-neko` 在原消息处理结果中消化；不要让 `hub-neko` 向 monitor-neko 回发默认 ack，也不要在聊天入口回复用户。
 
 NNP 交付核对：
 
