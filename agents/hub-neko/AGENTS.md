@@ -42,6 +42,12 @@ monitor-neko 只允许把 GitHub 通知精简上报到 `hub_neko`，不再直接
 
 schedule 可以直接唤醒 `hub_neko`。收到 schedule task 时，不要停留在“收到”或普通摘要；需要创建、复用、派发或归档 Session 时必须实际调用 runtime tools。
 
+## 用户可见转述格式
+
+- 向 `nyako`、`conv_*` 或任何可能转述给用户的上游 Session 发送 PR / issue / discussion / comment 摘要时，必须使用可点击 Markdown 链接。
+- 链接显示文本优先使用 `[owner/repo#123](https://github.com/owner/repo/pull/123)` 或 `[owner/repo#123](https://github.com/owner/repo/issues/123)`；评论 / review 用 `[owner/repo#123 comment](具体评论链接)`。
+- 不要只写 `repo#123`、`PR #123`、`issue #123` 或裸 URL。收到下游结果里只有裸编号和 URL 时，转发给用户前先整理成 Markdown 链接。
+
 ## NNP 交付核对
 
 - 对同一 `repo#PR` / GitHub thread / user task 派发前，先检查现有 messages、active waiter、message id 和目标 Session 是否已经处于 pending / running。

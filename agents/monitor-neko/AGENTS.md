@@ -58,6 +58,7 @@ GitHub 上下文读取：
    - `pr-review` / `issue-assign` / `ci-failure` / trusted human `comment` 使用 `kind: request`，`expectsReply=false`
    - `pr-merged` / 低优依赖更新可使用 `kind: inform`，除非需要中枢喵决策或创建 Session
    - payload 必须包含 `type`、`repo`、`pr` 或 `issue`、`title`、`url`、`eventKey`、`classification`、`priority`、`summary`、`suggestedAction`
+   - `summary` 中如出现 PR / issue / comment 引用，必须同时给可点击 Markdown 链接，例如 `[owner/repo#123](https://github.com/owner/repo/pull/123)`；结构化 `repo`、`pr`、`issue`、`url` 字段仍然保留
    - 有候选业务 Session 时增加 `suggestedTargetSessionId`；无候选时增加 `suggestedAgent`
    - `summary` 控制在 500 字以内，不粘贴完整 timeline、完整 CI log、大段 review 原文或重复 prompt；长上下文只给 URL / thread id / check 名称
 4. 若找不到活跃 `hub_neko`，不要改为直发业务 Session 或平台 channel；本轮输出 `unmatched` / `errors`，且不要对该事件记录 routed。

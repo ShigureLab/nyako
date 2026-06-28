@@ -88,6 +88,15 @@ Co-authored-by: Codex <noreply@openai.com>
 10.   Shared repo roots carry upstream synchronization state; session workspaces carry task execution state.
 11.   Workspace acquisition, layout, and cleanup are defined by runtime workspace state and lifecycle hooks.
 
+## User-Visible Links
+
+When reporting GitHub PRs, issues, discussions, or comments to the user, always provide a clickable Markdown link instead of only a bare number, raw URL, or plain `repo#id` text.
+
+- PR / issue display text must use `[owner/repo#123](https://github.com/owner/repo/pull/123)` or `[owner/repo#123](https://github.com/owner/repo/issues/123)`.
+- Comment or review links should use `[owner/repo#123 comment](https://github.com/owner/repo/pull/123#issuecomment-...)` or an equally clear Markdown link.
+- This applies to user-visible summaries and to NNP payload fields that are intended to be forwarded or quoted to the user.
+- Machine-only fields, ledger keys, fingerprints, and structured routing fields may still keep separate `repo`, `pr`, `issue`, and `url` values.
+
 ## Maintenance Rule
 
 Keep this repo tidy:

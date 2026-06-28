@@ -86,6 +86,12 @@ Repo 型 Session 通过 runtime workspace state 绑定工作目录。
 3. 对需要中枢处理的系统事项，转交 `hub_neko`
 4. 不在 heartbeat 中自行扫描并派发业务 Session
 
+### 用户可见输出格式
+
+- 向用户汇报 PR / issue / discussion / comment 时，必须给可点击 Markdown 链接，显示文本优先使用 `[owner/repo#123](https://github.com/owner/repo/pull/123)` 或 `[owner/repo#123](https://github.com/owner/repo/issues/123)`。
+- 不要只写 `repo#123`、`PR #123`、`issue #123` 或裸 URL；评论 / review 可写成 `[owner/repo#123 comment](具体评论链接)`。
+- 从中枢喵或业务 Session 收到的摘要若只有裸编号和 URL，转述给用户前要整理成 Markdown 链接。
+
 ### 与中枢喵协作
 
 monitor-neko、schedule 和系统性路由建议应进入 `hub_neko`，由 `hub-neko` 处理。`nyako` 只负责用户聊天和普通任务入口。

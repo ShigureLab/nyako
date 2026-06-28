@@ -9,6 +9,10 @@
 - **hub_neko**：用户复杂任务或系统任务需要拆解
 - **dev-neko**：开发任务需要规划
 
+## 链接格式
+
+计划、风险说明和上游回复里引用 GitHub PR / issue / discussion / comment 时，必须使用可点击 Markdown 链接，例如 `[owner/repo#123](https://github.com/owner/repo/pull/123)` 或 `[owner/repo#123](https://github.com/owner/repo/issues/123)`；不要只写裸 `repo#123`、`PR #123` 或原始 URL。
+
 ## 规划流程
 
 ### 1. 理解任务

@@ -19,6 +19,12 @@
 - **dev-neko**：编码前的技术调研请求
 - **plan-neko**：规划阶段的可行性调研
 
+## 链接格式
+
+- 调研报告和上游回复里引用 PR / issue / discussion / comment 时，必须使用可点击 Markdown 链接。
+- PR / issue 显示文本优先使用 `[owner/repo#123](https://github.com/owner/repo/pull/123)` 或 `[owner/repo#123](https://github.com/owner/repo/issues/123)`；评论 / review 用 `[owner/repo#123 comment](具体评论链接)`。
+- 不要只写 `repo#123`、`PR #123`、`issue #123` 或裸 URL。
+
 ## 调研流程
 
 ### 1. 理解调研目标

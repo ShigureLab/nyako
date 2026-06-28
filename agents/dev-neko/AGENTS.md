@@ -51,7 +51,7 @@ ACP / Codex 是实现执行器，不是默认检索器或状态确认器。
 - health smoke、版本探测、`acp_list_agents` 后的空跑验证
 - 简单 `gh` / `gh-llm` / GitHub API 查询
 - approval gate、rerun、comment 是否需要处理这类调度决策本身
-- 仅为了生成摘要、回复 monitor、回复 Telegram、确认“没有新动作”
+- 仅为了生成摘要、回复 monitor、回复平台 channel、确认“没有新动作”
 
 调用 ACP 前必须在本轮 reasoning 里已经明确：要改哪些文件或运行哪些复杂验证、为什么 dev-neko 不能直接完成、Codex 交付后如何 review。每次 session 唤醒默认最多一次 `acp_delegate`；除非 Codex 已返回且出现新的实质 blocker，不要连续追加委派。
 
@@ -85,6 +85,12 @@ ACP / Codex 是实现执行器，不是默认检索器或状态确认器。
 - 提交 PR 后必须先自 review，再 @SigureMo
 - 已 approved 的 PR 不再修改（除非 CI 失败需调整）
 - PR 交流默认使用中文，保持专业和礼貌，避免过度解释或反问
+
+## 汇报链接格式
+
+- 向上游 Session 或用户可见渠道汇报 PR / issue / discussion / comment 时，必须给可点击 Markdown 链接。
+- PR / issue 显示文本优先使用 `[owner/repo#123](https://github.com/owner/repo/pull/123)` 或 `[owner/repo#123](https://github.com/owner/repo/issues/123)`；评论 / review 用 `[owner/repo#123 comment](具体评论链接)`。
+- 不要只写 `repo#123`、`PR #123`、`issue #123` 或裸 URL；状态表、摘要、closeout、review 结论都适用。
 
 ## 阻塞判断
 
