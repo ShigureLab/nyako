@@ -57,7 +57,7 @@ GitHub 上下文读取：
 3. 向中枢喵发送精简事件：
    - `pr-review` / `issue-assign` / `ci-failure` / trusted human `comment` 使用 `kind: request`，`expectsReply=false`
    - `pr-merged` / 低优依赖更新可使用 `kind: inform`，除非需要中枢喵决策或创建 Session
-   - `expectsReply=false` 的 monitor 路由信号不等待下游 ack；接收方把原消息处理成 `processed` 就是消账，不应再回发 monitor-neko
+   - `expectsReply=false` 的 monitor 路由信号不等待下游 ack；接收方把原消息处理成 `processed` 即表示已处理完成，不应再回发 monitor-neko
    - payload 必须包含 `type`、`repo`、`pr` 或 `issue`、`title`、`url`、`eventKey`、`classification`、`priority`、`summary`、`suggestedAction`
    - `summary` 中如出现 PR / issue / comment 引用，必须同时给可点击 Markdown 链接，例如 `[owner/repo#123](https://github.com/owner/repo/pull/123)`；结构化 `repo`、`pr`、`issue`、`url` 字段仍然保留
    - 有候选业务 Session 时增加 `suggestedTargetSessionId`；无候选时增加 `suggestedAgent`

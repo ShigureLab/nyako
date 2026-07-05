@@ -21,6 +21,6 @@ task: scheduled.memory.review
    - `agent`：某个 agent 在本机上的稳定操作偏好、重复有效的方法论
    - `runtime`：机器/环境特性、本机运维偏好、不可提交的宿主知识
 6. 如果要替换旧结论，使用 `supersedes` 明确声明，而不是假设旧记忆会自动消失。
-7. 每审完一个候选 Session，都必须调用 `memory_review_mark`；即使本轮没有 promote 新 memory，也要显式消账。
+7. 每审完一个候选 Session，都必须调用 `memory_review_mark`；即使本轮没有 promote 新 memory，也要显式标记已审阅。
 8. 默认跳过明显的系统 Session 和纯心跳 Session；只有确认其中确实包含稳定协作知识时才 promote。
 9. 输出结构化摘要：`candidates` / `reviewed` / `promoted` / `marked` / `skipped`
