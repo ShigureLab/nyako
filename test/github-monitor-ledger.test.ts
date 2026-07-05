@@ -855,6 +855,103 @@ describe('github-monitor-ledger tool', () => {
     })
   })
 
+  it('treats a new review on an already closed notification thread as actionable', async () => {
+    const tool = registerTool()
+    const eventKey = 'github:thread:24414707599'
+    const headSha = '6591586ce6a53b2a1a52410523740c41649576f2'
+
+    await tool.execute('call_1', {
+      action: 'record',
+      events: [
+        {
+          eventKey,
+          actorLogin: 'SigureMo',
+          state: {
+            repo: 'ShigureNyako/yutto',
+            pr: 2,
+            headSha,
+            terminal: 'closed',
+            closed: true,
+            merged: false,
+            latestCommentId: 4835698796,
+          },
+          outcome: 'routed',
+          intent: 'github.notification.comment',
+        },
+      ],
+    })
+
+    const newReviewCheck = await tool.execute('call_2', {
+      action: 'check',
+      events: [
+        {
+          eventKey,
+          actorLogin: 'SigureMo',
+          state: {
+            repo: 'ShigureNyako/yutto',
+            pr: 2,
+            headSha,
+            terminal: 'closed',
+            closed: true,
+            merged: false,
+            latestReviewId: 4594454680,
+          },
+        },
+      ],
+    })
+
+    expect(newReviewCheck.details.results[0]).toMatchObject({
+      eventKey,
+      stateDigest: `terminal=closed;head=${headSha};latest_review=4594454680`,
+      handledStatus: 'handled_changed',
+      shouldAct: true,
+    })
+
+    await tool.execute('call_3', {
+      action: 'record',
+      events: [
+        {
+          eventKey,
+          actorLogin: 'SigureMo',
+          state: {
+            repo: 'ShigureNyako/yutto',
+            pr: 2,
+            headSha: headSha.slice(0, 12),
+            terminal: 'closed',
+            closed: true,
+            merged: false,
+            latestReviewId: 4594454680,
+          },
+          outcome: 'routed',
+          intent: 'github.notification.pr_review',
+        },
+      ],
+    })
+
+    const repeatReviewCheck = await tool.execute('call_4', {
+      action: 'check',
+      events: [
+        {
+          eventKey,
+          state: {
+            repo: 'ShigureNyako/yutto',
+            pr: 2,
+            headSha,
+            terminal: 'closed',
+            closed: true,
+            merged: false,
+            latestReviewId: 4594454680,
+          },
+        },
+      ],
+    })
+
+    expect(repeatReviewCheck.details.results[0]).toMatchObject({
+      handledStatus: 'handled_repeat',
+      shouldAct: false,
+    })
+  })
+
   it('keeps suppressed Paddle PR terminal states handled when head SHA length changes', async () => {
     const tool = registerTool()
     const eventKey =
