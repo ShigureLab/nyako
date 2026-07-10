@@ -4,6 +4,6 @@ role = "planner"
 tools = ["read", "grep", "find", "ls", "runtime-session", "runtime-team", "runtime-task"]
 
 [model]
-model = "openai-codex/gpt-5.5"
+model = "openai-codex/gpt-5.6-sol"
 credential = "openai-codex-swgu98"
 thinking = "medium"
