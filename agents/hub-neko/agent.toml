@@ -1,7 +1,14 @@
 id = "hub-neko"
 name = "hub-neko"
 role = "hub"
-tools = ["runtime-session", "runtime-team", "runtime-task", "runtime-workspace", "runtime-memory"]
+tools = [
+  "runtime-session",
+  "runtime-team",
+  "runtime-task",
+  "runtime-workspace",
+  "runtime-memory",
+  "runtime-user",
+]
 
 [model]
 model = "openai-codex/gpt-5.6-terra"

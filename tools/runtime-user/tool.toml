@@ -1,0 +1,7 @@
+id = "runtime-user"
+name = "runtime user tools"
+kind = "runtime"
+entrypoint = "nyakore"
+enabled = true
+
+description = "Resolve channel and service identities through runtime-managed user bindings."
