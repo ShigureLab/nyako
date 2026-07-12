@@ -2,7 +2,7 @@
 enabled = true
 extractor_agent = "memory-neko"
 session = "memory_producer"
-sweep_interval_ms = 60000
+sweep_interval_ms = 300000
 idle_after_ms = 300000
 max_sessions_per_sweep = 2
 max_source_chars = 48000
