@@ -11,6 +11,7 @@ tools = [
   "runtime-session",
   "runtime-team",
   "runtime-task",
+  "runtime-memory",
 ]
 
 [model]

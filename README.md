@@ -129,7 +129,6 @@ hooks/
     └── main.ts
 
 schedules/
-├── memory-review.md
 ├── github-monitor.md
 ├── session-cleanup.md
 └── paddle-weekly-tooling-upgrade.md
@@ -167,16 +166,17 @@ memory/
 - 可扩展的 tool definitions 目录
 - skills registry
 
-当前 prompt 组合顺序由 `nyakore` 负责固定为：
+当前 prompt 由 `nyakore` 按以下层次组装：
 
 1. `AGENTS.md`
 2. `IDENTITY.md`
 3. `SOUL.md`
 4. `TOOLS.md`
 5. `USER.md`
-6. repo 级 `memory/*.md`
-7. agent 级 `MEMORY.md`
-8. `~/.nyakore/projects/<project>/memory/projections/summary.md`
+6. agent 级 `MEMORY.md`
+7. capability prompt sections；其中 runtime memory 只注入小型 `memory_summary.md` 导航
+
+repo 级 `memory/*.md` 和 runtime `MEMORY.md` / `rollout_summaries/*.md` 不会全量注入。Agent 通过 `project_memory_*` 或 `memory_search` → `memory_read` 渐进读取；runtime memory 的每次搜索和读取都会记录 usage receipt。
 
 ## 特别感谢
 

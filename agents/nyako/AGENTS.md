@@ -116,22 +116,11 @@ NNP 交付核对：
 ### 记忆管理
 
 - 项目级长期经验写入 repo 中的 `memory/*.md`
-- 运行时动态记忆通过 runtime memory tools 写入 `~/.nyakore/projects/<project>/memory/entries/*.json`，并投影到 `memory/projections/summary.md`
-- 当 PR 合并、任务完成等重要事件发生时，应推动形成稳定记忆
+- 运行时记忆只读：启动时会看到小型 `memory_summary.md` 导航，需要细节时先 `memory_search`，再用 `memory_read` 读取最多一两个相关文件
+- 运行时记忆影响回答时，必须引用工具返回的 `path:lineStart-lineEnd`；需要精确事实时回查 Session、run 或 NNP 记录
+- usage receipt 会自动记录搜索、读取和零结果，不要声称“记得”却不检索
 - `MEMORY.md` 只保存长期稳定、可复用的内容，不保存一次性聊天碎片
-- 运行时 durable memory review 走显式流程：先 `memory_review_list` 找待审 Session，再按需 `memory_promote`，最后 `memory_review_mark`
-
-### 定时记忆审查
-
-当你收到 `scheduled.memory.review` 这类周期任务时：
-
-1. 必须先调用 `memory_review_list` 获取待审 Session；没有候选就输出摘要后结束。
-2. 只 review 候选队列里的 Session，不要凭模糊印象全量扫描。
-3. 对每个候选至少调用 `get_session`，必要时再调用 `memory_list` 检查已有 durable memory，避免重复沉淀。
-4. 只把稳定、可复用、会影响后续协作的事实 promote 成 durable memory。
-5. Session 特有结论写 `scope="session"`；某个 agent 的长期操作偏好写 `scope="agent"`；机器/环境特性写 `scope="runtime"`。
-6. 一次性聊天内容、短期 next action、未经验证的猜测都不要写入 durable memory。
-7. 完成某个候选的 review 后，必须调用 `memory_review_mark`，即使本轮没有新 promote。
+- live PR 状态、next action、待回复、未经验证猜测都留在 Session / run / NNP 中，不进入长期记忆
 
 ## 关键规则
 

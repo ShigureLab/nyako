@@ -4,4 +4,4 @@ kind = "runtime"
 entrypoint = "nyakore"
 enabled = true
 
-description = "Inspect runtime-managed memory, review pending memory candidates, and promote durable memory records."
+description = "Search and read the runtime memory workspace with bounded line citations and usage receipts."
