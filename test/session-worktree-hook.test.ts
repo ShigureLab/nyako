@@ -185,4 +185,65 @@ describe('session-worktree hook helpers', () => {
     await expect(access(legacyPath)).rejects.toThrow()
     expect(workspace.records.has('ws_paddlepaddle_docs')).toBe(false)
   })
+
+  it('cleans session state when managed worktree git metadata is broken', async () => {
+    const dataRoot = await mkdtemp(path.join(os.tmpdir(), 'nyako-worktree-broken-'))
+    cleanupRoots.push(dataRoot)
+    const workspace = createWorkspaceRegistryStub()
+    const sessionId = 'sess_dev_neko_broken_worktree'
+    const rootPath = path.join(dataRoot, 'workspaces', 'repos', 'ShigureLab', 'gh-llm')
+    const sessionPath = path.join(
+      dataRoot,
+      'workspaces',
+      'sessions',
+      sessionId,
+      'ShigureLab',
+      'gh-llm'
+    )
+    await mkdir(rootPath, { recursive: true })
+    await mkdir(sessionPath, { recursive: true })
+    await writeFile(path.join(rootPath, '.git'), 'gitdir: /missing/root-worktree\n', 'utf8')
+    await writeFile(path.join(sessionPath, '.git'), 'gitdir: /missing/session-worktree\n', 'utf8')
+    await workspace.upsertWorkspace({
+      id: 'ws_root_shigurelab_gh_llm',
+      repo: 'ShigureLab/gh-llm',
+      path: rootPath,
+      branch: 'main',
+      dirty: false,
+      kind: 'root',
+      currentSessionId: null,
+      rootPath,
+      managedBy: 'session-worktree',
+    })
+    const sessionWorkspace = await workspace.upsertWorkspace({
+      id: 'ws_session_broken_shigurelab_gh_llm',
+      repo: 'ShigureLab/gh-llm',
+      path: sessionPath,
+      branch: 'session/sess_dev_neko_broken_worktree',
+      dirty: false,
+      kind: 'session',
+      currentSessionId: sessionId,
+      rootPath,
+      managedBy: 'session-worktree',
+    })
+
+    await sessionWorktreeHook.beforeSessionArchive(
+      {
+        session: {
+          id: sessionId,
+        },
+      },
+      {
+        dataRoot,
+        runtimeConfig: createRuntimeConfigStub(),
+        workspace,
+      }
+    )
+
+    await expect(access(sessionPath)).rejects.toThrow()
+    await expect(access(path.join(dataRoot, 'workspaces', 'sessions', sessionId))).rejects.toThrow()
+    await expect(access(rootPath)).rejects.toThrow()
+    expect(workspace.records.has(sessionWorkspace.id)).toBe(false)
+    expect(workspace.records.has('ws_root_shigurelab_gh_llm')).toBe(false)
+  })
 })

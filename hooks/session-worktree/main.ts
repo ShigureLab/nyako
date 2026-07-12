@@ -148,12 +148,25 @@ async function readGit(args: string[], cwd?: string): Promise<string | null> {
   }
 }
 
+async function isUsableGitWorktree(worktreePath: string): Promise<boolean> {
+  if (!existsSync(worktreePath)) {
+    return false
+  }
+  return (await readGit(['rev-parse', '--is-inside-work-tree'], worktreePath)) === 'true'
+}
+
 async function ensureSharedRepoRoot(params: {
   remoteUrl?: string
   repo: string
   rootPath: string
 }): Promise<{ branch: string; rootPath: string }> {
   await mkdir(path.dirname(params.rootPath), { recursive: true })
+  if (
+    existsSync(path.join(params.rootPath, '.git')) &&
+    !(await isUsableGitWorktree(params.rootPath))
+  ) {
+    await removeDirIfExists(params.rootPath)
+  }
   if (!existsSync(path.join(params.rootPath, '.git'))) {
     await execGit(['clone', resolveRemoteUrl(params.repo, params.remoteUrl), params.rootPath])
   }
@@ -291,8 +304,9 @@ export async function cleanupSessionWorkspace(params: {
     params.workspace.managedBy === HOOK_ID &&
     Boolean(rootPath) &&
     path.resolve(rootPath!) !== path.resolve(params.workspace.path)
+  const hasUsableRoot = rootPath ? await isUsableGitWorktree(rootPath) : false
 
-  if (isHookManagedWorktree && rootPath && existsSync(rootPath)) {
+  if (isHookManagedWorktree && rootPath && hasUsableRoot) {
     await readGit(['worktree', 'remove', '--force', params.workspace.path], rootPath)
     await execGit(['worktree', 'prune'], rootPath)
     if (branch) {
@@ -311,6 +325,33 @@ export async function cleanupSessionWorkspace(params: {
     path.join(params.context.dataRoot, 'workspaces', 'sessions', params.sessionId),
     path.join(params.context.dataRoot, 'workspaces', 'sessions')
   )
+
+  if (isHookManagedWorktree && rootPath && !hasUsableRoot) {
+    const remainingWorkspaces = await params.context.workspace.listWorkspaces()
+    const normalizedRootPath = path.resolve(rootPath)
+    const stillReferenced = remainingWorkspaces.some(
+      (workspace) =>
+        workspace.kind === 'session' &&
+        workspace.rootPath &&
+        path.resolve(workspace.rootPath) === normalizedRootPath
+    )
+    if (!stillReferenced) {
+      const rootWorkspace = remainingWorkspaces.find(
+        (workspace) =>
+          workspace.kind === 'root' &&
+          workspace.managedBy === HOOK_ID &&
+          path.resolve(workspace.path) === normalizedRootPath
+      )
+      await removeDirIfExists(rootPath)
+      if (rootWorkspace) {
+        await params.context.workspace.deleteWorkspace(rootWorkspace.id)
+      }
+      await removeEmptyParents(
+        path.dirname(rootPath),
+        path.join(params.context.dataRoot, 'workspaces', 'repos')
+      )
+    }
+  }
 }
 
 async function cleanupManagedSessionWorkspaces(params: {
@@ -335,6 +376,7 @@ async function cleanupManagedSessionWorkspaces(params: {
       workspace,
     })
   }
+  await removeDirIfExists(sessionRoot)
 }
 
 const sessionWorktreeHook = {
