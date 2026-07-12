@@ -61,7 +61,7 @@ ACP / Codex 是实现执行器，不是默认检索器或状态确认器。
 
 1. 优先搜索该代码库的 issue、PR 和讨论区
 2. 使用 `github-conversation` skill 阅读理解相关 issue 和 PR
-3. 使用 `gh-llm` 读取 PR / Issue 时，把 `runtime.toml` 的 `[policy.github_context].auto_collapse_author_logins` 转成 `--auto-collapse-author <login>` 参数，例如 `--auto-collapse-author PaddlePaddle-bot`；不要让这类噪声账号的长评论干扰开发判断
+3. 使用 `gh-llm` 读取 PR / Issue 时，把 `adapters/github/adapter.toml` 的 `[policy.context].auto_collapse_author_logins` 转成 `--auto-collapse-author <login>` 参数，例如 `--auto-collapse-author PaddlePaddle-bot`；不要让这类噪声账号的长评论干扰开发判断
 4. **重点关注代码 review**——review 往往包含宝贵的经验和最佳实践
 5. 善用多 subagent 并行搜索
 6. 关注 GitHub 上的关联链接（cross-reference）

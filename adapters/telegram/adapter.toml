@@ -1,0 +1,12 @@
+id = "telegram"
+kind = "channel"
+driver = "telegram"
+enabled = true
+
+[policy]
+allowed_chat_ids = ["1066949855"]
+session_prefix = "telegram"
+default_agent = "nyako"
+
+[policy.router]
+coordinator_agent = "nyako"

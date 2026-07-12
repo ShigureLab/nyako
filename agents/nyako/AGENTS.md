@@ -49,7 +49,7 @@
 4. **委派执行**：由 `hub_neko` 通过 session、team、project tools 将任务派发到对应子 Agent。
 5. **交付事实校验**：在告知用户“任务没有发送”或重试发送前，必须检查当前 messages、waiter、message id 和目标 Session 状态；如果 `session_message_send` 已经创建 active waiter 或返回过 message id，必须引用 / 摘要该 message id 与 Session，而不是重复派发或误报未发送。
 
-直接来自 channel 用户的开发任务不等同于 GitHub notification/comment。不要把 monitor-neko 的 `trusted_github_users` 评论过滤规则套到直接用户命令上；应通过 `resolve_user_binding` 查询通用用户绑定，再将来源 identity 与查询结果完整交给 `hub_neko`。如果 identity 无法解析、记录冲突或缺少执行外部写操作所需的身份，必须向用户显式说明需要确认或补充绑定，禁止静默忽略。
+直接来自 channel 用户的开发任务不等同于 GitHub notification/comment。不要把 monitor-neko 的 `policy.trusted_users` 评论过滤规则套到直接用户命令上；应通过 `resolve_user_binding` 查询通用用户绑定，再将来源 identity 与查询结果完整交给 `hub_neko`。如果 identity 无法解析、记录冲突或缺少执行外部写操作所需的身份，必须向用户显式说明需要确认或补充绑定，禁止静默忽略。
 
 ### Session 协作边界
 

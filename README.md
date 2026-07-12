@@ -11,7 +11,7 @@
 | ----------------------- | ------------------------------------------------------------------------------------- | -------------------------------- |
 | `nyako` definition repo | Agent 拓扑、prompt、工具声明、project policy、skills、hooks、schedules、项目记忆      | 当前仓库，可提交                 |
 | `nyakore` runtime       | Session registry、确定性路由、run records、NNP、gateway、workspace contract、内置能力 | `nyakore` 代码库                 |
-| 用户私有层              | Provider credentials、channel/gateway 设置、本机身份绑定                              | `~/.nyakore/`                    |
+| 用户私有层              | Provider credentials、channel secret、gateway 设置、本机身份绑定                      | `~/.nyakore/`                    |
 | 项目 runtime state      | Session 文件、transcript、NNP receipts、worktrees、日志、runtime memory/index         | `~/.nyakore/projects/<project>/` |
 
 不要把 credentials、token 或运行时状态写进本仓库。`runtime.toml` 只保存可提交的定义和
@@ -27,6 +27,7 @@ credential alias，不保存 secret 本身。
 | `dev-neko`      | 工程师   | 软件工程、PR、验证；达到门槛时通过 ACP 调用 Codex             |
 | `research-neko` | 情报员   | 技术调研、代码与资料分析、方案比较                            |
 | `plan-neko`     | 策略师   | 任务拆解、依赖关系、优先级和执行计划                          |
+| `memory-neko`   | 提取器   | 受限地从 idle/completed Session 提取可验证的长期事实          |
 
 每个 Agent 的模型、工具集合和 prompt 文件都位于 `agents/<agent-id>/`。Agent id 是定义层
 身份；Session id 是 runtime 连续性对象，两者不要混用。
@@ -59,7 +60,9 @@ flowchart LR
 ## 目录结构
 
 ```text
-runtime.toml                 # definition repo 入口、startup Session、ACP 与 policy
+runtime.toml                 # definition repo 入口、startup Session 与 ACP
+
+adapters/<id>/adapter.toml   # channel/integration driver 与可提交 policy
 
 agents/<agent-id>/
 ├── agent.toml               # id、role、model、credential alias、工具集合
@@ -78,6 +81,7 @@ tools/
 hooks/session-worktree/      # Session 生命周期 worktree provisioning/cleanup
 schedules/*.md               # repo-managed schedule definitions
 skills/                      # repo skills 与 skills.toml registry
+memory/config.toml           # runtime memory producer 与评测策略
 memory/*.md                  # repo-managed project memory
 test/                        # module tool 与 hook 测试
 ```
@@ -94,11 +98,12 @@ workspace、user、team 和 ACP 工具由 `nyakore` 提供；ledger 等产品特
 - Agent backend 与 runtime loop 开关
 - 外部 skill 来源
 - ACP Agent 与执行策略
-- GitHub monitor/context 等产品 policy
+- adapter 目录位置（默认 `adapters/`）和 memory 目录位置（默认 `memory/`）
 
-Provider secret 位于 `~/.nyakore/providers/`。Gateway、channel 和其它本机设置可放在用户层
-配置中；项目运行数据由 `nyakore` 解析到 `~/.nyakore/projects/<project>/`，不要手工依赖其
-内部文件布局。
+Channel/integration policy 必须放在 `adapters/<id>/adapter.toml`；`runtime.toml` 的旧 `[policy]`
+已删除。Provider secret 位于 `~/.nyakore/providers/`，channel token/key/secret 位于
+`~/.nyakore/config.toml`。用户层不再承载 allowlist、路由 Agent、group policy 等 definition
+policy。项目运行数据由 `nyakore` 解析到 `~/.nyakore/projects/<project>/`，不要手工依赖其内部文件布局。
 
 ## Prompt 与记忆
 
@@ -113,7 +118,13 @@ Prompt 的确定性组装顺序由 `nyakore` 维护，而不是由本 README 复
   `memory_read` 渐进读取。
 - Runtime search 使用 QMD BM25 派生索引并返回 `path:lineStart-lineEnd`；每次搜索/读取都有
   usage receipt。
-- Runtime memory 当前是只读消费面；自动 extraction/consolidation producer 尚未启用。
+- 后台 producer 按 transcript 指纹处理 idle/completed Agent Session：先由无工具的
+  `memory-neko` 在一次性隔离 Session 中做受限 JSON extraction，再由 runtime 确定性
+  consolidation；失败不推进 cursor，历史 extraction context 不会污染下一个来源。
+- 每个 observation 保留 `session:<id>@<fingerprint>` provenance；stage-1 extraction、cursor 和
+  consolidation state 位于 runtime memory 的 `pipeline/`，不是 prompt 内容。
+- 持续评测写入 runtime memory 的 `evaluations/`，覆盖 hit@k/MRR、来源覆盖率、实际 search/read
+  使用，以及 NNP reply、交付失败和响应延迟。
 
 记忆不是协议真源。需要精确事实时，仍应回查原始 Session、run、transcript 或 NNP artifact。
 
@@ -210,6 +221,8 @@ nyakore status
 nyakore session list
 nyakore schedule list
 nyakore memory status
+nyakore memory producer status
+nyakore memory eval status
 ```
 
 本项目不维护自定义 TUI；终端交互直接复用 pi interactive host。
@@ -228,18 +241,14 @@ vp test
 
 已落地：
 
-- 6 个目录式 Agent 定义和唯一 `hub_neko` 中枢拓扑
+- 6 个业务 Agent、1 个受限 memory extractor，以及唯一 `hub_neko` 中枢拓扑
 - Session-first 路由与显式 NNP 协作
 - Gateway、repo schedules、动态业务 Session 与 per-session worktrees
 - GitHub/dependency ledger 去重
 - ACP/Codex 委派入口
-- repo/project/agent/runtime 分层记忆和 QMD BM25 检索
-
-仍未完成：
-
-- Runtime memory 的自动 extraction 与 consolidation producer
-- 把所有 channel/integration policy 收敛成更稳定的 definition-side adapter contract
-- 对 memory retrieval 和长期协作质量的持续评测
+- repo/project/agent/runtime 分层记忆、QMD BM25 检索与带 provenance 的自动归并
+- definition-side `adapters/<id>/adapter.toml` contract；本机层仅保存 secret/endpoint
+- memory retrieval、producer 质量和长期 NNP 协作质量的持续评测
 
 ## 特别感谢
 

@@ -1,0 +1,13 @@
+id = "infoflow"
+kind = "channel"
+driver = "infoflow"
+enabled = true
+
+[policy]
+allowed_user_ids = ["xuxiaojian", "gushiwei"]
+group_policy = "open"
+session_prefix = "infoflow"
+default_agent = "nyako"
+
+[policy.router]
+coordinator_agent = "nyako"

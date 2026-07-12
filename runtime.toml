@@ -34,23 +34,3 @@ enabled = true
 enabled = true
 permissions = "approve-all"
 timeout = 900
-
-[policy]
-trusted_github_users = [
-  "SigureMo",
-  "risemeup1",
-  "swgu98",
-  "huangjiyi",
-  "zyfncg",
-  "gouzil",
-  "sunzhongkai588",
-  "DrRyanHuang",
-  "omoYang",
-  "zrr1999",
-]
-
-[policy.github_monitor]
-ignored_actor_logins = ["PaddlePaddle-bot", "Paddle-CI-Bot"]
-
-[policy.github_context]
-auto_collapse_author_logins = ["PaddlePaddle-bot", "Paddle-CI-Bot"]

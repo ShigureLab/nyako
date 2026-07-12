@@ -1,0 +1,9 @@
+id = "memory-neko"
+name = "memory-neko"
+role = "runtime-memory-extractor"
+tools = []
+
+[model]
+model = "openai-codex/gpt-5.6-sol"
+credential = "openai-codex-swgu98"
+thinking = "low"

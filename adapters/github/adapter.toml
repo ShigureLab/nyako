@@ -1,0 +1,24 @@
+id = "github"
+kind = "integration"
+driver = "github"
+enabled = true
+
+[policy]
+trusted_users = [
+  "SigureMo",
+  "risemeup1",
+  "swgu98",
+  "huangjiyi",
+  "zyfncg",
+  "gouzil",
+  "sunzhongkai588",
+  "DrRyanHuang",
+  "omoYang",
+  "zrr1999",
+]
+
+[policy.monitor]
+ignored_actor_logins = ["PaddlePaddle-bot", "Paddle-CI-Bot"]
+
+[policy.context]
+auto_collapse_author_logins = ["PaddlePaddle-bot", "Paddle-CI-Bot"]

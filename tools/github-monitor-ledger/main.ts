@@ -126,7 +126,7 @@ const githubMonitorLedgerSchema = Type.Object(
     ignoredActorLogins: Type.Optional(
       Type.Array(Type.String(), {
         description:
-          'Additional GitHub logins that should be auto-suppressed when matching actorLogin values. Project defaults are loaded from [policy.github_monitor].ignored_actor_logins in runtime.toml.',
+          'Additional GitHub logins that should be auto-suppressed when matching actorLogin values. Project defaults are loaded from [policy.monitor].ignored_actor_logins in adapters/github/adapter.toml.',
       })
     ),
     events: Type.Optional(
@@ -717,8 +717,8 @@ function parseTomlStringArray(section: string, key: string): string[] {
 
 function readConfiguredIgnoredActorLogins(projectRoot = resolveProjectRoot()): string[] {
   try {
-    const raw = readFileSync(path.join(projectRoot, 'runtime.toml'), 'utf8')
-    const sectionMatch = /(?:^|\n)\[policy\.github_monitor\]\s*\n([\s\S]*?)(?=\n\[|$)/.exec(raw)
+    const raw = readFileSync(path.join(projectRoot, 'adapters', 'github', 'adapter.toml'), 'utf8')
+    const sectionMatch = /(?:^|\n)\[policy\.monitor\]\s*\n([\s\S]*?)(?=\n\[|$)/.exec(raw)
     return sectionMatch ? parseTomlStringArray(sectionMatch[1], 'ignored_actor_logins') : []
   } catch {
     return []
