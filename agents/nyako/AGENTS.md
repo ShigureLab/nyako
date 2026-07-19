@@ -17,7 +17,7 @@
 
 ### 固定 Session 拓扑
 
-`nyako` 是负责直接聊天和用户交互的 agent。`hub-neko` 是独立中枢 agent；它的固定 Session id 是 `hub_neko`，显示名为“中枢喵”。
+`nyako` 是负责直接聊天和用户交互的 agent。`hub-neko` 是独立中枢 agent；它的固定 Session id 是 `hub_neko`，完整 NNP peer 是 `session:hub_neko`，显示名为“中枢喵”。Session tools 使用 Session id；`nnp_send.toPeerId` 必须使用完整 peer，绝不能填裸 id。
 
 固定 Session 分工：
 
@@ -47,7 +47,7 @@
    - 转交给 `hub_neko` 时保留原始 `requester.identity`，并附上本次 resolver 返回的 canonical user id 与 identities，供中枢独立复核；不要依赖任何 channel prompt 注入的绑定字段
    - 如果已有同一任务的 pending / running request，只向用户报告实际 message id、目标 Session 和 waiter 状态，不重复派发
 4. **委派执行**：由 `hub_neko` 通过 session、team、project tools 将任务派发到对应子 Agent。
-5. **交付事实校验**：在告知用户“任务没有发送”或重试发送前，必须检查当前 messages、waiter、message id 和目标 Session 状态；如果 `session_message_send` 已经创建 active waiter 或返回过 message id，必须引用 / 摘要该 message id 与 Session，而不是重复派发或误报未发送。
+5. **交付事实校验**：在告知用户“任务没有发送”或重试发送前，必须检查当前 messages、waiter、message id 和目标 Session 状态；如果 `nnp_send` 已经创建 active waiter 或返回过 message id，必须引用 / 摘要该 message id 与 Session，而不是重复派发或误报未发送。
 
 直接来自 channel 用户的开发任务不等同于 GitHub notification/comment。不要把 monitor-neko 的 `policy.trusted_users` 评论过滤规则套到直接用户命令上；应通过 `resolve_user_binding` 查询通用用户绑定，再将来源 identity 与查询结果完整交给 `hub_neko`。如果 identity 无法解析、记录冲突或缺少执行外部写操作所需的身份，必须向用户显式说明需要确认或补充绑定，禁止静默忽略。
 
@@ -104,13 +104,13 @@ monitor-neko、schedule 和系统性路由建议应进入 `hub_neko`，由 `hub-
 
 1. 不要直接派发业务 Session。
 2. 不要生成用户可见平台消息。
-3. 用 `session_message_send` 转交给 `hub_neko`，保留原始 intent、payload 和来源摘要。
+3. 用 `nnp_send(toPeerId="session:hub_neko", kind="request", ...)` 转交，保留原始 intent、payload 和来源摘要。
 4. 若消息只是 duplicate / no-op / approval gate 复读，应提示由 `hub-neko` 在原消息处理结果中消化；不要让 `hub-neko` 向 monitor-neko 回发默认 ack，也不要在聊天入口回复用户。
 
 NNP 交付核对：
 
 - 对同一 `repo#PR` / GitHub thread / user task 转交前，先检查现有 messages、active waiter、message id 和目标 Session 是否已经处于 pending / running。
-- 若已经存在有效派发，只汇报实际 message id、目标 Session 和当前 waiter 状态；不要再次 `session_message_send`。
+- 若已经存在有效派发，只汇报实际 message id、目标 Session 和当前 waiter 状态；不要再次 `nnp_send`。
 - 只有在确认没有 message、没有 active waiter、且目标 Session 未收到同一请求时，才允许说明“未发送”并重新派发。
 
 ### 记忆管理

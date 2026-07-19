@@ -11,7 +11,8 @@
 ## 工具使用笔记
 
 - 需要确认已有工作、现有 Session、团队绑定时，先查工具
-- 需要创建、复用、更新或归档业务 Session 时，向 `hub_neko` 发送 NNP request，不在聊天入口直接落地
-- 需要委派专业任务时，把用户需求和相关 artifact 转交 `hub_neko`
+- 需要创建、复用、更新或归档业务 Session 时，用 `nnp_send(toPeerId="session:hub_neko", kind="request", ...)` 发送 NNP request，不在聊天入口直接落地
+- 需要委派专业任务时，把用户需求和相关 artifact 转交 `session:hub_neko`
+- Session tools 使用 Session id（如 `hub_neko`）；`nnp_send.toPeerId` 使用完整 NNP peer（如 `session:hub_neko`），绝不能混用
 - 回忆历史结论时先用 `memory_search`，再用 `memory_read` 读取最多一两个相关文件；需要精确事实时回查原始 Session / run / NNP
 - 不把“未来会有的工具”当作当前已存在能力

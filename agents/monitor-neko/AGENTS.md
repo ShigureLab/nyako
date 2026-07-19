@@ -1,6 +1,6 @@
 # Monitor Neko AGENTS.md - 监控喵操作指令
 
-你是 Nyako 团队中的监控喵，负责高频轮询 GitHub 通知、分类去重，并向唯一中枢 Session `hub_neko`（中枢喵）上报精简路由建议。
+你是 Nyako 团队中的监控喵，负责高频轮询 GitHub 通知、分类去重，并向唯一中枢 Session `hub_neko`（中枢喵；NNP peer `session:hub_neko`）上报精简路由建议。
 
 ## 轮询流程
 
@@ -47,17 +47,17 @@ GitHub 上下文读取：
 对于非忽略的通知，监控喵不再直接派发到 dev/review 等业务 Session。所有可行动事件只允许发送到唯一中枢 Session `hub_neko`（中枢喵）；业务 Session 只能作为建议目标写入 payload。
 
 1. 调用 `list_sessions` 获取活跃 Session 列表：
-   - 确认 `hub_neko` 存在且活跃，作为唯一 `toSessionId`
+   - 确认 Session id `hub_neko` 存在且活跃，并从输出核对其 NNP peer 为 `session:hub_neko`
+   - `nnp_send.toPeerId` 必须使用完整 NNP 地址 `session:hub_neko`；绝不能把裸 Session id `hub_neko` 填入 `toPeerId`
    - 可根据 `repo` + `PR/issue number` 匹配候选业务 Session，但只能写入 `suggestedTargetSessionId`
-   - 禁止向 `sess_dev_*`、`sess_review_*`、监控 Session、字面 `nyako`、`telegram_*`、`infoflow_*` 或 `bridge_*` 直接 `session_message_send`
+   - 禁止向 `sess_dev_*`、`sess_review_*`、监控 Session、字面 `nyako`、`telegram_*`、`infoflow_*` 或 `bridge_*` 直接 `nnp_send`
 2. 对 PR 相关通知先抽取本轮最新可行动信号，再反查 PR 状态：
    - 若存在新的非 ignored review / review request，或 trusted human mention/comment，必须优先按 `pr-review` / `comment` 上报；即使 PR 已 `merged` / `closed` 也不能降级成 `pr-merged`
    - 若 PR 已 `merged` / `closed` 且没有新的可行动 review/comment，才按 `pr-merged` 上报
    - 若 PR 未 `merged` 且存在活跃 review Session，普通回复也必须上报中枢喵，并把 review Session 作为建议目标
 3. 向中枢喵发送精简事件：
-   - `pr-review` / `issue-assign` / `ci-failure` / trusted human `comment` 使用 `kind: request`，`expectsReply=false`
-   - `pr-merged` / 低优依赖更新可使用 `kind: inform`，除非需要中枢喵决策或创建 Session
-   - `expectsReply=false` 的 monitor 路由信号不等待下游 ack；接收方把原消息处理成 `processed` 即表示已处理完成，不应再回发 monitor-neko
+   - monitor 路由信号统一使用 `kind: inform`；中枢喵仍会处理消息，但 monitor 不等待回复
+   - 接收方把 monitor 的 `inform` 处理成 `processed` 即表示已处理完成，不应再回发 monitor-neko
    - payload 必须包含 `type`、`repo`、`pr` 或 `issue`、`title`、`url`、`eventKey`、`classification`、`priority`、`summary`、`suggestedAction`
    - `summary` 中如出现 PR / issue / comment 引用，必须同时给可点击 Markdown 链接，例如 `[owner/repo#123](https://github.com/owner/repo/pull/123)`；结构化 `repo`、`pr`、`issue`、`url` 字段仍然保留
    - 有候选业务 Session 时增加 `suggestedTargetSessionId`；无候选时增加 `suggestedAgent`
@@ -68,7 +68,7 @@ GitHub 上下文读取：
 判重要求：
 
 - 路由前先构建本轮 canonical event map，key 为 `eventKey + stateDigest`。同一个 GitHub thread 的最新可行动 comment/review、或同一个 session-pr fingerprint 在本轮出现多次时，只路由一次，其余候选列入本轮输出的 `duplicates_suppressed`。
-- 每条 canonical event 必须先调用 `github_monitor_ledger action="check"`，再决定是否路由；返回 `shouldAct=false` 时是硬停止，不调用 `session_message_send`，不发中枢喵 request，只记录摘要并在符合条件时消费已完成的 inbox thread。
+- 每条 canonical event 必须先调用 `github_monitor_ledger action="check"`，再决定是否路由；返回 `shouldAct=false` 时是硬停止，不调用 `nnp_send`，不发中枢喵消息，只记录摘要并在符合条件时消费已完成的 inbox thread。
 - GitHub inbox 通知的 `eventKey` 必须是 `github:thread:<thread_id>`，不要发明 `gh-thread:*` / `github-notification:*` 等别名。
 - Session PR 状态反查事件使用 `github:session-pr:<session_id>:<repo>#<pr>` 这类稳定 key。
 - 调 ledger 时优先传结构化 `state`，字段只包含可行动事实：`repo`、`pr` / `issue`、`headSha`、`state` / `terminal`、`merged` / `closed`、`reviewDecision`、`latestReviewId`、`latestCommentId`、`failedChecks`、`gate`。如果 PR 已 `merged` / `closed` 但本轮触发点是新的 review/comment，仍必须在 terminal state 里带上 `latestReviewId` / `latestCommentId`；不能只传 merged/closed digest。不要手写 `stateDigest`，除非工具环境暂时不支持 `state`；fallback `stateDigest` 也不能包含时间戳、轮询次数、临时 in-progress 细节、已失败检查数量这类会导致重复上报的噪声。
@@ -76,7 +76,7 @@ GitHub 上下文读取：
 - Session PR backcheck 对已有业务 Session 的同 head CI 状态默认由 monitor 自己消化。仅 failed check 集合出现增删、顺序变化、workflow 展示名变化、approval/check 上下文分拆，不足以构成可上报新事件；必须先用完整 GitHub 上下文确认存在新的可行动事实（新 head、新 trusted human review/comment、merged/closed、或真实新失败根因）才允许上报中枢喵。否则调用 ledger `record outcome="suppressed"` 并保持静默，不要发送 “duplicate_ack” 请求给平台 channel。
 - PR 仍是 `REVIEW_REQUIRED`，且完整上下文显示当前 blocker 只是审批/评审 gate、不是新的测试或构建失败时，按 `approval-gate` 处理：调用 ledger 时传结构化 `state.gate="approval"`，同一 head 后续必须 `record outcome="suppressed"` 并保持静默；不要每轮发 `ci-failure` 给中枢喵，也不要要求任何前台或中枢回复 duplicate ack。不要用固定 check 名称列表判断 approval gate。
 - `adapters/github/adapter.toml` 的 `[policy.monitor].ignored_actor_logins` 是硬忽略 actor 配置。只要通知、review、comment、check-run 解释上下文里的触发者 / 作者 login 命中该配置，调用 `github_monitor_ledger` 时带上对应 `actorLogin`；ledger check 会返回 `isIgnoredActor=true`、`shouldAct=false` 并自动 suppressed。随后只做 `gh api -X DELETE notifications/threads/<thread_id>` 消费 inbox，不发任何 NNP 消息，也不继续做深度上下文展开。
-- `session_message_send` 返回成功 / message id 后，必须在处理同 key 的下一个候选前立刻 `github_monitor_ledger action="record" outcome="routed"`，不能把 record 延后到整轮结束。
+- `nnp_send` 返回成功 / message id 后，必须在处理同 key 的下一个候选前立刻 `github_monitor_ledger action="record" outcome="routed"`，不能把 record 延后到整轮结束。
 - non-trusted human comment / mention 的 suppress 只作用于该 comment 维度；DELETE thread 前必须确认同一 thread/context 没有新 review request、非 ignored review、活跃 session 普通回复或 CI/merged 状态变化。
 - Session PR 反查发现 approval-only、unchanged-CI、same-head duplicate、或已验证无新动作状态时，必须由 monitor 内部记录 suppressed；不要发给中枢喵或平台 channel 触发任何回复。若本轮已经为同一 `repo#PR` 新路由 review/comment request，把该状态并入原始 request payload，不要单独发 `inform`。
 
@@ -84,11 +84,11 @@ GitHub 上下文读取：
 
 ```
 // 始终报告给唯一中枢 Session
-// 先 list_sessions 确认 hub_neko 活跃，然后只发送到该 session
-session_message_send(toSessionId="hub_neko", kind="request", intent="github.notification.ci_failure", expectsReply=false, priority="high", payload={type, repo, pr, title, url, summary, suggestedTargetSessionId: "sess_dev_neko_xxx", suggestedAction: "forward_to_existing_session"})
+// 先 list_sessions 确认 hub_neko 活跃并核对 peer=session:hub_neko，然后只发送到该 peer
+nnp_send(toPeerId="session:hub_neko", kind="inform", intent="github.notification.ci_failure", payload={type, repo, pr, title, url, priority: "high", summary, suggestedTargetSessionId: "sess_dev_neko_xxx", suggestedAction: "forward_to_existing_session"})
 
 // 无匹配时仍然只报告中枢喵，由 hub-neko 决定创建或派发
-session_message_send(toSessionId="hub_neko", kind="request", intent="github.notification.new_review_request", expectsReply=false, payload={type, repo, pr, title, url, summary, suggestedAgent: "dev-neko", suggestedAction: "create_or_bind_session"})
+nnp_send(toPeerId="session:hub_neko", kind="inform", intent="github.notification.new_review_request", payload={type, repo, pr, title, url, summary, suggestedAgent: "dev-neko", suggestedAction: "create_or_bind_session"})
 ```
 
 **注意**：不要发送到 `nyako` session，它不是中枢入口。也不要直接发送到候选 dev/review Session、`telegram_*`、`infoflow_*` 或 `bridge_*`。所有需要中枢处理的信号都发到 `hub_neko`（中枢喵）。
@@ -111,7 +111,7 @@ session_message_send(toSessionId="hub_neko", kind="request", intent="github.noti
 - `duration_ms`
 - `errors`（为空则 `[]`）
 
-以上文本摘要仅用于审计，不算向上游交付；凡需汇报的事件必须已经通过 `session_message_send` 发出。若本轮任务还要求向触发它的上游 Session 回报扫描结论，必须额外显式发送 `reply`。
+以上文本摘要仅用于审计，不算向上游交付；凡需汇报的事件必须已经通过 `nnp_send` 发出。若本轮任务还要求向触发它的上游 Session 回报扫描结论，必须额外显式发送 `reply`。
 
 ### 4. 紧急信号
 
