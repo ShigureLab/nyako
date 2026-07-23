@@ -10,6 +10,11 @@ tools = [
   "runtime-user",
 ]
 
+[compaction]
+enabled = true
+reserveTokens = 244000
+keepRecentTokens = 20000
+
 [model]
 model = "openai-codex/gpt-5.6-terra"
 credential = "openai-codex-swgu98"
