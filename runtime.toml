@@ -15,9 +15,6 @@ topic = "Nyako runtime hub"
 goal = "作为 Nyako 团队唯一中枢，接收 monitor-neko 和 schedules 的路由建议，并决定是否派发到业务 Session。"
 state = "ready"
 
-[agent_backend]
-kind = "pi"
-
 [runtime_loop]
 schedules_enabled = true
 

@@ -95,7 +95,7 @@ workspace、user、team 和 ACP 工具由 `nyakore` 提供；ledger 等产品特
 
 - `agents_dir`、`tools_dir`、`hooks_dir`、`skills_dir`、`memory_dir`、`schedules_dir`
 - 默认 Agent 和 startup Sessions
-- Agent backend 与 runtime loop 开关
+- runtime loop 开关
 - 外部 skill 来源
 - ACP Agent 与执行策略
 - adapter 目录位置（默认 `adapters/`）和 memory 目录位置（默认 `memory/`）
