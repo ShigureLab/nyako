@@ -31,11 +31,3 @@ provider = "github"
 repo = "ShigureLab/gh-llm"
 skill = "github-conversation"
 ref = "main"
-
-[acp]
-enabled = true
-
-[acp.agents.codex]
-enabled = true
-permissions = "approve-all"
-timeout = 900

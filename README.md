@@ -24,7 +24,7 @@ credential alias，不保存 secret 本身。
 | `nyako`         | 聊天入口 | 用户交互、澄清需求、用户可见汇报；把需要编排的任务交给中枢    |
 | `hub-neko`      | 中枢     | 唯一 Session 编排者；创建、复用、派发、收口和归档业务 Session |
 | `monitor-neko`  | 哨兵     | 扫描 GitHub 通知、分类、ledger 去重，只向中枢上报可行动信号   |
-| `dev-neko`      | 工程师   | 软件工程、PR、验证；达到门槛时通过 ACP 调用 Codex             |
+| `dev-neko`      | 工程师   | 软件工程实现、PR、验证与 review                               |
 | `research-neko` | 情报员   | 技术调研、代码与资料分析、方案比较                            |
 | `plan-neko`     | 策略师   | 任务拆解、依赖关系、优先级和执行计划                          |
 | `memory-neko`   | 提取器   | 受限地从 idle/completed Session 提取可验证的长期事实          |
@@ -43,7 +43,6 @@ flowchart LR
     H --> D["dev-neko 业务 Session"]
     H --> R["research-neko 业务 Session"]
     H --> P["plan-neko 业务 Session"]
-    D -->|"需要复杂实现时"| A["ACP / Codex"]
 ```
 
 核心规则：
@@ -60,7 +59,7 @@ flowchart LR
 ## 目录结构
 
 ```text
-runtime.toml                 # definition repo 入口、startup Session 与 ACP
+runtime.toml                 # definition repo 入口与 startup Session
 
 adapters/<id>/adapter.toml   # channel/integration driver 与可提交 policy
 
@@ -87,7 +86,7 @@ test/                        # module tool 与 hook 测试
 ```
 
 这里的 `runtime-*` tool 目录是能力声明，不复制 runtime 实现。真正的 session、memory、task、
-workspace、user、team 和 ACP 工具由 `nyakore` 提供；ledger 等产品特定能力才在本仓库实现。
+workspace、user 和 team 工具由 `nyakore` 提供；ledger 等产品特定能力才在本仓库实现。
 
 ## 配置加载
 
@@ -97,7 +96,6 @@ workspace、user、team 和 ACP 工具由 `nyakore` 提供；ledger 等产品特
 - 默认 Agent 和 startup Sessions
 - runtime loop 开关
 - 外部 skill 来源
-- ACP Agent 与执行策略
 - adapter 目录位置（默认 `adapters/`）和 memory 目录位置（默认 `memory/`）
 
 Channel/integration policy 必须放在 `adapters/<id>/adapter.toml`；`runtime.toml` 的旧 `[policy]`
@@ -128,7 +126,7 @@ Prompt 的确定性组装顺序由 `nyakore` 维护，而不是由本 README 复
 
 记忆不是协议真源。需要精确事实时，仍应回查原始 Session、run、transcript 或 NNP artifact。
 
-## Tools、Skills 与 ACP
+## Tools 与 Skills
 
 Agent 可用能力来自三层：
 
@@ -136,8 +134,8 @@ Agent 可用能力来自三层：
 2. `nyakore` builtin capabilities，由 `runtime-*` tool descriptor 选择。
 3. Definition repo modules，例如 dependency/GitHub monitor ledgers。
 
-`dev-neko` 可以通过 `runtime-acp` 把复杂实现委派给配置的 Codex ACP Agent，但 ACP 是外部
-执行器，不是团队内另一个长期 Session，也不应代替简单状态核查。GitHub 深度上下文读取使用
+`dev-neko` 在绑定的 Session workspace 中直接完成工程实现和验证；需要独立研究或计划时，
+通过明确的 NNP Session 消息与 `research-neko`、`plan-neko` 协作。GitHub 深度上下文读取使用
 repo skill 或 `runtime.toml` 声明的 external skill；具体行为约束以各 Agent 的 `AGENTS.md` 为准。
 
 ## Workspace 与 Git
@@ -243,7 +241,6 @@ vp test
 - Session-first 路由与显式 NNP 协作
 - Gateway、repo schedules、动态业务 Session 与 per-session worktrees
 - GitHub/dependency ledger 去重
-- ACP/Codex 委派入口
 - repo/project/agent/runtime 分层记忆、QMD BM25 检索与带 provenance 的自动归并
 - definition-side `adapters/<id>/adapter.toml` contract；本机层仅保存 secret/endpoint
 - memory retrieval、producer 质量和长期 NNP 协作质量的持续评测

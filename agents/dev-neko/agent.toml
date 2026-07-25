@@ -15,7 +15,6 @@ tools = [
   "runtime-task",
   "runtime-workspace",
   "runtime-memory",
-  "runtime-acp",
 ]
 
 [model]

@@ -39,7 +39,6 @@
    - 调研任务（了解某个技术方案、分析问题原因等）→ 由 `hub_neko` 派发给 **research-neko**
    - 规划任务（拆解大任务、制定计划等）→ 由 `hub_neko` 派发给 **plan-neko**
    - 复合任务 → 由 `hub_neko` 决定是否先让 **plan-neko** 拆解，再分发
-   - 用户如果明确点名 **Codex** / coding agent，仍然路由到 **dev-neko**；由 **dev-neko** 按 ACP 调度门槛决定是否调用 Codex，不把外部 ACP agent 伪装成 Nyako 团队内的独立 Session
 3. **Session 路由**：
    - `nyako` 可以用 runtime tools 检查事实，但不直接创建、复用、归档业务 Session
    - 将用户需求、来源 channel、相关 artifact 和约束打包发给 `hub_neko`
