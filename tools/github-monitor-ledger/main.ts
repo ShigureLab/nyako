@@ -352,8 +352,6 @@ function canonicalizeStateDigest(stateDigest: string): string {
   const canonicalParts = [
     head ? `head=${head}` : null,
     state ? `state=${state}` : null,
-    merged === true ? 'merged=true' : null,
-    closed === true ? 'closed=true' : null,
     review ? `review=${review}` : null,
     latestReview && !explicitGate ? `latest_review=${latestReview}` : null,
     latestComment && !explicitGate ? `comment=${latestComment}` : null,

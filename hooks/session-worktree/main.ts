@@ -24,6 +24,7 @@ type WorkspaceRecord = {
   repo: string
   path: string
   branch: string | null
+  dirty: boolean
   currentSessionId: string | null
   kind?: 'legacy' | 'root' | 'session'
   rootPath?: string | null
