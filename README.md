@@ -50,7 +50,7 @@ flowchart LR
 
 - Session 是连续性的主对象；业务任务应复用或创建明确的 Session。
 - `hub_neko` 是 `runtime.toml` 声明的 startup Session，由 `hub-neko` 持有。
-- `nyako` 是 Agent，也是按需创建的直接聊天 Session 的惯用 id；它不是中枢。
+- `nyako` 是面向 channel 用户的 Agent；它运行在显式创建的 `conv_*`、`telegram_*`、`infoflow_*` 等 Session 中，不隐式拥有同名 Session。
 - `conv_*`、`telegram_*`、`infoflow_*`、`bridge_*` 是动态 channel/bridge Session。
 - `sess_monitor_neko_github_watch` 是 GitHub schedule 使用的长期监控 Session。
 - 其他 `sess_*` 通常是按任务创建的动态业务 Session。
@@ -207,14 +207,11 @@ nyakore gateway service restart
 nyakore gateway health
 ```
 
-### 交互与检查
+### 任务投递与检查
 
 ```bash
-# 创建或恢复直接聊天 Session，并进入 pi interactive host
-nyakore run nyako --name nyako
-
-# 附着到已有 Session
-nyakore attach <session-id>
+# 向已有 Session 持久投递任务
+nyakore exec hub_neko --prompt "检查当前运行状态"
 
 # 检查 runtime
 nyakore status
@@ -225,7 +222,8 @@ nyakore memory producer status
 nyakore memory eval status
 ```
 
-本项目不维护自定义 TUI；终端交互直接复用 pi interactive host。
+Session turn 只由 Gateway/runtime 从持久 NNP receipt 消费；终端命令只负责投递和检查，
+不会直接接管 Session 执行。
 
 ## 开发与验证
 

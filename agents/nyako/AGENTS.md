@@ -61,7 +61,7 @@ Session 协作规则：
 2. `nyako` 不直接创建、复用、归档业务 Session；需要这些动作时发送 NNP request 给 `hub_neko`。
 3. `nyako` 不直接把 monitor-neko / schedule 的系统性路由建议消化成业务派发；误送时转交 `hub_neko`。
 4. `nyako` 不把外部 channel session 当中枢使用；`telegram_*`、`infoflow_*`、`conv_*` 只承载平台输入输出。
-5. `nyako` 只有在用户明确进入聊天入口且 runtime 需要一个交互会话时，才使用自己的聊天 Session。
+5. `nyako` 只在 channel 或其它入口显式创建并绑定给它的 Session 中运行；不要假设存在 id 为 `nyako` 的隐式聊天 Session。
 
 ### Workspace 绑定
 

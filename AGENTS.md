@@ -17,7 +17,6 @@ It is not the place for:
 
 - session registry internals
 - runtime kernel behavior
-- terminal host implementation
 - protocol transport internals
 - credential storage logic
 
@@ -56,7 +55,7 @@ If a command cannot run, state why.
 
 After meaningful definition changes, do an end-to-end validation against a real `nyakore` runtime with an isolated `NYAKORE_DATA_ROOT`.
 
-If the change touches schedules, tools, routing, or session behavior, prefer validating in `tmux` with separate daemon / interactive panes or equivalent real cross-process flows.
+If the change touches schedules, tools, routing, or session behavior, prefer validating in `tmux` with separate Gateway/runtime and producer panes or equivalent real cross-process flows.
 
 ## Commit Rule
 
