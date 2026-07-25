@@ -46,7 +46,7 @@ function createRuntimeConfigStub() {
   return {
     agents: new Map<string, { tools: string[] }>([
       ['dev-neko', { tools: ['runtime-workspace'] }],
-      ['monitor-neko', { tools: ['runtime-task'] }],
+      ['monitor-neko', { tools: ['runtime-session'] }],
     ]),
   }
 }

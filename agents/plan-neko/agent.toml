@@ -1,16 +1,7 @@
 id = "plan-neko"
 name = "plan-neko"
 role = "planner"
-tools = [
-  "read",
-  "grep",
-  "find",
-  "ls",
-  "runtime-session",
-  "runtime-team",
-  "runtime-task",
-  "runtime-memory",
-]
+tools = ["read", "grep", "find", "ls", "runtime-session", "runtime-team", "runtime-memory"]
 
 [model]
 model = "openai-codex/gpt-5.6-sol"

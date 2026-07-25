@@ -4,7 +4,6 @@
 
 - **runtime session tools**：查看、创建、更新、归档 Session；确认 message / waiter / Session 状态。
 - **runtime team tools**：确认团队成员与 agent 状态。
-- **runtime task tools**：检查或更新 runtime task 状态。
 - **runtime workspace tools**：确认 repo 型 Session 的 workspace 绑定。
 - **runtime memory tools**：按需搜索和读取历史稳定经验；不要用它承载实时 Session 状态。
 

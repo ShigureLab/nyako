@@ -9,7 +9,6 @@ tools = [
   "ls",
   "runtime-session",
   "runtime-team",
-  "runtime-task",
   "runtime-workspace",
   "runtime-memory",
 ]

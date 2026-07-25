@@ -10,7 +10,6 @@ tools = [
   "github-monitor-ledger",
   "runtime-session",
   "runtime-team",
-  "runtime-task",
   "runtime-memory",
 ]
 
