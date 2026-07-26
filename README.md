@@ -52,7 +52,7 @@ flowchart LR
 - `nyako` 是面向 channel 用户的 Agent；它运行在显式创建的 `conv_*`、`telegram_*`、`infoflow_*` 等 Session 中，不隐式拥有同名 Session。
 - `conv_*`、`telegram_*`、`infoflow_*`、`bridge_*` 是动态 channel/bridge Session。
 - `sess_monitor_neko_github_watch` 是 GitHub schedule 使用的长期监控 Session。
-- GitHub review request 只有在 monitor 保留实际 requester/target event provenance、hub 通过 runtime user binding 复核 requester 后，才形成仅限同一 PR `github.review.publish` 的 scoped authorization；缺失或冲突时保持只读并要求确认。
+- GitHub review request 只有在 monitor 保留实际 requester/target event provenance、hub 通过 runtime user binding 复核 requester 后，才形成仅限同一 PR `github.review.publish` 的 scoped authorization；缺失或冲突时不派发业务审查，必要时请求确认。
 - 其他 `sess_*` 通常是按任务创建的动态业务 Session。
 - 只有显式 NNP message 才构成交付、请求或协议事实；普通 assistant 文本不等于已发送。
 - live 状态、next action、等待关系和 PR 当前状态属于 Session/run/NNP，不属于长期记忆。

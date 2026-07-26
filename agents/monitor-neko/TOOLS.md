@@ -24,7 +24,7 @@
 
 - 对 `reason=review_requested`，先用 `gh api user --jq .login` 获取 `viewerLogin`。
 - 再用 `gh api repos/<owner>/<repo>/issues/<pr>/events --paginate` 或 GraphQL `ReviewRequestedEvent` timeline 查找实际直接请求该 viewer 的最新 user-target 事件。
-- REST 与 GraphQL event id 属于不同 namespace。始终成对保留 `eventSource`（`github.issue_event` 或 `github.graphql_review_requested_event`）和 `eventId`，不得脱离 source 比较。
+- REST 与 GraphQL event id 属于不同 namespace。始终成对保留 `eventSource`（`github.issue_event` 或 `github.graphql_review_requested_event`）和 `eventId`，不得脱离 source 比较。两种 source 都可以承载已核验的 user-target review-request 事件；`github.issue_event` 不能仅因名称不同于 GraphQL 类型而被降级。
 - ledger event 使用实际发起者作为 `actorLogin`、目标账号作为 `requestedReviewerLogin`，并把稳定事件 id 写入 `state.latestReviewRequestId`。
 - notification reason、PR author、更新时间、显示名和 team request 都不能替代上述 provenance，也不能自行建立授权。
 
