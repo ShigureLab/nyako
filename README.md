@@ -78,7 +78,7 @@ tools/
 hooks/session-worktree/      # Session 生命周期 worktree provisioning/cleanup
 schedules/*.md               # repo-managed schedule definitions
 skills/                      # repo skills 与 skills.toml registry
-memory/config.toml           # runtime memory producer 与评测策略
+memory/config.toml           # runtime memory producer 策略
 memory/*.md                  # repo-managed project memory
 test/                        # module tool 与 hook 测试
 ```
@@ -120,8 +120,6 @@ Prompt 的确定性组装顺序由 `nyakore` 维护，而不是由本 README 复
   consolidation；失败不推进 cursor，历史 extraction context 不会污染下一个来源。
 - 每个 observation 保留 `session:<id>@<fingerprint>` provenance；stage-1 extraction、cursor 和
   consolidation state 位于 runtime memory 的 `pipeline/`，不是 prompt 内容。
-- 持续评测写入 runtime memory 的 `evaluations/`，覆盖 hit@k/MRR、来源覆盖率、实际 search/read
-  使用，以及 NNP reply、交付失败和响应延迟。
 
 记忆不是协议真源。需要精确事实时，仍应回查原始 Session、run、transcript 或 NNP artifact。
 
@@ -216,7 +214,6 @@ nyakore session list
 nyakore schedule list
 nyakore memory status
 nyakore memory producer status
-nyakore memory eval status
 ```
 
 Session turn 只由 Gateway/runtime 从持久 NNP receipt 消费；终端命令只负责投递和检查，
@@ -242,7 +239,6 @@ vp test
 - GitHub monitor ledger 去重
 - repo/project/agent/runtime 分层记忆、QMD BM25 检索与带 provenance 的自动归并
 - definition-side `adapters/<id>/adapter.toml` contract；本机层仅保存 secret/endpoint
-- memory retrieval、producer 质量和长期 NNP 协作质量的持续评测
 
 ## 特别感谢
 
