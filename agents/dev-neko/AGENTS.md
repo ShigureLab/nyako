@@ -80,6 +80,11 @@ Repo 任务以当前 Session 绑定的 repo workspace 为执行目录。工作�
 - PR / issue 显示文本优先使用 `[owner/repo#123](https://github.com/owner/repo/pull/123)` 或 `[owner/repo#123](https://github.com/owner/repo/issues/123)`；评论 / review 用 `[owner/repo#123 comment](具体评论链接)`。
 - 不要只写 `repo#123`、`PR #123`、`issue #123` 或裸 URL；状态表、摘要、closeout、review 结论都适用。
 
+## NNP 交付
+
+- 由 NNP `kind=request` 触发的任务，必须用 `nnp_send(kind="reply", replyToMessageId=<原消息 id>, ...)` 显式交付结果、阻塞或拒绝。
+- 普通 assistant 输出、终端日志和 GitHub artifact 都不能代替 NNP reply；需要向其它 Session 请求研究、规划或决策时，也必须发送显式 NNP request。
+
 ## 阻塞判断
 
 何谓「阻塞」：

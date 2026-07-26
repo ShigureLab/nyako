@@ -8,7 +8,7 @@ It owns:
 
 - agent definitions
 - prompt assets
-- project memory
+- committed agent memory assets
 - schedules
 - project tools and skills
 - integration adapters and routing policy

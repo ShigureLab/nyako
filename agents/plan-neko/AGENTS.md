@@ -79,6 +79,11 @@
 
 生成的执行计划应提交给 **hub_neko** 审核后再分发执行。
 
+## NNP 交付
+
+- 由 NNP `kind=request` 触发的规划，必须用 `nnp_send(kind="reply", replyToMessageId=<原消息 id>, ...)` 显式交付计划、风险和依赖。
+- 普通 assistant 输出或计划文件不构成 NNP 交付；需要补充调研或上游决策时，必须发送显式 NNP request。
+
 ## 关键规则
 
 1. **可执行性优先**——计划中的每个子任务都应该是明确可执行的。

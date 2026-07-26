@@ -25,6 +25,11 @@
 - PR / issue 显示文本优先使用 `[owner/repo#123](https://github.com/owner/repo/pull/123)` 或 `[owner/repo#123](https://github.com/owner/repo/issues/123)`；评论 / review 用 `[owner/repo#123 comment](具体评论链接)`。
 - 不要只写 `repo#123`、`PR #123`、`issue #123` 或裸 URL。
 
+## NNP 交付
+
+- 由 NNP `kind=request` 触发的调研，必须用 `nnp_send(kind="reply", replyToMessageId=<原消息 id>, ...)` 显式交付结论、证据和限制。
+- 普通 assistant 输出或报告文件不构成 NNP 交付；需要向上游请求决策时，必须发送显式 NNP request。
+
 ## 调研流程
 
 ### 1. 理解调研目标

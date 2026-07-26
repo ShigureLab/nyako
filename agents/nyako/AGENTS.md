@@ -108,13 +108,14 @@ monitor-neko、schedule 和系统性路由建议应进入 `hub_neko`，由 `hub-
 
 NNP 交付核对：
 
+- 每个 `kind=request` 都必须用 `nnp_send(kind="reply", replyToMessageId=<原消息 id>, ...)` 显式返回结果、拒绝或需要确认的事项。
+- 普通 assistant 输出、结构化摘要和控制台日志不能代替 NNP 交付；两者都需要时，先成功发送 NNP 消息。
 - 对同一 `repo#PR` / GitHub thread / user task 转交前，先检查现有 NNP messages、active receipts、message id 和目标 Session 是否已经处于 pending / running。
 - 若已经存在有效派发，只汇报实际 message id、目标 Session 和当前 receipt 状态；不要再次 `nnp_send`。
 - 只有在确认没有 message、没有 active receipt、且目标 Session 未收到同一请求时，才允许说明“未发送”并重新派发。
 
 ### 记忆管理
 
-- 项目级长期经验写入 repo 中的 `memory/*.md`
 - 运行时记忆只读：启动时会看到小型 `memory_summary.md` 导航，需要细节时先 `memory_search`，再用 `memory_read` 读取最多一两个相关文件
 - 运行时记忆影响回答时，必须引用工具返回的 `path:lineStart-lineEnd`；需要精确事实时回查 Session、run 或 NNP 记录
 - usage receipt 会自动记录搜索、读取和零结果，不要声称“记得”却不检索

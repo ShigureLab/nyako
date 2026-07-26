@@ -9,7 +9,7 @@
 
 | 层                      | 负责内容                                                                                           | 存放位置                         |
 | ----------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------- |
-| `nyako` definition repo | Agent 拓扑、prompt、工具声明、project policy、skills、hooks、schedules、项目记忆                   | 当前仓库，可提交                 |
+| `nyako` definition repo | Agent 拓扑、prompt、工具声明、project policy、skills、hooks、schedules、Agent `MEMORY.md`          | 当前仓库，可提交                 |
 | `nyakore` runtime       | Session registry、显式 Session 寻址与投递、run records、NNP、gateway、workspace contract、内置能力 | `nyakore` 代码库                 |
 | 用户私有层              | Provider credentials、channel secret、gateway 设置、本机身份绑定                                   | `~/.nyakore/`                    |
 | 项目 runtime state      | Session 文件、transcript、NNP receipts、worktrees、日志、runtime memory/index                      | `~/.nyakore/projects/<project>/` |
@@ -62,7 +62,8 @@ flowchart LR
 ```text
 runtime.toml                 # definition repo 入口与 startup Session
 
-adapters/<id>/adapter.toml   # channel/integration driver 与可提交 policy
+adapters/<id>/channel.toml   # nyakore 加载的 channel manifest 与可提交 policy
+adapters/github/adapter.toml # GitHub module 自己读取的 integration policy
 
 agents/<agent-id>/
 ├── agent.toml               # id、role、model、credential alias、工具集合
@@ -80,7 +81,6 @@ hooks/session-worktree/      # Session 生命周期 worktree provisioning/cleanu
 schedules/*.md               # repo-managed schedule definitions
 skills/                      # repo skills 与 skills.toml registry
 memory/config.toml           # runtime memory producer 策略
-memory/*.md                  # repo-managed project memory
 test/                        # module tool 与 hook 测试
 ```
 
@@ -96,10 +96,12 @@ extension，例如跨 run ledger。
 - 默认 Agent 和 startup Sessions
 - runtime loop 开关
 - 外部 skill 来源
-- adapter 目录位置（默认 `adapters/`）和 memory 目录位置（默认 `memory/`）
+- memory 目录位置（默认 `memory/`）
 
-Channel/integration policy 必须放在 `adapters/<id>/adapter.toml`；`runtime.toml` 的旧 `[policy]`
-已删除。Provider secret 位于 `~/.nyakore/providers/`，channel token/key/secret 位于
+Channel policy 放在 `adapters/<id>/channel.toml`，由 nyakore 加载；GitHub integration policy
+保留在 `adapters/github/adapter.toml`，只由其 definition-side module 直接读取，nyakore
+不会加载或验证该文件。`runtime.toml` 的旧 `[policy]` 已删除。Provider secret 位于
+`~/.nyakore/providers/`，channel token/key/secret 位于
 `~/.nyakore/config.toml`。用户层不再承载 allowlist、路由 Agent、group policy 等 definition
 policy。项目运行数据由 `nyakore` 解析到 `~/.nyakore/projects/<project>/`，不要手工依赖其内部文件布局。
 
@@ -111,7 +113,6 @@ Prompt 的确定性组装顺序由 `nyakore` 维护，而不是由本 README 复
 - `AGENTS.md` 必需。
 - `IDENTITY.md`、`SOUL.md`、`TOOLS.md`、`USER.md`、Agent `MEMORY.md` 按存在性加载。
 - Runtime contract、memory rules 和启用的 capability sections 由 `nyakore` 注入。
-- repo `memory/*.md` 不会整包塞进 prompt，通过 `project_memory_list/get` 按需读取。
 - runtime 只注入小型 `memory_summary.md` 导航，详细内容通过 `memory_search` →
   `memory_read` 渐进读取。
 - Runtime search 使用 QMD BM25 派生索引并返回 `path:lineStart-lineEnd`；每次搜索/读取都有
@@ -240,7 +241,8 @@ vp test
 - Gateway、repo schedules、动态业务 Session 与 per-session worktrees
 - GitHub monitor ledger 去重
 - repo/project/agent/runtime 分层记忆、QMD BM25 检索与带 provenance 的自动归并
-- definition-side `adapters/<id>/adapter.toml` contract；本机层仅保存 secret/endpoint
+- runtime channel manifests 与 definition-owned GitHub integration policy；本机层仅保存
+  secret/endpoint
 
 ## 特别感谢
 
