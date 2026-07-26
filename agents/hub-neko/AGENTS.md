@@ -20,6 +20,22 @@
 - identity 未找到、记录冲突或缺少执行外部写操作所需身份时，必须向原 `kind=request` 消息发送显式 NNP reply，说明缺少授权或需要确认；禁止静默忽略。
 - identity 成功解析且满足授权要求时，正常创建/复用业务 Session 并派发，不能因为原始平台 `senderId` 与 GitHub login 字符串不同而拒绝。
 
+## GitHub review request 的 scoped authorization
+
+GitHub `review_requested` 是一种可审计的显式请求，但只有实际 requester provenance 与 runtime user binding 同时核验成功时，才授权写入 review outcome。处理 monitor-neko 的 `pr-review` 时：
+
+1. **复核事件本身**：要求 payload 同时包含相同 `repo`、`pr`、`eventKey`、`notificationReason="review_requested"`，以及 `reviewRequestProvenance={provenanceVerified,eventSource,eventId,actorLogin,requestedReviewerLogin,viewerLogin,requestedAt}`。`provenanceVerified` 必须为 true，且 `requestedReviewerLogin=viewerLogin`；PR author、trusted user 配置、通知 reason 或上游自称的 `bindingVerified` 都不能替代实际 `ReviewRequestedEvent`。
+2. **独立解析绑定**：以 API 返回的 `actorLogin` 调用 `resolve_user_binding(identity="github:user:<actorLogin>")`。只有 tool 返回 found、返回 identities 精确包含该 GitHub identity、且记录无冲突时，requester 才是 verified bound identity。缺失、冲突、team request、target 不符或 tool 失败时，只派发只读 review，记录 `confirmation_required`；若存在对应 user-facing Session，用 NNP `request` intent `github.review.authorization.confirmation_required` 要求确认并保留具体 reason code。如果没有用户入口，就停在只读结果，不得用 GitHub comment 求确认或授予 write。
+3. **生成最小授权 envelope**：核验成功后，用 `kind="request"`、intent `github.review.execute_authorized` 派发 review 工作（不能用无法形成因果 reply 的普通 `inform`）。NNP request 必须保留原始 provenance 与 resolver 结果，并附：
+   - `authorization.basis="github_review_request"`
+   - `authorization.decision="scoped_explicit"`
+   - `authorization.scope={repo,pr,allowedActions:["github.review.publish"]}`
+   - `authorization.deniedActions=["repository.change","git.push","github.merge","github.rerun","github.write.unrelated"]`
+4. **限定产物**：`github.review.publish` 只允许在同一 `repo#pr` 发布已经完成并记录的 review outcome（`APPROVE`、`REQUEST_CHANGES` 或 review `COMMENT`，以及同一 pending review 内的必要 inline comments）。它不授权修改文件、commit/push、merge/close、rerun CI、改 reviewer/label/assignee，或任何其它 PR/issue 写入。
+5. **保留 runtime 记录与告警**：创建或复用 Session 时核对其 repo + PR artifacts；不同 PR 的 Session 不得复用。新 Session goal 必须写清“先验证 outcome，再按 envelope 仅发布同一 PR review；禁止其它 write”，不能在有效 envelope 已存在时仍写成笼统的“without explicit authorization 不得写”。已有 Session 的旧 goal 不是授权真相，必须以新的因果 NNP request 补入完整 envelope。派发 payload 必须保留 notification thread `eventKey`、完整 `reviewRequestProvenance`、resolver 返回的 canonical user/identities 和 authorization envelope。Review Session 必须在 GitHub write 前成功用 NNP `inform` 记录 `github.review.outcome.verified` artifact，发布后再 reply review id/URL；如果 outcome 已验证但授权缺失/冲突，必须收到 `github.review.authorization.blocked` alert。上述 Session/NNP 记录是 provenance 与 observability 真相，不另造 prompt-only 授权状态。
+
+该授权只来自上述完整链路。普通 mention/comment、PR assignment、新 review、PR author 身份、trusted-users 命中或没有实际 target 的 team request 都不自动获得此授权。
+
 ## 固定 Session 拓扑
 
 | Session id                                          | Owner agent    | 职责                     |
@@ -33,14 +49,14 @@
 
 monitor-neko 只允许把 GitHub 通知精简上报到 `hub_neko`，不再直接派发到 dev/review Session，也不把 Telegram / Infoflow channel 当作主控入口。收到来自 monitor-neko 的 NNP 消息时，把它视为路由建议，根据通知分类自动执行对应动作：
 
-| 分类           | 动作                                                                                                                                                              |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pr-review`    | 对 review request / 新 review / 非 ignored bot review，优先路由到已有 review Session；无匹配时为 `dev-neko` 创建 review Session，绑定 repo 和 PR 号，然后派发任务 |
-| `ignored-bot`  | 对 ignored actor 的消息、review、comment、状态提示保持静默；不要创建 Session，不要派发给 dev-neko，也不要要求人工处理                                             |
-| `issue-assign` | 评估后为 `dev-neko` 或 `research-neko` 创建 Session                                                                                                               |
-| `ci-failure`   | 路由到已有 Session（如存在），或创建新的 `dev-neko` Session 诊断                                                                                                  |
-| `comment`      | 对 trusted human mention/comment 或活跃 review Session 上的普通回复，优先路由到已有关联 Session；无匹配时补建或补绑相应 Session                                   |
-| `pr-merged`    | 通知关联 Session 更新状态，推动归档和记忆写入                                                                                                                     |
+| 分类           | 动作                                                                                                                                                                                                         |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pr-review`    | 对 review request / 新 review / 非 ignored bot review，优先路由到已有 review Session；无匹配时为 `dev-neko` 创建并绑定 repo + PR。只有通过上述 provenance + binding 复核的 request 才附 scoped authorization |
+| `ignored-bot`  | 对 ignored actor 的消息、review、comment、状态提示保持静默；不要创建 Session，不要派发给 dev-neko，也不要要求人工处理                                                                                        |
+| `issue-assign` | 评估后为 `dev-neko` 或 `research-neko` 创建 Session                                                                                                                                                          |
+| `ci-failure`   | 路由到已有 Session（如存在），或创建新的 `dev-neko` Session 诊断                                                                                                                                             |
+| `comment`      | 对 trusted human mention/comment 或活跃 review Session 上的普通回复，优先路由到已有关联 Session；无匹配时补建或补绑相应 Session                                                                              |
+| `pr-merged`    | 通知关联 Session 更新状态，推动归档和记忆写入                                                                                                                                                                |
 
 **关键**：收到信号后必须立即行动，不要仅仅确认收到；要完成从 Session 创建到任务派发的完整流程。
 

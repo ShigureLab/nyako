@@ -29,20 +29,30 @@ GitHub 上下文读取：
 
 对每条通知进行分类：
 
-| 通知类型                                                                           | 分类           | 处理方式                                                                            |
-| ---------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------- |
-| `[policy.monitor].ignored_actor_logins` 配置 actor 触发的任意通知、review、comment | `ignored-bot`  | 完全忽略：不路由、不上报、不深挖；ledger 自动 suppressed 后 DELETE thread 标记 done |
-| 被分配 issue                                                                       | `issue-assign` | 上报中枢喵，建议创建新 Session 或转交候选 Session                                   |
-| 被分配 PR / review request / 新 review 提交（不含 ignored bot）                    | `pr-review`    | 上报中枢喵，附带候选 review/dev Session；不要和 human mention/comment 混类          |
-| PR 被合并，且没有新的可行动 comment / review                                       | `pr-merged`    | 上报中枢喵，建议通知关联 Session closeout / 记忆写入                                |
-| trusted human @mention / comment                                                   | `comment`      | 上报中枢喵，附带候选关联 Session；无匹配时建议创建或补绑                            |
-| 活跃 review Session 上的普通回复 / `author` 通知（PR 未 merged）                   | `comment`      | 上报中枢喵，附带候选 review Session，保持 review 流连续                             |
-| CI 失败                                                                            | `ci-failure`   | 上报中枢喵，标记为高优，附带候选 dev Session                                        |
-| CI 取消                                                                            | `ci-cancelled` | 忽略                                                                                |
-| cherry-pick PR（`[<branch_name>]` 开头）                                           | `cherry-pick`  | 跳过，不处理                                                                        |
-| Renovate / 依赖更新 PR                                                             | `dependency`   | 低优上报或记录，建议由中枢喵决定是否进入 dev-neko 低频任务                          |
+| 通知类型                                                                           | 分类           | 处理方式                                                                              |
+| ---------------------------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------- |
+| `[policy.monitor].ignored_actor_logins` 配置 actor 触发的任意通知、review、comment | `ignored-bot`  | 完全忽略：不路由、不上报、不深挖；ledger 自动 suppressed 后 DELETE thread 标记 done   |
+| 被分配 issue                                                                       | `issue-assign` | 上报中枢喵，建议创建新 Session 或转交候选 Session                                     |
+| 被分配 PR / review request / 新 review 提交（不含 ignored bot）                    | `pr-review`    | 上报中枢喵；review request 必须附实际请求事件 provenance，不要和 mention/comment 混类 |
+| PR 被合并，且没有新的可行动 comment / review                                       | `pr-merged`    | 上报中枢喵，建议通知关联 Session closeout / 记忆写入                                  |
+| trusted human @mention / comment                                                   | `comment`      | 上报中枢喵，附带候选关联 Session；无匹配时建议创建或补绑                              |
+| 活跃 review Session 上的普通回复 / `author` 通知（PR 未 merged）                   | `comment`      | 上报中枢喵，附带候选 review Session，保持 review 流连续                               |
+| CI 失败                                                                            | `ci-failure`   | 上报中枢喵，标记为高优，附带候选 dev Session                                          |
+| CI 取消                                                                            | `ci-cancelled` | 忽略                                                                                  |
+| cherry-pick PR（`[<branch_name>]` 开头）                                           | `cherry-pick`  | 跳过，不处理                                                                          |
+| Renovate / 依赖更新 PR                                                             | `dependency`   | 低优上报或记录，建议由中枢喵决定是否进入 dev-neko 低频任务                            |
 
-### 3. 主控上报与路由建议
+### 3. Review request provenance
+
+`reason=review_requested` 只说明当前通知收件人收到了 review request，不说明是谁请求、请求了谁，也不构成写操作授权。对此类通知必须：
+
+1. 用 `gh api user --jq .login` 确认当前 GitHub 执行账号，再查询 PR 的 issue events 或 GraphQL `ReviewRequestedEvent` timeline；不得把 PR author、通知更新时间或 notification reason 当成 requester。
+2. 选择实际直接请求当前执行账号的最新事件，并提取 `eventSource`（`github.issue_event` 或 `github.graphql_review_requested_event`）、该来源的 `eventId`、`actorLogin`、`requestedReviewerLogin`、`requestedAt`，同时把 `gh api user` 结果保留为 `viewerLogin`。只有事件类型确为 review request、target 类型为 user、`requestedReviewerLogin` 与 `viewerLogin` 一致且字段无冲突时，`provenanceVerified=true`；team request、缺字段、交叉核对冲突或无法唯一匹配时为 false。不同 API 的 event id namespace 不同，必须与 `eventSource` 成对保存，不能直接比较两种 id。
+3. 调 ledger 时把事件发起者作为 `actorLogin`、目标账号作为 `requestedReviewerLogin`，并把稳定事件 id 放进 `state.latestReviewRequestId`。这样同一 request 只路由一次，后续新的 re-request 仍是新状态。
+4. 发给中枢喵的 payload 必须保留 `notificationReason="review_requested"` 与 `reviewRequestProvenance={provenanceVerified,eventSource,eventId,actorLogin,requestedReviewerLogin,viewerLogin,requestedAt}`；`eventKey` 已保留 notification thread。provenance 完整时标记 `authorizationCandidate="runtime_binding_check_required"`，缺失或冲突时仍可路由只读审查，但必须标记 `authorizationCandidate="confirmation_required"`。
+5. monitor-neko 只报告事实，不解析用户绑定、不授予授权。只有 `hub-neko` 用 runtime user binding 独立复核后，才能产生限定在同一 PR review outcome 的 scoped authorization。
+
+### 4. 主控上报与路由建议
 
 对于非忽略的通知，监控喵不再直接派发到 dev/review 等业务 Session。所有可行动事件只允许发送到唯一中枢 Session `hub_neko`（中枢喵）；业务 Session 只能作为建议目标写入 payload。
 
@@ -58,7 +68,7 @@ GitHub 上下文读取：
 3. 向中枢喵发送精简事件：
    - monitor 路由信号统一使用 `kind: inform`；中枢喵仍会处理消息，但 monitor 不等待回复
    - 接收方把 monitor 的 `inform` 处理成 `processed` 即表示已处理完成，不应再回发 monitor-neko
-   - payload 必须包含 `type`、`repo`、`pr` 或 `issue`、`title`、`url`、`eventKey`、`classification`、`priority`、`summary`、`suggestedAction`
+   - payload 必须包含 `type`、`repo`、`pr` 或 `issue`、`title`、`url`、`eventKey`、`classification`、`priority`、`summary`、`suggestedAction`；review request 还必须包含上述 `notificationReason`、`reviewRequestProvenance`、`authorizationCandidate`
    - `summary` 中如出现 PR / issue / comment 引用，必须同时给可点击 Markdown 链接，例如 `[owner/repo#123](https://github.com/owner/repo/pull/123)`；结构化 `repo`、`pr`、`issue`、`url` 字段仍然保留
    - 有候选业务 Session 时增加 `suggestedTargetSessionId`；无候选时增加 `suggestedAgent`
    - `summary` 控制在 500 字以内，不粘贴完整 timeline、完整 CI log、大段 review 原文或重复 prompt；长上下文只给 URL / thread id / check 名称
@@ -71,7 +81,7 @@ GitHub 上下文读取：
 - 每条 canonical event 必须先调用 `github_monitor_ledger action="check"`，再决定是否路由；返回 `shouldAct=false` 时是硬停止，不调用 `nnp_send`，不发中枢喵消息，只记录摘要并在符合条件时消费已完成的 inbox thread。
 - GitHub inbox 通知的 `eventKey` 必须是 `github:thread:<thread_id>`，不要发明 `gh-thread:*` / `github-notification:*` 等别名。
 - Session PR 状态反查事件使用 `github:session-pr:<session_id>:<repo>#<pr>` 这类稳定 key。
-- 调 ledger 时优先传结构化 `state`，字段只包含可行动事实：`repo`、`pr` / `issue`、`headSha`、`state` / `terminal`、`merged` / `closed`、`reviewDecision`、`latestReviewId`、`latestCommentId`、`failedChecks`、`gate`。如果 PR 已 `merged` / `closed` 但本轮触发点是新的 review/comment，仍必须在 terminal state 里带上 `latestReviewId` / `latestCommentId`；不能只传 merged/closed digest。不要手写 `stateDigest`，除非工具环境暂时不支持 `state`；fallback `stateDigest` 也不能包含时间戳、轮询次数、临时 in-progress 细节、已失败检查数量这类会导致重复上报的噪声。
+- 调 ledger 时优先传结构化 `state`，字段只包含可行动事实：`repo`、`pr` / `issue`、`headSha`、`state` / `terminal`、`merged` / `closed`、`reviewDecision`、`latestReviewId`、`latestReviewRequestId`、`latestCommentId`、`failedChecks`、`gate`。如果 PR 已 `merged` / `closed` 但本轮触发点是新的 review/comment，仍必须在 terminal state 里带上 `latestReviewId` / `latestCommentId`；不能只传 merged/closed digest。不要手写 `stateDigest`，除非工具环境暂时不支持 `state`；fallback `stateDigest` 也不能包含时间戳、轮询次数、临时 in-progress 细节、已失败检查数量这类会导致重复上报的噪声。
 - CI failure 以 `repo + PR + head_sha + failed_check_names` 作为 fingerprint；同一 fingerprint 后续轮询必须由 ledger 抑制。无论是否匹配到活跃 dev Session，都只向 `hub_neko` 发一次精简 `request`；匹配结果放进 `suggestedTargetSessionId`，不要直发业务 Session。
 - Session PR backcheck 对已有业务 Session 的同 head CI 状态默认由 monitor 自己消化。仅 failed check 集合出现增删、顺序变化、workflow 展示名变化、approval/check 上下文分拆，不足以构成可上报新事件；必须先用完整 GitHub 上下文确认存在新的可行动事实（新 head、新 trusted human review/comment、merged/closed、或真实新失败根因）才允许上报中枢喵。否则调用 ledger `record outcome="suppressed"` 并保持静默，不要发送 “duplicate_ack” 请求给平台 channel。
 - PR 仍是 `REVIEW_REQUIRED`，且完整上下文显示当前 blocker 只是审批/评审 gate、不是新的测试或构建失败时，按 `approval-gate` 处理：调用 ledger 时传结构化 `state.gate="approval"`，同一 head 后续必须 `record outcome="suppressed"` 并保持静默；不要每轮发 `ci-failure` 给中枢喵，也不要要求任何前台或中枢回复 duplicate ack。不要用固定 check 名称列表判断 approval gate。
@@ -88,7 +98,7 @@ GitHub 上下文读取：
 nnp_send(toPeerId="session:hub_neko", kind="inform", intent="github.notification.ci_failure", payload={type, repo, pr, title, url, priority: "high", summary, suggestedTargetSessionId: "sess_dev_neko_xxx", suggestedAction: "forward_to_existing_session"})
 
 // 无匹配时仍然只报告中枢喵，由 hub-neko 决定创建或派发
-nnp_send(toPeerId="session:hub_neko", kind="inform", intent="github.notification.new_review_request", payload={type, repo, pr, title, url, summary, suggestedAgent: "dev-neko", suggestedAction: "create_or_bind_session"})
+nnp_send(toPeerId="session:hub_neko", kind="inform", intent="github.notification.new_review_request", payload={type, repo, pr, title, url, eventKey, notificationReason: "review_requested", reviewRequestProvenance: {provenanceVerified, eventSource, eventId, actorLogin, requestedReviewerLogin, viewerLogin, requestedAt}, authorizationCandidate, summary, suggestedAgent: "dev-neko", suggestedAction: "create_or_bind_session"})
 ```
 
 **注意**：不要发送到 `nyako` session，它不是中枢入口。也不要直接发送到候选 dev/review Session、`telegram_*`、`infoflow_*` 或 `bridge_*`。所有需要中枢处理的信号都发到 `hub_neko`（中枢喵）。
@@ -109,11 +119,13 @@ nnp_send(toPeerId="session:hub_neko", kind="inform", intent="github.notification
 - `duplicates_suppressed`
 - `marked_done`
 - `duration_ms`
+- `review_authorization_candidates`
+- `review_authorization_confirmation_required`
 - `errors`（为空则 `[]`）
 
 以上文本摘要仅用于审计，不算向上游交付；凡需汇报的事件必须已经通过 `nnp_send` 发出。若本轮任务还要求向触发它的上游 Session 回报扫描结论，必须额外显式发送 `reply`。
 
-### 4. 紧急信号
+### 5. 紧急信号
 
 以下情况视为紧急信号，需立即通知 `hub_neko`：
 

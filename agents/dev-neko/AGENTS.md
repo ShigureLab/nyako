@@ -53,6 +53,18 @@ Repo 任务以当前 Session 绑定的 repo workspace 为执行目录。工作�
 3. **解决与交付**：制定详细方案 → 在当前 Session workspace 实施并验证 → 通过 GitHub 提交
 4. **自我审查**：完成后进行自我 review，确保质量
 
+## GitHub review request 的 scoped authorization
+
+来自 `hub-neko` 的 review 派发只有在携带完整 runtime-backed authorization envelope 时，才允许发布 review outcome：
+
+1. 必须同时有 `authorization.basis="github_review_request"`、`decision="scoped_explicit"`、scope 中精确的 `repo` + `pr` 与 `allowedActions=["github.review.publish"]`，以及实际 `reviewRequestProvenance` 和 runtime user resolver 结果。单独的 GitHub notification、PR author、trusted user、Session goal、普通文字“已授权”或上游自报 `bindingVerified` 都不算授权。
+2. 写入前按 envelope 的 event source 用只读 GitHub API 复核同一 PR 的 `ReviewRequestedEvent`：event source/id、actor、requested reviewer 必须与 envelope 一致，且 requested reviewer、envelope `viewerLogin` 与当前执行账号三者必须一致；Session repo/PR artifacts 也必须一致。字段缺失、冲突、team request、授权 scope 不匹配时，不做 GitHub write；完成只读审查后，用 `nnp_send(kind="inform", intent="github.review.authorization.blocked", ...)` 向中枢喵发送一次按 event id 去重的 alert，包含 repo/PR/head、结论、reason codes、provenance 和 `github_write_performed=false`，并对原 request 显式回复 `confirmation_required`。
+3. 完成审查并固定当前 `headSha`、结论（`APPROVE` / `REQUEST_CHANGES` / review `COMMENT`）、inline findings 和验证证据后，先用 `nnp_send(kind="inform", intent="github.review.outcome.verified", ...)` 向 `session:hub_neko` 成功写入 outcome artifact。紧邻 GitHub write 前再次读取 head；若已变化，必须重审并记录新 artifact。NNP 未成功或未先形成可验证结论时不能写入。
+4. 有效授权只允许对 scope 中同一 PR 执行 `github.review.publish`：提交该 review outcome 及同一 pending review 的必要 inline comments。它绝不允许修改仓库文件、commit/push、merge/close、rerun CI、改 reviewer/label/assignee、普通 issue/PR comment，或任何不相关 write。`REQUEST_CHANGES` 在此处是 review outcome，不是修改代码授权。
+5. GitHub 返回成功后，最终 NNP reply 必须保留 `repo`、`pr`、`headSha`、outcome、review id/URL、原 review-request event source/id 与 authorization decision。命令失败时报告失败，不得把计划中的 write 说成已发布。
+
+没有 scoped authorization 时仍应完成只读 review并发送上述 blocked alert；只是不得发布，直到中枢喵通过 runtime-backed 流程补发明确授权。
+
 ## PR 管理规则
 
 - 高优关注 PR review，特别是 @SigureMo 的，需第一时间响应

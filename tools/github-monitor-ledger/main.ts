@@ -54,6 +54,9 @@ const ledgerStateSchema = Type.Object(
     latestReviewId: Type.Optional(
       stringOrNumberSchema('Stable id for the latest actionable review.')
     ),
+    latestReviewRequestId: Type.Optional(
+      stringOrNumberSchema('Stable event id for the latest actionable review request.')
+    ),
     latestCommentId: Type.Optional(
       stringOrNumberSchema('Stable id for the latest actionable human comment.')
     ),
@@ -87,6 +90,12 @@ const ledgerEventSchema = Type.Object(
     actorLogin: Type.Optional(
       Type.String({
         description: 'GitHub login that authored or triggered the event when known.',
+      })
+    ),
+    requestedReviewerLogin: Type.Optional(
+      Type.String({
+        description:
+          'GitHub login targeted by a review request. Stored only as event provenance; it does not establish authorization.',
       })
     ),
     outcome: Type.Optional(
@@ -153,6 +162,7 @@ type LedgerEntry = {
   lastSeenDigest: string
   seenCount: number
   actorLogin: string | null
+  requestedReviewerLogin: string | null
   isSelfAuthored: boolean
   isIgnoredActor: boolean
   lastHandledAt: string | null
@@ -176,6 +186,7 @@ type CheckResult = {
   eventKey: string
   stateDigest: string
   actorLogin: string | null
+  requestedReviewerLogin: string | null
   isSelfAuthored: boolean
   isIgnoredActor: boolean
   seenStatus: SeenStatus
@@ -194,6 +205,7 @@ type RecordResult = {
   requestedOutcome: LedgerOutcome
   handledStatus: HandledStatus
   actorLogin: string | null
+  requestedReviewerLogin: string | null
   isSelfAuthored: boolean
   isIgnoredActor: boolean
   handledCount: number
@@ -325,6 +337,13 @@ function canonicalizeStateDigest(stateDigest: string): string {
     'review_id',
     'reviewId',
   ])
+  const latestReviewRequest = extractActionValue(compact, [
+    'latest_review_request',
+    'latestReviewRequest',
+    'review_request_id',
+    'reviewRequestId',
+    'review_request',
+  ])
   const latestComment = extractActionValue(compact, [
     'latest_comment',
     'latestComment',
@@ -343,6 +362,7 @@ function canonicalizeStateDigest(stateDigest: string): string {
       head ? `head=${head}` : null,
       review ? `review=${review}` : null,
       latestReview ? `latest_review=${latestReview}` : null,
+      latestReviewRequest ? `review_request=${latestReviewRequest}` : null,
       latestComment ? `comment=${latestComment}` : null,
     ]
       .filter((item): item is string => item !== null)
@@ -354,6 +374,7 @@ function canonicalizeStateDigest(stateDigest: string): string {
     state ? `state=${state}` : null,
     review ? `review=${review}` : null,
     latestReview && !explicitGate ? `latest_review=${latestReview}` : null,
+    latestReviewRequest ? `review_request=${latestReviewRequest}` : null,
     latestComment && !explicitGate ? `comment=${latestComment}` : null,
     explicitGate,
     failedChecks.length > 0 && !explicitGate ? `failed=${failedChecks.join('|')}` : null,
@@ -385,6 +406,7 @@ function canonicalizeStructuredState(state: LedgerStateInput): string | null {
   const lifecycleState = normalizeStructuredValue(state.state)
   const review = normalizeStructuredValue(state.reviewDecision)
   const latestReview = normalizeStructuredValue(state.latestReviewId)
+  const latestReviewRequest = normalizeStructuredValue(state.latestReviewRequestId)
   const latestComment = normalizeStructuredValue(state.latestCommentId)
   const failedChecks = normalizeCheckNames(state.failedChecks)
   const gate = normalizeStructuredValue(state.gate)
@@ -398,6 +420,7 @@ function canonicalizeStructuredState(state: LedgerStateInput): string | null {
       head ? `head=${head}` : null,
       review ? `review=${review}` : null,
       latestReview ? `latest_review=${latestReview}` : null,
+      latestReviewRequest ? `review_request=${latestReviewRequest}` : null,
       latestComment ? `comment=${latestComment}` : null,
     ]
       .filter((item): item is string => item !== null)
@@ -411,6 +434,7 @@ function canonicalizeStructuredState(state: LedgerStateInput): string | null {
     state.closed === true ? 'closed=true' : null,
     review ? `review=${review}` : null,
     latestReview && !explicitGate ? `latest_review=${latestReview}` : null,
+    latestReviewRequest ? `review_request=${latestReviewRequest}` : null,
     latestComment && !explicitGate ? `comment=${latestComment}` : null,
     explicitGate,
     failedChecks.length > 0 && !explicitGate ? `failed=${failedChecks.join('|')}` : null,
@@ -628,6 +652,16 @@ function suppressedSameHeadCiBackcheckMatches(
   ) {
     return false
   }
+  const previousReviewRequest = digestComponentValue(leftComponents, 'review_request')
+  const currentReviewRequest = digestComponentValue(rightComponents, 'review_request')
+  if (
+    (!previousReviewRequest && currentReviewRequest) ||
+    (previousReviewRequest &&
+      currentReviewRequest &&
+      previousReviewRequest !== currentReviewRequest)
+  ) {
+    return false
+  }
 
   return true
 }
@@ -651,6 +685,7 @@ function mergeLedgerEntries(left: LedgerEntry, right: LedgerEntry): LedgerEntry 
     lastSeenDigest: rightSeenIsNewer ? right.lastSeenDigest : left.lastSeenDigest,
     seenCount: left.seenCount + right.seenCount,
     actorLogin: right.actorLogin ?? left.actorLogin,
+    requestedReviewerLogin: right.requestedReviewerLogin ?? left.requestedReviewerLogin,
     isSelfAuthored: left.isSelfAuthored || right.isSelfAuthored,
     isIgnoredActor: left.isIgnoredActor || right.isIgnoredActor,
     lastHandledAt: rightHandledIsNewer ? right.lastHandledAt : left.lastHandledAt,
@@ -668,6 +703,8 @@ function normalizeLedgerEntry(entry: LedgerEntry, fallbackKey: string): LedgerEn
   return {
     ...entry,
     eventKey,
+    actorLogin: normalizeLogin(entry.actorLogin ?? undefined),
+    requestedReviewerLogin: normalizeLogin(entry.requestedReviewerLogin ?? undefined),
     lastSeenDigest: canonicalizeStateDigest(entry.lastSeenDigest),
     lastHandledDigest: entry.lastHandledDigest
       ? canonicalizeStateDigest(entry.lastHandledDigest)
@@ -864,6 +901,7 @@ function createEmptyEntry(
     lastSeenDigest: event.stateDigest,
     seenCount: 0,
     actorLogin: normalizeLogin(event.actorLogin),
+    requestedReviewerLogin: normalizeLogin(event.requestedReviewerLogin),
     isSelfAuthored,
     isIgnoredActor,
     lastHandledAt: null,
@@ -943,6 +981,7 @@ async function handleCheck(input: GithubMonitorLedgerInput) {
     return ensureEvents(input).map((event) => {
       const existing = state.entries[event.eventKey]
       const actorLogin = normalizeLogin(event.actorLogin)
+      const requestedReviewerLogin = normalizeLogin(event.requestedReviewerLogin)
       const isSelfAuthored = actorLogin
         ? selfLogins.has(actorLogin)
         : (existing?.isSelfAuthored ?? false)
@@ -955,6 +994,8 @@ async function handleCheck(input: GithubMonitorLedgerInput) {
         ? {
             ...existing,
             actorLogin: actorLogin ?? existing.actorLogin,
+            requestedReviewerLogin:
+              requestedReviewerLogin ?? existing.requestedReviewerLogin ?? null,
             isSelfAuthored,
             isIgnoredActor,
             lastSeenAt: now,
@@ -976,6 +1017,7 @@ async function handleCheck(input: GithubMonitorLedgerInput) {
         eventKey: event.eventKey,
         stateDigest: event.stateDigest,
         actorLogin: next.actorLogin,
+        requestedReviewerLogin: next.requestedReviewerLogin,
         isSelfAuthored,
         isIgnoredActor,
         seenStatus,
@@ -1010,6 +1052,8 @@ async function handleRecord(input: GithubMonitorLedgerInput) {
     return ensureEvents(input).map((event) => {
       const existing = state.entries[event.eventKey]
       const actorLogin = normalizeLogin(event.actorLogin) ?? existing?.actorLogin ?? null
+      const requestedReviewerLogin =
+        normalizeLogin(event.requestedReviewerLogin) ?? existing?.requestedReviewerLogin ?? null
       const isSelfAuthored = actorLogin
         ? selfLogins.has(actorLogin)
         : (existing?.isSelfAuthored ?? false)
@@ -1022,6 +1066,7 @@ async function handleRecord(input: GithubMonitorLedgerInput) {
         ? {
             ...existing,
             actorLogin,
+            requestedReviewerLogin,
             isSelfAuthored,
             isIgnoredActor,
             lastSeenAt: existing.lastSeenAt,
@@ -1057,6 +1102,7 @@ async function handleRecord(input: GithubMonitorLedgerInput) {
         requestedOutcome: outcome,
         handledStatus,
         actorLogin: next.actorLogin,
+        requestedReviewerLogin: next.requestedReviewerLogin,
         isSelfAuthored,
         isIgnoredActor,
         handledCount: next.handledCount,
