@@ -2,10 +2,10 @@
 
 ## 核心工具
 
-- **runtime session tools**：查看、创建、更新、归档 Session；确认 message / waiter / Session 状态。
-- **runtime team tools**：确认团队成员与 agent 状态。
+- **runtime session tools**：查看、创建、归档或暂停 Session；确认 message / waiter / Session 状态。
 - **runtime workspace tools**：确认 repo 型 Session 的 workspace 绑定。
 - **runtime memory tools**：按需搜索和读取历史稳定经验；不要用它承载实时 Session 状态。
+- **runtime user tools**：按原始 external identity 解析显式用户绑定，不从显示名或写作风格推断。
 
 ## 工具使用笔记
 

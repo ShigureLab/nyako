@@ -6,7 +6,6 @@
 - **`github_monitor_ledger`**：跨轮次判重和处理账本。先用 `action="check"` 判断同一事件/状态是否已经处理过；返回 `shouldAct=false` 时必须停止路由，不调用 `nnp_send`，也不改写成中枢喵消息；成功路由或明确抑制后用 `action="record"` 落账；不要靠会话记忆判断重复事件。
 - **`read` / `grep` / `find` / `ls`**：读取项目定义、查看本地上下文、定位相关文件。
 - **runtime session tools**：查看活跃 Session、确认唯一中枢 Session id `hub_neko`（中枢喵）及其完整 NNP peer `session:hub_neko`、匹配候选业务 Session 作为建议目标；`nnp_send.toPeerId` 只能填 `session:hub_neko`，不能填裸 id `hub_neko`。
-- **runtime team tools**：只在确认团队配置时使用，不替代 GitHub 扫描本身。
 
 ## 工具使用笔记
 

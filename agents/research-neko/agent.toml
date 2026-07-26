@@ -8,7 +8,6 @@ tools = [
   "find",
   "ls",
   "runtime-session",
-  "runtime-team",
   "runtime-workspace",
   "runtime-memory",
 ]

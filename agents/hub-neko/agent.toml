@@ -1,7 +1,7 @@
 id = "hub-neko"
 name = "hub-neko"
 role = "hub"
-tools = ["runtime-session", "runtime-team", "runtime-workspace", "runtime-memory", "runtime-user"]
+tools = ["runtime-session", "runtime-workspace", "runtime-memory", "runtime-user"]
 
 [compaction]
 enabled = true

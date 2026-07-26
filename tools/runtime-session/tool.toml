@@ -1,7 +1,0 @@
-id = "runtime-session"
-name = "runtime session tools"
-kind = "runtime"
-entrypoint = "nyakore"
-enabled = true
-
-description = "Manage nyakore sessions, inspect state, create task threads, and update continuity."

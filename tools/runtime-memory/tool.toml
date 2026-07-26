@@ -1,7 +1,0 @@
-id = "runtime-memory"
-name = "runtime memory tools"
-kind = "runtime"
-entrypoint = "nyakore"
-enabled = true
-
-description = "Search and read the runtime memory workspace with bounded line citations and usage receipts."

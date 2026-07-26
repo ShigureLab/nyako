@@ -73,7 +73,6 @@ agents/<agent-id>/
 └── MEMORY.md                # 可选：可提交的 Agent 长期记忆
 
 tools/
-├── runtime-*/tool.toml      # 选择 nyakore 内置 capability
 ├── dependency-update-ledger/# Definition repo 实现的跨 run ledger
 └── github-monitor-ledger/   # GitHub 通知去重与处理结果 ledger
 
@@ -85,8 +84,9 @@ memory/*.md                  # repo-managed project memory
 test/                        # module tool 与 hook 测试
 ```
 
-这里的 `runtime-*` tool 目录是能力声明，不复制 runtime 实现。真正的 session、memory、task、
-workspace、user 和 team 工具由 `nyakore` 提供；ledger 等产品特定能力才在本仓库实现。
+`runtime-session`、`runtime-workspace`、`runtime-memory` 和 `runtime-user` 由各 Agent 的
+`agent.toml` 直接选择，不使用空 `tool.toml` marker。`tools/` 只放本仓库实现的 module
+extension，例如跨 run ledger。
 
 ## 配置加载
 
@@ -131,8 +131,9 @@ Prompt 的确定性组装顺序由 `nyakore` 维护，而不是由本 README 复
 Agent 可用能力来自三层：
 
 1. pi 基础文件/终端工具，例如 `read`、`bash`、`edit`、`grep`。
-2. `nyakore` builtin capabilities，由 `runtime-*` tool descriptor 选择。
-3. Definition repo modules，例如 dependency/GitHub monitor ledgers。
+2. `nyakore` builtin groups，由 `agent.toml` 直接选择。
+3. Definition repo modules，通过 `kind = "module"` 的 `tool.toml` 加载，例如
+   dependency/GitHub monitor ledgers。
 
 `dev-neko` 在绑定的 Session workspace 中直接完成工程实现和验证；需要独立研究或计划时，
 通过明确的 NNP Session 消息与 `research-neko`、`plan-neko` 协作。GitHub 深度上下文读取使用
