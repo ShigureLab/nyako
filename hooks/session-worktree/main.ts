@@ -26,7 +26,7 @@ type WorkspaceRecord = {
   branch: string | null
   dirty: boolean
   currentSessionId: string | null
-  kind?: 'legacy' | 'root' | 'session'
+  kind: 'external' | 'root' | 'session'
   rootPath?: string | null
   managedBy?: string | null
 }
