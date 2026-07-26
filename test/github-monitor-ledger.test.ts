@@ -198,6 +198,129 @@ describe('github-monitor-ledger tool', () => {
     expect(Object.keys(ledger.entries)).toEqual(['github:thread:23960089331'])
   })
 
+  it('preserves review-request provenance and routes each new request event once', async () => {
+    const tool = registerTool()
+    const eventKey = 'github:thread:24774562597'
+    const headSha = '1eeaf99fa5d44d051d81a68c0a3b0c364d88c804'
+
+    const firstCheck = await tool.execute('call_1', {
+      action: 'check',
+      events: [
+        {
+          eventKey,
+          actorLogin: 'SigureMo',
+          requestedReviewerLogin: 'ShigureNyako',
+          state: {
+            repo: 'yutto-dev/yutto',
+            pr: 770,
+            headSha,
+            state: 'OPEN',
+            reviewDecision: 'REVIEW_REQUIRED',
+            latestReviewRequestId: 28491324291,
+            gate: 'approval',
+          },
+        },
+      ],
+    })
+
+    expect(firstCheck.details.results[0]).toMatchObject({
+      eventKey,
+      stateDigest: `head=${headSha};state=open;review=review_required;review_request=28491324291;gate=approval`,
+      actorLogin: 'siguremo',
+      requestedReviewerLogin: 'shigurenyako',
+      shouldAct: true,
+    })
+
+    await tool.execute('call_2', {
+      action: 'record',
+      events: [
+        {
+          eventKey,
+          actorLogin: 'SigureMo',
+          requestedReviewerLogin: 'ShigureNyako',
+          state: {
+            repo: 'yutto-dev/yutto',
+            pr: 770,
+            headSha,
+            state: 'OPEN',
+            reviewDecision: 'REVIEW_REQUIRED',
+            latestReviewRequestId: 28491324291,
+            gate: 'approval',
+          },
+          outcome: 'routed',
+          targetSessionId: 'hub_neko',
+          messageKind: 'inform',
+          intent: 'github.notification.new_review_request',
+        },
+      ],
+    })
+
+    const repeatCheck = await tool.execute('call_3', {
+      action: 'check',
+      events: [
+        {
+          eventKey,
+          state: {
+            headSha: headSha.slice(0, 12),
+            state: 'open',
+            reviewDecision: 'review_required',
+            latestReviewRequestId: '28491324291',
+            gate: 'approval',
+          },
+        },
+      ],
+    })
+
+    expect(repeatCheck.details.results[0]).toMatchObject({
+      handledStatus: 'handled_repeat',
+      requestedReviewerLogin: 'shigurenyako',
+      shouldAct: false,
+    })
+
+    const newRequestCheck = await tool.execute('call_4', {
+      action: 'check',
+      events: [
+        {
+          eventKey,
+          actorLogin: 'another-requester',
+          requestedReviewerLogin: 'ShigureNyako',
+          state: {
+            headSha,
+            state: 'OPEN',
+            reviewDecision: 'REVIEW_REQUIRED',
+            latestReviewRequestId: 28499999999,
+            gate: 'approval',
+          },
+        },
+      ],
+    })
+
+    expect(newRequestCheck.details.results[0]).toMatchObject({
+      handledStatus: 'handled_changed',
+      actorLogin: 'another-requester',
+      requestedReviewerLogin: 'shigurenyako',
+      shouldAct: true,
+    })
+
+    const ledgerPath = newRequestCheck.details.ledgerPath as string
+    const ledger = JSON.parse(await readFile(ledgerPath, 'utf8')) as {
+      entries: Record<
+        string,
+        {
+          actorLogin: string | null
+          requestedReviewerLogin: string | null
+          lastSeenDigest: string
+        }
+      >
+    }
+
+    expect(ledger.entries[eventKey]).toMatchObject({
+      actorLogin: 'another-requester',
+      requestedReviewerLogin: 'shigurenyako',
+      lastSeenDigest: `head=${headSha};state=open;review=review_required;review_request=28499999999;gate=approval`,
+    })
+  })
+
   it('auto-suppresses configured Paddle bot events as ignored actors', async () => {
     const tool = registerTool()
 
