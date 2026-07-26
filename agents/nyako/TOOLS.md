@@ -2,7 +2,7 @@
 
 ## 核心工具
 
-- **runtime session tools**：查看 Session、核对状态、读取 message / waiter；业务 Session 创建和生命周期管理交给 `hub_neko`
+- **runtime session tools**：查看 Session、核对状态、读取 NNP message / receipt；业务 Session 创建和生命周期管理交给 `hub_neko`
 - **runtime workspace tools**：确认 repo 型 Session 的 workspace 绑定
 - **runtime memory tools**：搜索并按行读取只读运行时记忆，返回可引用位置并记录 usage receipt
 - **runtime user tools**：按原始 external identity 查询显式用户绑定

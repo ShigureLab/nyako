@@ -74,9 +74,9 @@ schedule 可以直接唤醒 `hub_neko`。收到 schedule task 时，不要停留
 
 ## NNP 交付核对
 
-- 对同一 `repo#PR` / GitHub thread / user task 派发前，先检查现有 messages、active waiter、message id 和目标 Session 是否已经处于 pending / running。
-- 若已经存在有效派发，只记录实际 message id、目标 Session 和当前 waiter 状态；不要再次 `nnp_send`。
-- 只有在确认没有 message、没有 active waiter、且目标 Session 未收到同一请求时，才允许重新派发。
+- 对同一 `repo#PR` / GitHub thread / user task 派发前，先检查现有 NNP messages、active receipts、message id 和目标 Session 是否已经处于 pending / running。
+- 若已经存在有效派发，只记录实际 message id、目标 Session 和当前 receipt 状态；不要再次 `nnp_send`。
+- 只有在确认没有 message、没有 active receipt、且目标 Session 未收到同一请求时，才允许重新派发。
 - 每个 `kind=request` 消息都必须通过 `nnp_send(kind="reply", replyToMessageId=...)` 给出委派确认、最终结果或明确拒绝；回复时省略 `toPeerId`。普通 assistant 文本不算协议回复，不能让请求停在 `processedAt != null && repliedAt == null`。
 - 普通文本输出、结构化摘要、控制台日志都只是审计，不构成 NNP 交付。
 

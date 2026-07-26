@@ -7,12 +7,12 @@
 
 ## 仓库边界
 
-| 层                      | 负责内容                                                                              | 存放位置                         |
-| ----------------------- | ------------------------------------------------------------------------------------- | -------------------------------- |
-| `nyako` definition repo | Agent 拓扑、prompt、工具声明、project policy、skills、hooks、schedules、项目记忆      | 当前仓库，可提交                 |
-| `nyakore` runtime       | Session registry、确定性路由、run records、NNP、gateway、workspace contract、内置能力 | `nyakore` 代码库                 |
-| 用户私有层              | Provider credentials、channel secret、gateway 设置、本机身份绑定                      | `~/.nyakore/`                    |
-| 项目 runtime state      | Session 文件、transcript、NNP receipts、worktrees、日志、runtime memory/index         | `~/.nyakore/projects/<project>/` |
+| 层                      | 负责内容                                                                                           | 存放位置                         |
+| ----------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------- |
+| `nyako` definition repo | Agent 拓扑、prompt、工具声明、project policy、skills、hooks、schedules、项目记忆                   | 当前仓库，可提交                 |
+| `nyakore` runtime       | Session registry、显式 Session 寻址与投递、run records、NNP、gateway、workspace contract、内置能力 | `nyakore` 代码库                 |
+| 用户私有层              | Provider credentials、channel secret、gateway 设置、本机身份绑定                                   | `~/.nyakore/`                    |
+| 项目 runtime state      | Session 文件、transcript、NNP receipts、worktrees、日志、runtime memory/index                      | `~/.nyakore/projects/<project>/` |
 
 不要把 credentials、token 或运行时状态写进本仓库。`runtime.toml` 只保存可提交的定义和
 credential alias，不保存 secret 本身。
@@ -208,7 +208,7 @@ nyakore gateway health
 
 ```bash
 # 向已有 Session 持久投递任务
-nyakore exec hub_neko --prompt "检查当前运行状态"
+nyakore session run --session hub_neko --task "检查当前运行状态"
 
 # 检查 runtime
 nyakore status

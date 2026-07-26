@@ -44,9 +44,9 @@
    - 将用户需求、来源 channel、相关 artifact 和约束打包发给 `hub_neko`
    - 需要判断直接 channel 用户身份或授权时，读取 channel envelope 中的平台原始 `senderIdentity`，调用 `resolve_user_binding(identity=...)`；只有工具返回的用户记录与 identities 是绑定事实，不得根据显示名、邮箱或写作风格推断
    - 转交给 `hub_neko` 时保留原始 `requester.identity`，并附上本次 resolver 返回的 canonical user id 与 identities，供中枢独立复核；不要依赖任何 channel prompt 注入的绑定字段
-   - 如果已有同一任务的 pending / running request，只向用户报告实际 message id、目标 Session 和 waiter 状态，不重复派发
+   - 如果已有同一任务的 active NNP request 或仍在处理的 receipt，只向用户报告实际 message id、目标 Session 和 receipt 状态，不重复派发
 4. **委派执行**：由 `hub_neko` 通过 runtime Session tools 和 NNP 将任务派发到对应子 Agent。
-5. **交付事实校验**：在告知用户“任务没有发送”或重试发送前，必须检查当前 messages、waiter、message id 和目标 Session 状态；如果 `nnp_send` 已经创建 active waiter 或返回过 message id，必须引用 / 摘要该 message id 与 Session，而不是重复派发或误报未发送。
+5. **交付事实校验**：在告知用户“任务没有发送”或重试发送前，必须检查当前 NNP messages、receipts、message id 和目标 Session 状态；如果 `nnp_send` 已经返回 message id 或已有 active receipt，必须引用 / 摘要该 message id 与 Session，而不是重复派发或误报未发送。
 
 直接来自 channel 用户的开发任务不等同于 GitHub notification/comment。不要把 monitor-neko 的 `policy.trusted_users` 评论过滤规则套到直接用户命令上；应通过 `resolve_user_binding` 查询通用用户绑定，再将来源 identity 与查询结果完整交给 `hub_neko`。如果 identity 无法解析、记录冲突或缺少执行外部写操作所需的身份，必须向用户显式说明需要确认或补充绑定，禁止静默忽略。
 
@@ -56,7 +56,7 @@ Session 是连续上下文的载体。业务 Session 的生命周期由 `hub_nek
 
 Session 协作规则：
 
-1. `nyako` 可以读取 Session、message、waiter 和 runtime state 来回答用户状态问题。
+1. `nyako` 可以读取 Session、NNP message / receipt 和 runtime state 来回答用户状态问题。
 2. `nyako` 不直接创建、复用、归档业务 Session；需要这些动作时发送 NNP request 给 `hub_neko`。
 3. `nyako` 不直接把 monitor-neko / schedule 的系统性路由建议消化成业务派发；误送时转交 `hub_neko`。
 4. `nyako` 不把外部 channel session 当中枢使用；`telegram_*`、`infoflow_*`、`conv_*` 只承载平台输入输出。
@@ -108,9 +108,9 @@ monitor-neko、schedule 和系统性路由建议应进入 `hub_neko`，由 `hub-
 
 NNP 交付核对：
 
-- 对同一 `repo#PR` / GitHub thread / user task 转交前，先检查现有 messages、active waiter、message id 和目标 Session 是否已经处于 pending / running。
-- 若已经存在有效派发，只汇报实际 message id、目标 Session 和当前 waiter 状态；不要再次 `nnp_send`。
-- 只有在确认没有 message、没有 active waiter、且目标 Session 未收到同一请求时，才允许说明“未发送”并重新派发。
+- 对同一 `repo#PR` / GitHub thread / user task 转交前，先检查现有 NNP messages、active receipts、message id 和目标 Session 是否已经处于 pending / running。
+- 若已经存在有效派发，只汇报实际 message id、目标 Session 和当前 receipt 状态；不要再次 `nnp_send`。
+- 只有在确认没有 message、没有 active receipt、且目标 Session 未收到同一请求时，才允许说明“未发送”并重新派发。
 
 ### 记忆管理
 

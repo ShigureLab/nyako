@@ -25,7 +25,7 @@ task: scheduled.session_cleanup
    - 如果无法判断哪一个是 canonical session，保留相关项并记入 `skipped_uncertain`。
 5. 归档条件满足其一即可：
    - `PR 已终态`：session 明确关联某个 PR，使用 `gh pr view` / GitHub API 核实当前 `merged` 或 `closed`；没有 live 证据时不要把 monitor 文本或旧摘要单独当作终态证据。
-   - `长期不活跃`：`updatedAt` 距现在已满 7 天，且没有 pending/running 请求、有效 waiter 或仍需交付的具体动作。
+   - `长期不活跃`：`updatedAt` 距现在已满 7 天，且没有 pending/running 请求、active NNP receipt 或仍需交付的具体动作。
    - `旧 timeout / 失败残留`：最后执行已 timeout / failed / cancelled，距今已满 24 小时，且任务已被其它 session 承接、重复创建，或没有可恢复的具体产物与待交付动作。
    - `测试 / smoke 残留`：title/topic/goal 明确是 smoke、e2e、临时验证或重复测试，距今已满 24 小时且没有 pending/running 请求。
 6. `Continue this session now.`、`Inspect the failed delivery and resume the session after fixing it.` 等运行时自动生成的泛化 next action，不构成单独保留理由。只有包含具体对象、外部等待条件或未交付结果的 next action 才按进行中处理。
