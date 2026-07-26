@@ -26,15 +26,23 @@ describe('NNP peer prompt contract', () => {
     expect(combined).not.toContain('expectsReply=')
   })
 
-  test('teaches the full hub peer address at high-frequency send sites', async () => {
-    const [monitorAgents, monitorSchedule, nyakoAgents] = await Promise.all([
+  test('teaches the full hub peer address in canonical agent contracts', async () => {
+    const [monitorAgents, monitorTools, nyakoAgents] = await Promise.all([
       readPrompt('agents/monitor-neko/AGENTS.md'),
-      readPrompt('schedules/github-monitor.md'),
+      readPrompt('agents/monitor-neko/TOOLS.md'),
       readPrompt('agents/nyako/AGENTS.md'),
     ])
+    const monitorPrompt = [monitorAgents, monitorTools].join('\n')
 
     expect(monitorAgents).toContain('nnp_send(toPeerId="session:hub_neko", kind="inform"')
-    expect(monitorSchedule).toContain('nnp_send(toPeerId="session:hub_neko", kind="inform"')
+    expect(monitorTools).toContain('nnp_send(toPeerId="session:hub_neko", kind="inform"')
+    expect(monitorPrompt).not.toMatch(/nnp_send\([^)]*kind="request"/u)
+    expect(monitorPrompt).not.toContain('发一次精简 `request`')
+    expect(monitorPrompt).not.toMatch(/hub_neko`? 未确认/u)
+    expect(monitorPrompt).not.toContain('eventKey + stateDigest')
+    expect(monitorPrompt).toContain('eventKey + canonical actionable state')
+    expect(monitorPrompt).toContain('不等待 hub reply/ack')
+    expect(monitorTools).toContain('[policy].trusted_users')
     expect(nyakoAgents).toContain('nnp_send(toPeerId="session:hub_neko", kind="request"')
   })
 })

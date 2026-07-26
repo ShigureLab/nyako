@@ -65,6 +65,12 @@ const ledgerStateSchema = Type.Object(
         description: 'Names of currently failed CI checks. Order does not matter.',
       })
     ),
+    failureFingerprint: Type.Optional(
+      Type.String({
+        description:
+          'Stable fingerprint of a validated actionable CI root cause. Exclude timestamps, run ids, log line numbers, and other volatile details.',
+      })
+    ),
     gate: Type.Optional(
       Type.String({
         description:
@@ -111,7 +117,7 @@ const ledgerEventSchema = Type.Object(
     ),
     messageKind: Type.Optional(
       Type.String({
-        description: 'NNP message kind used when recording handling, such as inform or request.',
+        description: 'NNP message kind used when recording handling. Monitor routes use inform.',
       })
     ),
     intent: Type.Optional(
@@ -352,6 +358,14 @@ function canonicalizeStateDigest(stateDigest: string): string {
     'comment',
   ])
   const failedChecks = extractFailedChecks(compact)
+  const failureFingerprint = extractDigestValue(compact, [
+    'failureFingerprint',
+    'failure_fingerprint',
+    'failure',
+  ])
+  const normalizedFailureFingerprint = failureFingerprint
+    ? normalizeDigestToken(failureFingerprint)
+    : null
   const explicitGate = gate ? `gate=${gate}` : null
 
   const isMerged = terminal === 'merged' || merged === true || state === 'merged'
@@ -378,6 +392,9 @@ function canonicalizeStateDigest(stateDigest: string): string {
     latestComment && !explicitGate ? `comment=${latestComment}` : null,
     explicitGate,
     failedChecks.length > 0 && !explicitGate ? `failed=${failedChecks.join('|')}` : null,
+    normalizedFailureFingerprint && !explicitGate
+      ? `failure=${normalizedFailureFingerprint}`
+      : null,
   ].filter((item): item is string => item !== null)
 
   if (canonicalParts.length === 0) {
@@ -409,6 +426,7 @@ function canonicalizeStructuredState(state: LedgerStateInput): string | null {
   const latestReviewRequest = normalizeStructuredValue(state.latestReviewRequestId)
   const latestComment = normalizeStructuredValue(state.latestCommentId)
   const failedChecks = normalizeCheckNames(state.failedChecks)
+  const failureFingerprint = normalizeStructuredValue(state.failureFingerprint)
   const gate = normalizeStructuredValue(state.gate)
   const explicitGate = gate ? `gate=${gate}` : null
 
@@ -438,6 +456,7 @@ function canonicalizeStructuredState(state: LedgerStateInput): string | null {
     latestComment && !explicitGate ? `comment=${latestComment}` : null,
     explicitGate,
     failedChecks.length > 0 && !explicitGate ? `failed=${failedChecks.join('|')}` : null,
+    failureFingerprint && !explicitGate ? `failure=${failureFingerprint}` : null,
   ].filter((item): item is string => item !== null)
 
   return canonicalParts.length > 0 ? canonicalParts.join(';') : null
@@ -600,6 +619,55 @@ function digestComponentValuesAreCompatible(
   return !left || !right || left === right
 }
 
+function hasNewActionValue(
+  leftComponents: readonly DigestComponent[],
+  rightComponents: readonly DigestComponent[],
+  key: string
+): boolean {
+  const previous = digestComponentValue(leftComponents, key)
+  const current = digestComponentValue(rightComponents, key)
+  return Boolean(current && current !== previous)
+}
+
+function sameHeadCiFailureFingerprintMatches(
+  entry: LedgerEntry | undefined,
+  event: NormalizedLedgerEventInput
+): boolean {
+  if (!entry?.lastHandledDigest) {
+    return false
+  }
+  const leftComponents = parseDigestComponents(entry.lastHandledDigest)
+  const rightComponents = parseDigestComponents(event.stateDigest)
+  if (!leftComponents || !rightComponents) {
+    return false
+  }
+  if (
+    digestComponentValue(leftComponents, 'terminal') ||
+    digestComponentValue(rightComponents, 'terminal')
+  ) {
+    return false
+  }
+  const leftHead = digestComponentValue(leftComponents, 'head')
+  const rightHead = digestComponentValue(rightComponents, 'head')
+  if (!leftHead || !rightHead || !digestHeadShasMatch(leftHead, rightHead)) {
+    return false
+  }
+  const previousFailure = digestComponentValue(leftComponents, 'failure')
+  const currentFailure = digestComponentValue(rightComponents, 'failure')
+  if (!previousFailure || previousFailure !== currentFailure) {
+    return false
+  }
+  if (
+    !digestComponentValuesAreCompatible(leftComponents, rightComponents, 'state') ||
+    !digestComponentValuesAreCompatible(leftComponents, rightComponents, 'review')
+  ) {
+    return false
+  }
+  return !['comment', 'latest_review', 'review_request'].some((key) =>
+    hasNewActionValue(leftComponents, rightComponents, key)
+  )
+}
+
 function suppressedSameHeadCiBackcheckMatches(
   entry: LedgerEntry | undefined,
   event: NormalizedLedgerEventInput
@@ -660,6 +728,11 @@ function suppressedSameHeadCiBackcheckMatches(
       currentReviewRequest &&
       previousReviewRequest !== currentReviewRequest)
   ) {
+    return false
+  }
+  const previousFailure = digestComponentValue(leftComponents, 'failure')
+  const currentFailure = digestComponentValue(rightComponents, 'failure')
+  if (currentFailure && currentFailure !== previousFailure) {
     return false
   }
 
@@ -932,6 +1005,7 @@ function resolveHandledStatus(
     return 'unhandled'
   }
   return stateDigestsMatch(entry.lastHandledDigest, event.stateDigest) ||
+    sameHeadCiFailureFingerprintMatches(entry, event) ||
     suppressedSameHeadCiBackcheckMatches(entry, event)
     ? 'handled_repeat'
     : 'handled_changed'

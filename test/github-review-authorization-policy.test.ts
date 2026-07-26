@@ -13,22 +13,28 @@ describe('GitHub review-request scoped authorization policy', () => {
       readPrompt('agents/monitor-neko/TOOLS.md'),
       readPrompt('schedules/github-monitor.md'),
     ])
-    const combined = [agents, tools, schedule].join('\n')
 
-    for (const marker of [
+    for (const behaviorMarker of [
+      'reviewRequestProvenance',
+      'provenanceVerified',
+      'authorizationCandidate',
+    ]) {
+      expect(agents).toContain(behaviorMarker)
+    }
+    for (const toolMarker of [
       'ReviewRequestedEvent',
       'eventSource',
       'latestReviewRequestId',
       'requestedReviewerLogin',
       'viewerLogin',
-      'reviewRequestProvenance',
-      'provenanceVerified',
-      'authorizationCandidate',
-      'review_authorization_confirmation_required',
     ]) {
-      expect(combined).toContain(marker)
+      expect(tools).toContain(toolMarker)
     }
     expect(agents).toContain('monitor-neko 只报告事实，不解析用户绑定、不授予授权')
+    expect(schedule).toContain('review_authorization_candidates')
+    expect(schedule).toContain('review_authorization_confirmation_required')
+    expect(schedule).not.toContain('ReviewRequestedEvent')
+    expect(schedule).not.toContain('latestReviewRequestId')
   })
 
   it('requires hub to resolve the requester binding and issue only the PR-scoped grant', async () => {

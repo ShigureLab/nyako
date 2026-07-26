@@ -671,6 +671,101 @@ describe('github-monitor-ledger tool', () => {
     })
   })
 
+  it('distinguishes validated CI root causes under the same check name', async () => {
+    const tool = registerTool()
+    const eventKey = 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79107'
+    const headSha = 'd84bac1eda8eff12145d5ef9781d5e2fef1f1484'
+
+    await tool.execute('call_1', {
+      action: 'record',
+      events: [
+        {
+          eventKey,
+          state: {
+            headSha,
+            failedChecks: ['Linux-CPU / Build and test'],
+            failureFingerprint: 'linux-cpu:compile:undefined-symbol',
+          },
+          outcome: 'suppressed',
+        },
+      ],
+    })
+
+    const changedRootCause = await tool.execute('call_2', {
+      action: 'check',
+      events: [
+        {
+          eventKey,
+          state: {
+            headSha,
+            failedChecks: ['Linux-CPU / Build and test'],
+            failureFingerprint: 'linux-cpu:test:allocator-regression',
+          },
+        },
+      ],
+    })
+
+    expect(changedRootCause.details.results[0]).toMatchObject({
+      stateDigest: `head=${headSha};failed=linux-cpu / build and test;failure=linux-cpu:test:allocator-regression`,
+      handledStatus: 'handled_changed',
+      shouldAct: true,
+    })
+
+    await tool.execute('call_3', {
+      action: 'record',
+      events: [
+        {
+          eventKey,
+          state: {
+            headSha,
+            failedChecks: ['Linux-CPU / Build and test'],
+            failureFingerprint: 'linux-cpu:test:allocator-regression',
+          },
+          outcome: 'routed',
+        },
+      ],
+    })
+
+    const repeatedRootCause = await tool.execute('call_4', {
+      action: 'check',
+      events: [
+        {
+          eventKey,
+          state: {
+            headSha,
+            failedChecks: ['Linux-CPU / Compile and test (renamed)'],
+            failureFingerprint: 'LINUX-CPU:TEST:ALLOCATOR-REGRESSION',
+          },
+        },
+      ],
+    })
+
+    expect(repeatedRootCause.details.results[0]).toMatchObject({
+      handledStatus: 'handled_repeat',
+      shouldAct: false,
+    })
+
+    const newCommentOnSameFailure = await tool.execute('call_5', {
+      action: 'check',
+      events: [
+        {
+          eventKey,
+          state: {
+            headSha,
+            latestCommentId: 4582462739,
+            failedChecks: ['Linux-CPU / Compile and test (renamed)'],
+            failureFingerprint: 'linux-cpu:test:allocator-regression',
+          },
+        },
+      ],
+    })
+
+    expect(newCommentOnSameFailure.details.results[0]).toMatchObject({
+      handledStatus: 'handled_changed',
+      shouldAct: true,
+    })
+  })
+
   it('uses an explicit approval gate marker instead of inferring gate checks by name', async () => {
     const tool = registerTool()
     const headSha = 'e363e34cbfda0b38828626a77e2833b6984daaba'

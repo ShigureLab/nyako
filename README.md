@@ -154,7 +154,8 @@ Repo 型任务使用 runtime-managed workspace：
 - `session-cleanup.md`：保守归档已完成、失效或被承接的 Session。
 
 Schedule 是 runtime 输入，不直接绕过中枢派发业务工作。需要创建/复用业务 Session 的任务仍由
-`hub_neko` 决策。
+`hub_neko` 决策。Schedule body 只描述单轮触发和输出契约；稳定行为策略与精确工具规则分别
+属于目标 Agent 的 `AGENTS.md` 和 `TOOLS.md`。
 
 ## 本地运行
 
