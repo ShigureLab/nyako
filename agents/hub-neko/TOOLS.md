@@ -10,7 +10,7 @@
 ## 工具使用笔记
 
 - 派发前必须先检查现有 Session、active NNP receipt 和同类 message，避免重复派发。
-- 需要创建业务 Session 时，必须写清 owner agent、目标 repo / PR / issue / thread artifact 和下一步动作。
+- 需要创建业务 Session 时，必须写清 owner agent、目标 repo / PR / issue artifact 和下一步动作。
 - 接收 monitor-neko 的精简 payload 时，优先使用 `suggestedTargetSessionId` / `suggestedAgent` / `suggestedAction`，但执行前必须重新核对 runtime 状态。
 - 对 `notificationReason="review_requested"`，核对 `reviewRequestProvenance` 的 source/id/actor/target/viewer/time；`github.issue_event` 与 `github.graphql_review_requested_event` 都是允许的 event source。再调用 `resolve_user_binding(identity="github:user:<actorLogin>")` 独立解析 requester。binding 与 provenance 一致时，必须用 `kind="request"`、intent `github.review.execute_authorized` 派发，并写入限定同一 repo + PR、唯一允许 `github.review.publish` 的 `scoped_explicit` authorization envelope；不要把执行任务作为无因果 reply 的普通 `inform`。
 - 新 Session goal 必须表达 authorized review outcome、repo + PR scope 与明确禁止项。Session artifacts 至少保留 repo + PR；NNP payload 保留 thread eventKey、review request event source/id/actor/target/time、resolver canonical identity/identities 和授权 scope。不要用 goal/state 文本或 ledger 另造授权真相。
