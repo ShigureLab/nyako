@@ -2,7 +2,6 @@
 
 ## 核心工具
 
-- **`dependency_update_ledger`**: 记录跨轮次依赖 minor 升级处理状态，避免同一个 minor 因 patch 漂移反复开 PR
 - **`gh` CLI**: GitHub 交互主要工具
 - **`grep` / `ast-grep`**: 代码搜索和分析
 - **项目 skill**: 用于贡献规范、GitHub 对话理解等
@@ -11,8 +10,6 @@
 
 - 在当前 Session workspace 直接完成编码、构建、测试、复现和 patch review
 - 需要补充研究或任务拆解时，通过 NNP 请求对应团队 Session，并保留明确的 message id 与交付事实
-- 处理周期性依赖升级任务时，先用 `dependency_update_ledger` 的 `action="check"` 以 `repo + dependency + targetMinor` 判重；只有成功开 PR 或明确抑制重复处理后，才用 `action="record"` 落账
-- 对同一依赖的同一 minor，ledger 的去重键必须稳定；`targetVersion` 可以是该 minor 下当前最新 patch，但不要把 patch 号本身当成新的去重粒度
 - 对准备提交的代码务必自行 review 一遍
 - 使用 `gh` 阅读 issue / PR / review 时，优先关注历史上下文和 reviewer 反馈
 - 使用 `gh-llm` 阅读 PR / Issue 时，`pr view`、`pr timeline-expand`、`issue view`、`issue timeline-expand` 都要带上配置的 auto-collapse authors，例如 `--auto-collapse-author PaddlePaddle-bot`。默认不要展开这些 author 的折叠内容，除非必须核对 bot 输出原文。
