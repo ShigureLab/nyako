@@ -12,11 +12,6 @@ type SessionCreateInput = {
   artifacts?: {
     repos?: string[]
   }
-  workspace?: string | null
-}
-
-type SessionRecord = {
-  id: string
 }
 
 type WorkspaceRecord = {
@@ -357,14 +352,14 @@ export async function cleanupSessionWorkspace(params: {
 
 async function cleanupManagedSessionWorkspaces(params: {
   context: HookContext
-  session: SessionRecord
+  sessionId: string
 }): Promise<void> {
-  const sessionRoot = buildSessionWorkspaceRoot(params.context.dataRoot, params.session.id)
+  const sessionRoot = buildSessionWorkspaceRoot(params.context.dataRoot, params.sessionId)
   const workspaces = await params.context.workspace.listWorkspaces()
   for (const workspace of workspaces) {
     const isSessionScopedWorkspace =
       workspace.kind === 'session' &&
-      (workspace.currentSessionId === params.session.id ||
+      (workspace.currentSessionId === params.sessionId ||
         isPathWithin(sessionRoot, workspace.path) ||
         isPathWithin(sessionRoot, workspace.rootPath))
 
@@ -373,7 +368,7 @@ async function cleanupManagedSessionWorkspaces(params: {
     }
     await cleanupSessionWorkspace({
       context: params.context,
-      sessionId: params.session.id,
+      sessionId: params.sessionId,
       workspace,
     })
   }
@@ -384,47 +379,37 @@ const sessionWorktreeHook = {
   async beforeSessionCreate(
     event: { input: SessionCreateInput; sessionId: string },
     context: HookContext
-  ) {
+  ): Promise<void> {
     if (!shouldProvisionSessionWorkspace(event, context)) {
-      return undefined
+      return
     }
     const repos = Array.from(
       new Set(event.input.artifacts?.repos?.map((repo) => repo.trim()) ?? [])
     ).filter(Boolean)
     if (repos.length === 0) {
-      return undefined
+      return
     }
 
-    let primaryWorkspaceId: string | null = null
     for (const repo of repos) {
-      const workspace = await provisionSessionRepoWorktree({
+      await provisionSessionRepoWorktree({
         context,
         repo,
         sessionId: event.sessionId,
       })
-      if (!primaryWorkspaceId && workspace) {
-        primaryWorkspaceId = workspace.id
-      }
     }
-
-    return primaryWorkspaceId
-      ? {
-          workspace: primaryWorkspaceId,
-        }
-      : undefined
   },
 
-  async beforeSessionArchive(event: { session: SessionRecord }, context: HookContext) {
+  async onSessionArchived(event: { sessionId: string }, context: HookContext) {
     await cleanupManagedSessionWorkspaces({
       context,
-      session: event.session,
+      sessionId: event.sessionId,
     })
   },
 
-  async beforeSessionRemove(event: { session: SessionRecord }, context: HookContext) {
+  async onSessionRemoved(event: { sessionId: string }, context: HookContext) {
     await cleanupManagedSessionWorkspaces({
       context,
-      session: event.session,
+      sessionId: event.sessionId,
     })
   },
 }

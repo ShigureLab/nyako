@@ -169,11 +169,9 @@ describe('session-worktree hook helpers', () => {
       managedBy: 'manual',
     })
 
-    await sessionWorktreeHook.beforeSessionArchive(
+    await sessionWorktreeHook.onSessionArchived(
       {
-        session: {
-          id: sessionId,
-        },
+        sessionId,
       },
       {
         dataRoot,
@@ -227,11 +225,9 @@ describe('session-worktree hook helpers', () => {
       managedBy: 'session-worktree',
     })
 
-    await sessionWorktreeHook.beforeSessionArchive(
+    await sessionWorktreeHook.onSessionArchived(
       {
-        session: {
-          id: sessionId,
-        },
+        sessionId,
       },
       {
         dataRoot,
@@ -245,5 +241,44 @@ describe('session-worktree hook helpers', () => {
     await expect(access(rootPath)).rejects.toThrow()
     expect(workspace.records.has(sessionWorkspace.id)).toBe(false)
     expect(workspace.records.has('ws_root_shigurelab_gh_llm')).toBe(false)
+  })
+
+  it('cleans session workspaces after a session is removed', async () => {
+    const dataRoot = await mkdtemp(path.join(os.tmpdir(), 'nyako-worktree-removed-'))
+    cleanupRoots.push(dataRoot)
+    const workspace = createWorkspaceRegistryStub()
+    const sessionId = 'sess_dev_neko_removed_cleanup'
+    const sessionPath = path.join(
+      dataRoot,
+      'workspaces',
+      'sessions',
+      sessionId,
+      'ShigureLab',
+      'nyako'
+    )
+    await mkdir(sessionPath, { recursive: true })
+    await workspace.upsertWorkspace({
+      id: 'ws_session_removed_shigurelab_nyako',
+      repo: 'ShigureLab/nyako',
+      path: sessionPath,
+      branch: null,
+      dirty: false,
+      kind: 'session',
+      currentSessionId: sessionId,
+      rootPath: null,
+      managedBy: 'manual',
+    })
+
+    await sessionWorktreeHook.onSessionRemoved(
+      { sessionId },
+      {
+        dataRoot,
+        runtimeConfig: createRuntimeConfigStub(),
+        workspace,
+      }
+    )
+
+    await expect(access(sessionPath)).rejects.toThrow()
+    expect(workspace.records.has('ws_session_removed_shigurelab_nyako')).toBe(false)
   })
 })
