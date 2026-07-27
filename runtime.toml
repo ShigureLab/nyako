@@ -23,9 +23,6 @@ topic = "GitHub notification monitoring"
 goal = "执行 GitHub 通知扫描，将可信且需要行动的事件作为路由建议发送给 hub_neko。"
 state = "ready"
 
-[runtime_loop]
-schedules_enabled = true
-
 [[skills.external]]
 provider = "github"
 repo = "ShigureLab/gh-llm"

@@ -34,7 +34,6 @@ describe('GitHub monitor schedule', () => {
 
     expect(frontmatter).toEqual({
       id: 'github-monitor',
-      kind: 'session.run',
       cron: '*/10 * * * *',
       session: 'sess_monitor_neko_github_watch',
       reset: 'true',

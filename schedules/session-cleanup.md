@@ -1,6 +1,5 @@
 ---
 id: session-cleanup
-kind: session.run
 cron: '0 5 * * *'
 timezone: Asia/Shanghai
 session: hub_neko

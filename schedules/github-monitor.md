@@ -1,7 +1,6 @@
 ---
 # Stable monitor behavior and tool policy live in agents/monitor-neko/{AGENTS,TOOLS}.md.
 id: github-monitor
-kind: session.run
 cron: '*/10 * * * *'
 session: sess_monitor_neko_github_watch
 reset: true
