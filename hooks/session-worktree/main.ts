@@ -19,25 +19,22 @@ type WorkspaceRecord = {
   repo: string
   path: string
   branch: string | null
-  dirty: boolean
-  currentSessionId: string | null
+  ownerKey: string | null
   kind: 'external' | 'root' | 'session'
-  rootPath?: string | null
-  managedBy?: string | null
+  rootPath: string | null
+  managedBy: string | null
 }
 
 type WorkspaceRegistryLike = {
-  deleteWorkspace(workspaceId: string): Promise<WorkspaceRecord | null>
-  listWorkspaces(): Promise<WorkspaceRecord[]>
-  listSessionWorkspaces(sessionId: string): Promise<WorkspaceRecord[]>
-  upsertWorkspace(workspace: Omit<WorkspaceRecord, 'updatedAt'>): Promise<WorkspaceRecord>
+  delete(workspaceId: string): Promise<WorkspaceRecord | null>
+  list(): Promise<WorkspaceRecord[]>
+  listForOwner(ownerKey: string): Promise<WorkspaceRecord[]>
+  upsert(workspace: Omit<WorkspaceRecord, 'updatedAt'>): Promise<WorkspaceRecord>
 }
 
 type HookContext = {
   dataRoot: string
-  runtimeConfig: {
-    agents: Map<string, { tools: string[] }>
-  }
+  agentHasTool(agentId: string, toolId: string): boolean
   workspace: WorkspaceRegistryLike
 }
 
@@ -45,8 +42,7 @@ function shouldProvisionSessionWorkspace(
   event: { input: SessionCreateInput },
   context: HookContext
 ): boolean {
-  const agent = context.runtimeConfig.agents.get(event.input.owner)
-  return Array.isArray(agent?.tools) && agent.tools.includes('runtime-workspace')
+  return context.agentHasTool(event.input.owner, 'runtime-workspace')
 }
 
 function slugify(value: string): string {
@@ -264,26 +260,24 @@ export async function provisionSessionRepoWorktree(params: {
     sessionPath: paths.sessionPath,
   })
 
-  await params.context.workspace.upsertWorkspace({
+  await params.context.workspace.upsert({
     id: buildRootWorkspaceId(params.repo),
     repo: params.repo,
     path: root.rootPath,
     branch: root.branch,
-    dirty: false,
     kind: 'root',
-    currentSessionId: null,
+    ownerKey: null,
     rootPath: root.rootPath,
     managedBy: HOOK_ID,
   })
 
-  return await params.context.workspace.upsertWorkspace({
+  return await params.context.workspace.upsert({
     id: buildSessionWorkspaceId(params.sessionId, params.repo),
     repo: params.repo,
     path: paths.sessionPath,
     branch,
-    dirty: false,
     kind: 'session',
-    currentSessionId: params.sessionId,
+    ownerKey: params.sessionId,
     rootPath: root.rootPath,
     managedBy: HOOK_ID,
   })
@@ -312,7 +306,7 @@ export async function cleanupSessionWorkspace(params: {
     await removeDirIfExists(params.workspace.path)
   }
 
-  await params.context.workspace.deleteWorkspace(params.workspace.id)
+  await params.context.workspace.delete(params.workspace.id)
   await removeEmptyParents(
     path.dirname(params.workspace.path),
     path.join(params.context.dataRoot, 'workspaces', 'sessions', params.sessionId)
@@ -323,7 +317,7 @@ export async function cleanupSessionWorkspace(params: {
   )
 
   if (isHookManagedWorktree && rootPath && !hasUsableRoot) {
-    const remainingWorkspaces = await params.context.workspace.listWorkspaces()
+    const remainingWorkspaces = await params.context.workspace.list()
     const normalizedRootPath = path.resolve(rootPath)
     const stillReferenced = remainingWorkspaces.some(
       (workspace) =>
@@ -340,7 +334,7 @@ export async function cleanupSessionWorkspace(params: {
       )
       await removeDirIfExists(rootPath)
       if (rootWorkspace) {
-        await params.context.workspace.deleteWorkspace(rootWorkspace.id)
+        await params.context.workspace.delete(rootWorkspace.id)
       }
       await removeEmptyParents(
         path.dirname(rootPath),
@@ -355,11 +349,11 @@ async function cleanupManagedSessionWorkspaces(params: {
   sessionId: string
 }): Promise<void> {
   const sessionRoot = buildSessionWorkspaceRoot(params.context.dataRoot, params.sessionId)
-  const workspaces = await params.context.workspace.listWorkspaces()
+  const workspaces = await params.context.workspace.list()
   for (const workspace of workspaces) {
     const isSessionScopedWorkspace =
       workspace.kind === 'session' &&
-      (workspace.currentSessionId === params.sessionId ||
+      (workspace.ownerKey === params.sessionId ||
         isPathWithin(sessionRoot, workspace.path) ||
         isPathWithin(sessionRoot, workspace.rootPath))
 

@@ -13,42 +13,36 @@ type WorkspaceRecord = {
   repo: string
   path: string
   branch: string | null
-  dirty: boolean
   kind: 'external' | 'root' | 'session'
-  currentSessionId: string | null
-  rootPath?: string | null
-  managedBy?: string | null
+  ownerKey: string | null
+  rootPath: string | null
+  managedBy: string | null
 }
 
 function createWorkspaceRegistryStub() {
   const records = new Map<string, WorkspaceRecord>()
   return {
-    async deleteWorkspace(workspaceId: string) {
+    async delete(workspaceId: string) {
       const existing = records.get(workspaceId) ?? null
       records.delete(workspaceId)
       return existing
     },
-    async listWorkspaces() {
+    async list() {
       return [...records.values()]
     },
-    async listSessionWorkspaces(sessionId: string) {
-      return [...records.values()].filter((workspace) => workspace.currentSessionId === sessionId)
+    async listForOwner(ownerKey: string) {
+      return [...records.values()].filter((workspace) => workspace.ownerKey === ownerKey)
     },
     records,
-    async upsertWorkspace(workspace: WorkspaceRecord) {
+    async upsert(workspace: WorkspaceRecord) {
       records.set(workspace.id, workspace)
       return workspace
     },
   }
 }
 
-function createRuntimeConfigStub() {
-  return {
-    agents: new Map<string, { tools: string[] }>([
-      ['dev-neko', { tools: ['runtime-workspace'] }],
-      ['monitor-neko', { tools: ['runtime-session'] }],
-    ]),
-  }
+function agentHasTool(agentId: string, toolId: string): boolean {
+  return agentId === 'dev-neko' && toolId === 'runtime-workspace'
 }
 
 async function withBareRepo(fn: (params: { bareRepo: string }) => Promise<void>): Promise<void> {
@@ -85,7 +79,7 @@ describe('session-worktree hook helpers', () => {
       const workspace = createWorkspaceRegistryStub()
       const context = {
         dataRoot,
-        runtimeConfig: createRuntimeConfigStub(),
+        agentHasTool,
         workspace,
       }
 
@@ -133,7 +127,7 @@ describe('session-worktree hook helpers', () => {
       },
       {
         dataRoot: '/tmp/nyako-worktree-skip',
-        runtimeConfig: createRuntimeConfigStub(),
+        agentHasTool,
         workspace,
       }
     )
@@ -157,14 +151,13 @@ describe('session-worktree hook helpers', () => {
     )
     await mkdir(legacyPath, { recursive: true })
     await writeFile(path.join(legacyPath, 'README.md'), '# legacy workspace\n', 'utf8')
-    await workspace.upsertWorkspace({
+    await workspace.upsert({
       id: 'ws_paddlepaddle_docs',
       repo: 'PaddlePaddle/docs',
       path: legacyPath,
       branch: 'develop',
-      dirty: false,
       kind: 'session',
-      currentSessionId: null,
+      ownerKey: null,
       rootPath: legacyPath,
       managedBy: 'manual',
     })
@@ -175,7 +168,7 @@ describe('session-worktree hook helpers', () => {
       },
       {
         dataRoot,
-        runtimeConfig: createRuntimeConfigStub(),
+        agentHasTool,
         workspace,
       }
     )
@@ -202,25 +195,23 @@ describe('session-worktree hook helpers', () => {
     await mkdir(sessionPath, { recursive: true })
     await writeFile(path.join(rootPath, '.git'), 'gitdir: /missing/root-worktree\n', 'utf8')
     await writeFile(path.join(sessionPath, '.git'), 'gitdir: /missing/session-worktree\n', 'utf8')
-    await workspace.upsertWorkspace({
+    await workspace.upsert({
       id: 'ws_root_shigurelab_gh_llm',
       repo: 'ShigureLab/gh-llm',
       path: rootPath,
       branch: 'main',
-      dirty: false,
       kind: 'root',
-      currentSessionId: null,
+      ownerKey: null,
       rootPath,
       managedBy: 'session-worktree',
     })
-    const sessionWorkspace = await workspace.upsertWorkspace({
+    const sessionWorkspace = await workspace.upsert({
       id: 'ws_session_broken_shigurelab_gh_llm',
       repo: 'ShigureLab/gh-llm',
       path: sessionPath,
       branch: 'session/sess_dev_neko_broken_worktree',
-      dirty: false,
       kind: 'session',
-      currentSessionId: sessionId,
+      ownerKey: sessionId,
       rootPath,
       managedBy: 'session-worktree',
     })
@@ -231,7 +222,7 @@ describe('session-worktree hook helpers', () => {
       },
       {
         dataRoot,
-        runtimeConfig: createRuntimeConfigStub(),
+        agentHasTool,
         workspace,
       }
     )
@@ -257,14 +248,13 @@ describe('session-worktree hook helpers', () => {
       'nyako'
     )
     await mkdir(sessionPath, { recursive: true })
-    await workspace.upsertWorkspace({
+    await workspace.upsert({
       id: 'ws_session_removed_shigurelab_nyako',
       repo: 'ShigureLab/nyako',
       path: sessionPath,
       branch: null,
-      dirty: false,
       kind: 'session',
-      currentSessionId: sessionId,
+      ownerKey: sessionId,
       rootPath: null,
       managedBy: 'manual',
     })
@@ -273,7 +263,7 @@ describe('session-worktree hook helpers', () => {
       { sessionId },
       {
         dataRoot,
-        runtimeConfig: createRuntimeConfigStub(),
+        agentHasTool,
         workspace,
       }
     )
