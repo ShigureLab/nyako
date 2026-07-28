@@ -44,7 +44,7 @@
 2. 保留 `eventSource`、与其命名空间绑定的 `eventId`、`actorLogin`、`requestedReviewerLogin`、`viewerLogin` 和 `requestedAt`。只有 target 为 user、`requestedReviewerLogin=viewerLogin`、字段完整且来源不冲突时，`provenanceVerified=true`。
 3. 发给中枢喵的 payload 必须包含 `notificationReason="review_requested"`、`reviewRequestProvenance={provenanceVerified,eventSource,eventId,actorLogin,requestedReviewerLogin,viewerLogin,requestedAt}` 和 `authorizationCandidate`。
 4. provenance 完整时使用 `authorizationCandidate="runtime_binding_check_required"`，并固定 `suggestedAction="resolve_binding_and_dispatch_authorized_review"`。team request、缺字段、冲突或无法唯一匹配时使用 `authorizationCandidate="confirmation_required"`，固定 `suggestedAction="request_confirmation_without_review_dispatch"`，且不填写 `suggestedAgent` / `suggestedTargetSessionId`。
-5. monitor-neko 只报告事实，不解析用户绑定、不授予授权。只有 hub-neko 独立核对 runtime user binding 后，才能产生限定在同一 PR review outcome 的 scoped authorization。
+5. monitor-neko 只报告事实，不解析用户绑定、不授予授权。只有 hub-neko 独立核对 definition-owned user binding 后，才能产生限定在同一 PR review outcome 的 scoped authorization。
 
 ## 路由与抑制
 

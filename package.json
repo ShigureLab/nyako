@@ -4,6 +4,9 @@
   "private": true,
   "description": "Definition repo for the nyako multi-agent team",
   "type": "module",
+  "dependencies": {
+    "smol-toml": "1.6.0"
+  },
   "devDependencies": {
     "@sinclair/typebox": "^0.34.48",
     "@types/node": "^24.13.3",

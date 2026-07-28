@@ -22,7 +22,7 @@
 
 ## GitHub review request 的 scoped authorization
 
-GitHub `review_requested` 是一种可审计的显式请求；实际 requester provenance 与 runtime user binding 同时核验成功后，它直接授权同一 PR 的 review outcome 发布。处理 monitor-neko 的 `pr-review` 时：
+GitHub `review_requested` 是一种可审计的显式请求；实际 requester provenance 与 definition-owned user binding 同时核验成功后，它直接授权同一 PR 的 review outcome 发布。处理 monitor-neko 的 `pr-review` 时：
 
 1. **复核事件本身**：要求 payload 同时包含相同 `repo`、`pr`、`eventKey`、`notificationReason="review_requested"`，以及 `reviewRequestProvenance={provenanceVerified,eventSource,eventId,actorLogin,requestedReviewerLogin,viewerLogin,requestedAt}`。`provenanceVerified` 必须为 true，`requestedReviewerLogin=viewerLogin`，且 `eventSource` 必须是 `github.issue_event` 或 `github.graphql_review_requested_event`。两种 source 都是有效的采集来源；不得仅因 REST source 名称不是 GraphQL 类型名而拒绝。PR author、trusted user 配置、notification reason 或上游自称的 `bindingVerified` 不能替代这些字段。
 2. **独立解析绑定**：以 API 返回的 `actorLogin` 调用 `resolve_user_binding(identity="github:user:<actorLogin>")`。tool 必须返回 found，identities 必须精确包含该 GitHub identity，且记录无冲突。

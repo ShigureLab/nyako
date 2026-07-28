@@ -1,7 +1,7 @@
 id = "nyako"
 name = "nyako"
 role = "coordinator"
-tools = ["runtime-session", "runtime-workspace", "runtime-memory", "runtime-user"]
+tools = ["runtime-session", "runtime-workspace", "runtime-memory"]
 
 [skills]
 enable = [
