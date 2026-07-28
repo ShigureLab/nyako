@@ -6,7 +6,7 @@ async function readPrompt(relativePath: string): Promise<string> {
   return readFile(path.join(process.cwd(), relativePath), 'utf8')
 }
 
-describe('GitHub review-request scoped authorization policy', () => {
+describe('GitHub review publication scoped authorization policy', () => {
   it('requires monitor to preserve actual requested-reviewer provenance', async () => {
     const [agents, tools, schedule] = await Promise.all([
       readPrompt('agents/monitor-neko/AGENTS.md'),
@@ -65,6 +65,31 @@ describe('GitHub review-request scoped authorization policy', () => {
     expect(combined).toContain('Session artifacts 至少保留 repo + PR')
     expect(combined).toContain('github.review.authorization.confirmation_required')
     expect(combined).toContain('不创建、不复用、不唤醒业务审查 Session')
+  })
+
+  it('authorizes a verified direct-user command without GitHub review-request provenance', async () => {
+    const [nyako, hubAgents, hubTools, devAgents, devTools] = await Promise.all([
+      readPrompt('agents/nyako/AGENTS.md'),
+      readPrompt('agents/hub-neko/AGENTS.md'),
+      readPrompt('agents/hub-neko/TOOLS.md'),
+      readPrompt('agents/dev-neko/AGENTS.md'),
+      readPrompt('agents/dev-neko/TOOLS.md'),
+    ])
+    const hub = [hubAgents, hubTools].join('\n')
+    const dev = [devAgents, devTools].join('\n')
+
+    expect(nyako).toContain('requestedAction="github.review.publish"')
+    expect(nyako).toContain('direct command 是独立于 GitHub monitor notification 的授权候选')
+    expect(hub).toContain('authorization.basis="direct_user_command"')
+    expect(hub).toContain(
+      'directUserRequest={sourcePeer,sourceMessageId,requesterIdentity,repo,pr,requestedAction:"github.review.publish"}'
+    )
+    expect(hub).toContain('requesterBinding={found,id,canonicalIdentity,identities}')
+    expect(hub).toContain('当前上游 NNP 的实际 peer 和 message id')
+    expect(hub).toContain('该 basis 不要求 `reviewRequestProvenance`')
+    expect(dev).toContain('`authorization.basis="direct_user_command"`')
+    expect(dev).toContain('这条路径不要求 `reviewRequestProvenance`')
+    expect(dev).toContain('不得仅因 GitHub `review_requested` event')
   })
 
   it('requires dev to record a verified outcome before the sole allowed GitHub write', async () => {

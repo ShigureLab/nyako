@@ -20,21 +20,35 @@
 - identity 未找到、记录冲突或缺少执行外部写操作所需身份时，必须向原 `kind=request` 消息发送显式 NNP reply，说明缺少授权或需要确认；禁止静默忽略。
 - identity 成功解析且满足授权要求时，正常创建/复用业务 Session 并派发，不能因为原始平台 `senderId` 与 GitHub login 字符串不同而拒绝。
 
-## GitHub review request 的 scoped authorization
+### Direct-user PR review 的 scoped authorization
 
-GitHub `review_requested` 是一种可审计的显式请求；实际 requester provenance 与 definition-owned user binding 同时核验成功后，它直接授权同一 PR 的 review outcome 发布。处理 monitor-neko 的 `pr-review` 时：
+已绑定用户通过 user-facing `nyako` Session 明确要求审查 exact repo + PR 时，该 direct command 本身是独立于 GitHub monitor `review_requested` 的授权来源：
+
+1. **复核直接来源**：只处理来自 `nyako` owner 的 user-facing Session 的因果 `kind="request"`。要求 payload 保留原始 `requester.identity`、exact `repo` + `pr` 与 `requestedAction="github.review.publish"`；把当前上游 NNP 的实际 peer 和 message id 记录为 `sourcePeer` / `sourceMessageId`，不得接受 payload 自报的 source metadata 替代 runtime 消息事实。
+2. **独立解析直接请求者**：以原始 `requester.identity` 调用 `resolve_user_binding(identity=...)`。tool 必须返回 `found=true`，原始 identity 必须等于返回的 `canonicalIdentity` 或包含在 `identities` 中，且加载记录无冲突。上游附带的 resolver 内容只用于交叉核对，不能替代本次调用。
+3. **生成独立的最小授权**：核验成功后，用 `kind="request"`、intent `github.review.execute_authorized` 创建或复用只绑定同一 repo + PR 的业务 Session。派发 payload 必须保留 `directUserRequest={sourcePeer,sourceMessageId,requesterIdentity,repo,pr,requestedAction:"github.review.publish"}`、本次 `requesterBinding={found,id,canonicalIdentity,identities}`，并附：
+   - `authorization.basis="direct_user_command"`
+   - `authorization.decision="scoped_explicit"`
+   - `authorization.scope={repo,pr,allowedActions:["github.review.publish"]}`
+   - `authorization.deniedActions=["repository.change","git.push","github.merge","github.rerun","github.write.unrelated"]`
+4. **不要套用机器事件 gate**：该 basis 不要求 `reviewRequestProvenance`，不得仅因没有 GitHub `review_requested` event、event id、actor 或 requested-reviewer target 而拒绝，也不得为了补这些字段要求用户创建 GitHub 事件。source / identity / exact scope 任一缺失或冲突时才拒绝派发，并对原直接用户 request 显式 reply reason code。
+
+## Monitor-originated GitHub review request 的 scoped authorization
+
+GitHub `review_requested` 是另一种可审计的显式请求；以下规则只处理 monitor-neko 的 `pr-review`，不会替代或收紧上面的 direct-user path：
 
 1. **复核事件本身**：要求 payload 同时包含相同 `repo`、`pr`、`eventKey`、`notificationReason="review_requested"`，以及 `reviewRequestProvenance={provenanceVerified,eventSource,eventId,actorLogin,requestedReviewerLogin,viewerLogin,requestedAt}`。`provenanceVerified` 必须为 true，`requestedReviewerLogin=viewerLogin`，且 `eventSource` 必须是 `github.issue_event` 或 `github.graphql_review_requested_event`。两种 source 都是有效的采集来源；不得仅因 REST source 名称不是 GraphQL 类型名而拒绝。PR author、trusted user 配置、notification reason 或上游自称的 `bindingVerified` 不能替代这些字段。
-2. **独立解析绑定**：以 API 返回的 `actorLogin` 调用 `resolve_user_binding(identity="github:user:<actorLogin>")`。tool 必须返回 found，identities 必须精确包含该 GitHub identity，且记录无冲突。
+2. **独立解析事件请求者**：以 API 返回的 `actorLogin` 调用 `resolve_user_binding(identity="github:user:<actorLogin>")`。tool 必须返回 found，identities 必须精确包含该 GitHub identity，且记录无冲突。
 3. **核验成功即派发**：用 `kind="request"`、intent `github.review.execute_authorized` 创建或复用同一 repo + PR 的业务 Session。NNP request 必须保留原始 provenance 与 resolver 结果，并附：
    - `authorization.basis="github_review_request"`
    - `authorization.decision="scoped_explicit"`
    - `authorization.scope={repo,pr,allowedActions:["github.review.publish"]}`
    - `authorization.deniedActions=["repository.change","git.push","github.merge","github.rerun","github.write.unrelated"]`
 4. **核验失败不派发**：provenance / binding 缺失、冲突、team request、target 不符或 tool 失败时，不创建、不复用、不唤醒业务审查 Session，也不向 dev-neko 发送审查任务。若存在对应 user-facing Session，只发送 NNP `request` intent `github.review.authorization.confirmation_required` 并保留 reason code；没有用户入口时记录 unresolved。确认前不得用 GitHub comment 求确认。
-5. **限定产物并保留记录**：`github.review.publish` 只允许在同一 `repo#pr` 发布已经完成并记录的 review outcome（`APPROVE`、`REQUEST_CHANGES` 或 review `COMMENT`，以及同一 pending review 内的必要 inline comments）。它不授权修改文件、commit/push、merge/close、rerun CI、改 reviewer/label/assignee，或任何其它 PR/issue 写入。新 Session goal 与 NNP payload 必须表达完整授权和同一 repo + PR scope；验证失败路径停在 hub，不进入业务 Session。Review Session 必须在 GitHub write 前成功用 NNP `inform` 记录 `github.review.outcome.verified` artifact，发布后再 reply review id/URL。
 
-该授权只来自上述完整链路。普通 mention/comment、PR assignment、新 review、PR author 身份、trusted-users 命中或没有实际 target 的 team request 都不自动获得此授权。
+两条授权路径共享同一产物限制：`github.review.publish` 只允许在同一 `repo#pr` 发布已经完成并记录的 review outcome（`APPROVE`、`REQUEST_CHANGES` 或 review `COMMENT`，以及同一 pending review 内的必要 inline comments）。它不授权修改文件、commit/push、merge/close、rerun CI、改 reviewer/label/assignee，或任何其它 PR/issue 写入。新 Session goal 与 NNP payload 必须表达完整 authorization basis、同一 repo + PR scope 与明确禁止项；Session artifacts 至少保留 repo + PR。Review Session 必须在 GitHub write 前成功用 NNP `inform` 记录 `github.review.outcome.verified` artifact，发布后再 reply review id/URL。
+
+普通 mention/comment、PR assignment、新 review、PR author 身份、trusted-users 命中或没有实际 target 的 team request 都不会产生 monitor-originated authorization；它们也不能伪装成已验证的 direct-user command。
 
 ## 固定 Session 拓扑
 
