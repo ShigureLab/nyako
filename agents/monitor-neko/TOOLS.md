@@ -1,12 +1,12 @@
 # Monitor Neko Tools
 
-本文件只定义命令、工具参数和持久化协议；分类、路由和授权边界以 `AGENTS.md` 为准。
+本文件只定义命令和数据协议；行为边界以 `AGENTS.md` 为唯一来源。
 
 ## 工具入口
 
 - **`bash`**：执行 `gh`、`gh llm` / `gh-llm`、`jq` 和 `date`。工具列表没有独立 `gh` 项不代表命令不可用。
 - **`github_monitor_ledger`**：跨轮次 canonical event 判重和处理结果账本。
-- **runtime session tools**：列出活跃 Session、核对中枢 peer、生成建议目标并发送 NNP。
+- **runtime session tools**：列出活跃 Session、核对中枢 peer、发送 NNP。
 - **`read` / `grep` / `find` / `ls`**：读取当前项目定义和局部运行上下文。
 
 ## GitHub 输入与上下文
@@ -18,6 +18,7 @@
 - human mention/comment 只有在 actor login 精确命中 `adapters/github/adapter.toml` 的 `[policy].trusted_users` 时才算 trusted；不要根据显示名、邮箱、写作风格或会话记忆推断。
 - notification 列表没有可靠 actor 时，允许先查询识别 notification、review、comment、check-run/status context actor 或 review-request provenance 所需的最小事件元数据；一旦 actor 命中 ignored 配置，立即停止其它 timeline、CI 和代码上下文读取。
 - 非 ignored PR 的最小完整上下文必须覆盖 review、CI 和 merged/closed 状态；非 ignored Issue 必须覆盖 labels 和 assignee。自动折叠的 author 内容默认不可作为可行动依据。
+- comment/review/review request 准备 route 时，紧邻 ledger check / `nnp_send` 再读取一次精确事件。用 REST comment/review endpoint 或 GraphQL timeline 固定 `sourceEvent` 的 id、URL、actor、body、createdAt；发现变化后丢弃旧候选，按新状态重新 check。
 - 读取 monitor 项目配置时只读当前项目根的 `runtime.toml` 和 `adapters/github/adapter.toml`；不要递归扫描用户 home。
 
 ## Review request provenance
@@ -43,6 +44,6 @@
 ## Session、NNP 与 inbox 消费
 
 - 每轮调用 `list_sessions`，确认 Session id `hub_neko` 的完整 peer 是 `session:hub_neko`，并仅把其它匹配 Session 写入建议字段。
-- 所有 monitor 交付都使用 `nnp_send(toPeerId="session:hub_neko", kind="inform", ...)`。禁止使用裸 `hub_neko`、`kind="request"` 或直发业务/platform Session。
+- 所有 monitor 交付都使用 `nnp_send(toPeerId="session:hub_neko", kind="inform", ...)`。payload 不使用 `instruction` 字段；禁止使用裸 `hub_neko`、`kind="request"` 或直发业务/platform Session。
 - GitHub inbox 的 `done` 通过 `gh api -X DELETE notifications/threads/<thread_id>` 完成，不是 PATCH 标记已读。只有事件已成功 routed 并落账，或明确 suppressed 后，才 DELETE；失败或不确定时保留。
 - DELETE 成功后以 ledger 为跨轮次事实，不用 `all=true` 反查 done。

@@ -47,12 +47,12 @@ describe('GitHub review publication scoped authorization policy', () => {
     const combined = [agents, tools].join('\n')
 
     expect(combined).toContain('resolve_user_binding(identity="github:user:<actorLogin>")')
-    expect(combined).toContain('authorization.basis="github_review_request"')
-    expect(combined).toContain('authorization.decision="scoped_explicit"')
+    expect(combined).toContain('`github_review_request`')
+    expect(combined).toContain('decision:"scoped_explicit"')
     expect(combined).toContain('allowedActions:["github.review.publish"]')
     expect(combined).toContain('intent `github.review.execute_authorized`')
     expect(combined).toContain('`github.issue_event` 或 `github.graphql_review_requested_event`')
-    expect(combined).toContain('新 Session goal 必须')
+    expect(combined).toContain('新 Session goal 和 artifacts 必须')
     for (const deniedAction of [
       'repository.change',
       'git.push',
@@ -62,7 +62,7 @@ describe('GitHub review publication scoped authorization policy', () => {
     ]) {
       expect(combined).toContain(deniedAction)
     }
-    expect(combined).toContain('Session artifacts 至少保留 repo + PR')
+    expect(combined).toContain('artifacts 必须固定 repo + PR')
     expect(combined).toContain('github.review.authorization.confirmation_required')
     expect(combined).toContain('不创建、不复用、不唤醒业务审查 Session')
   })
@@ -79,17 +79,16 @@ describe('GitHub review publication scoped authorization policy', () => {
     const dev = [devAgents, devTools].join('\n')
 
     expect(nyako).toContain('requestedAction="github.review.publish"')
-    expect(nyako).toContain('direct command 是独立于 GitHub monitor notification 的授权候选')
-    expect(hub).toContain('authorization.basis="direct_user_command"')
+    expect(nyako).toContain('direct command 是独立于 monitor notification 的授权候选')
+    expect(hub).toContain('`direct_user_command`')
     expect(hub).toContain(
       'directUserRequest={sourcePeer,sourceMessageId,requesterIdentity,repo,pr,requestedAction:"github.review.publish"}'
     )
     expect(hub).toContain('requesterBinding={found,id,canonicalIdentity,identities}')
-    expect(hub).toContain('当前上游 NNP 的实际 peer 和 message id')
-    expect(hub).toContain('该 basis 不要求 `reviewRequestProvenance`')
-    expect(dev).toContain('`authorization.basis="direct_user_command"`')
-    expect(dev).toContain('这条路径不要求 `reviewRequestProvenance`')
-    expect(dev).toContain('不得仅因 GitHub `review_requested` event')
+    expect(hub).toContain('sourcePeer,sourceMessageId')
+    expect(hub).toContain('不要求 `reviewRequestProvenance`')
+    expect(dev).toContain('Direct-user basis')
+    expect(dev).toContain('不要求 `reviewRequestProvenance`')
   })
 
   it('requires dev to record a verified outcome before the sole allowed GitHub write', async () => {
@@ -128,6 +127,20 @@ describe('GitHub review publication scoped authorization policy', () => {
       'github.review.authorization.blocked',
     ]) {
       expect(combined).not.toContain(forbiddenMarker)
+    }
+  })
+
+  it('keeps detailed review policy out of tool notes', async () => {
+    const [hubTools, devTools] = await Promise.all([
+      readPrompt('agents/hub-neko/TOOLS.md'),
+      readPrompt('agents/dev-neko/TOOLS.md'),
+    ])
+
+    for (const tools of [hubTools, devTools]) {
+      expect(tools).toContain('`AGENTS.md`')
+      expect(tools).not.toContain('authorization.basis=')
+      expect(tools).not.toContain('allowedActions:[')
+      expect(tools).not.toContain('deniedActions:[')
     }
   })
 })
