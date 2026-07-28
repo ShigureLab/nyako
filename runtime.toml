@@ -1,7 +1,6 @@
 version = 1
 default_agent = "nyako"
 agents_dir = "agents"
-tools_dir = "tools"
 hooks_dir = "hooks"
 skills_dir = "skills"
 memory_dir = "memory"
@@ -22,9 +21,3 @@ title = "GitHub 通知监控"
 topic = "GitHub notification monitoring"
 goal = "执行 GitHub 通知扫描，将可信且需要行动的事件作为路由建议发送给 hub_neko。"
 state = "ready"
-
-[[skills.external]]
-provider = "github"
-repo = "ShigureLab/gh-llm"
-skill = "github-conversation"
-ref = "main"

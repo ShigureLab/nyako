@@ -802,9 +802,11 @@ function slugifySegment(value: string): string {
 
 function resolveProjectRoot(): string {
   try {
-    return realpathSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..'))
+    return realpathSync(
+      path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
+    )
   } catch {
-    return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
+    return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
   }
 }
 

@@ -1,15 +1,13 @@
 id = "monitor-neko"
 name = "monitor-neko"
 role = "monitor"
-tools = [
-  "read",
-  "bash",
-  "grep",
-  "find",
-  "ls",
-  "github-monitor-ledger",
-  "runtime-session",
-  "runtime-memory",
+tools = ["read", "bash", "grep", "find", "ls", "runtime-session", "runtime-memory"]
+
+[skills]
+enable = [
+  "github-conversation",
+  "github-contribution-guidelines",
+  "paddlepaddle-contribution-guidelines",
 ]
 
 [model]

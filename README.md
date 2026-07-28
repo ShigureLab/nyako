@@ -67,6 +67,7 @@ adapters/github/adapter.toml # GitHub module 自己读取的 integration policy
 
 agents/<agent-id>/
 ├── agent.toml               # id、role、model、credential alias、工具集合
+├── extensions/              # 可选：该 Agent 的 Pi 原生 extensions
 ├── AGENTS.md                # 必需：操作规则与职责
 ├── IDENTITY.md              # 可选：身份表达
 ├── SOUL.md                  # 可选：风格与价值取向
@@ -74,28 +75,24 @@ agents/<agent-id>/
 ├── USER.md                  # 可选：用户上下文
 └── MEMORY.md                # 可选：可提交的 Agent 长期记忆
 
-tools/
-└── github-monitor-ledger/   # GitHub 通知去重与处理结果 ledger
-
 hooks/session-worktree/      # Session 生命周期 worktree provisioning/cleanup
 schedules/*.md               # repo-managed schedule definitions
-skills/                      # repo skills 与 skills.toml registry
+skills/<skill-id>/SKILL.md    # 物化在 definition repo 的完整 skill
 memory/config.toml           # runtime memory producer 策略
-test/                        # module tool 与 hook 测试
+test/                        # extension 与 hook 测试
 ```
 
 `runtime-session`、`runtime-workspace`、`runtime-memory` 和 `runtime-user` 由各 Agent 的
-`agent.toml` 直接选择，不使用空 `tool.toml` marker。`tools/` 只放本仓库实现的 module
-extension，例如跨 run ledger。
+`agent.toml` 直接选择。Definition-owned extension 直接放在对应 Agent 的 `extensions/`
+目录，例如 monitor-neko 的跨 run ledger；不再维护工具 manifest 或全局 module registry。
 
 ## 配置加载
 
 `runtime.toml` 负责把定义仓资源连接起来：
 
-- `agents_dir`、`tools_dir`、`hooks_dir`、`skills_dir`、`memory_dir`、`schedules_dir`
+- `agents_dir`、`hooks_dir`、`skills_dir`、`memory_dir`、`schedules_dir`
 - 默认 Agent 和 startup Sessions
 - runtime loop 开关
-- 外部 skill 来源
 - memory 目录位置（默认 `memory/`）
 
 Channel policy 放在 `adapters/<id>/channel.toml`，由 nyakore 加载；GitHub integration policy
@@ -131,12 +128,12 @@ Agent 可用能力来自三层：
 
 1. pi 基础文件/终端工具，例如 `read`、`bash`、`edit`、`grep`。
 2. `nyakore` builtin groups，由 `agent.toml` 直接选择。
-3. Definition repo modules，通过 `kind = "module"` 的 `tool.toml` 加载，例如 GitHub
-   monitor ledger。
+3. Agent-owned Pi 原生 extensions，例如 GitHub monitor ledger。
 
 `dev-neko` 在绑定的 Session workspace 中直接完成工程实现和验证；需要独立研究或计划时，
 通过明确的 NNP Session 消息与 `research-neko`、`plan-neko` 协作。GitHub 深度上下文读取使用
-repo skill 或 `runtime.toml` 声明的 external skill；具体行为约束以各 Agent 的 `AGENTS.md` 为准。
+definition repo 中物化的 skill；具体行为约束以各 Agent 的 `AGENTS.md` 为准。Skill 的获取、
+版本选择和更新由 definition repo 的维护流程负责，runtime 启动时不克隆外部仓库。
 
 ## Workspace 与 Git
 

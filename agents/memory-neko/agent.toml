@@ -3,6 +3,13 @@ name = "memory-neko"
 role = "runtime-memory-extractor"
 tools = []
 
+[skills]
+enable = [
+  "github-conversation",
+  "github-contribution-guidelines",
+  "paddlepaddle-contribution-guidelines",
+]
+
 [model]
 model = "openai-codex/gpt-5.6-sol"
 credential = "openai-codex-swgu98"

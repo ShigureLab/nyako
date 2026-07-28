@@ -4,7 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
 import { afterEach, beforeEach, describe, expect, it } from 'vite-plus/test'
-import registerGithubMonitorLedgerTool from '../tools/github-monitor-ledger/main.ts'
+import registerGithubMonitorLedgerTool from '../agents/monitor-neko/extensions/github-monitor-ledger.ts'
 
 type RegisteredTool = {
   name: string

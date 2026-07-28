@@ -3,6 +3,13 @@ name = "hub-neko"
 role = "hub"
 tools = ["runtime-session", "runtime-workspace", "runtime-memory", "runtime-user"]
 
+[skills]
+enable = [
+  "github-conversation",
+  "github-contribution-guidelines",
+  "paddlepaddle-contribution-guidelines",
+]
+
 [compaction]
 enabled = true
 reserveTokens = 244000
