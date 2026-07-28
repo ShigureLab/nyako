@@ -79,24 +79,25 @@ hooks/session-worktree/      # Session 生命周期 worktree provisioning/cleanu
 schedules/*.md               # repo-managed schedule definitions
 skills/<skill-id>/SKILL.md    # 物化在 definition repo 的完整 skill
 memory/config.toml           # runtime memory producer 策略
-tools/user-bindings.ts       # nyako-owned machine-local user binding tool
+tools/users/                 # nyako-owned user binding tool group and records
 test/                        # extension 与 hook 测试
 ```
 
 `runtime-session`、`runtime-workspace` 和 `runtime-memory` 由各 Agent 的 `agent.toml`
 直接选择。Definition-owned extension 直接放在对应 Agent 的 `extensions/` 目录，例如
 monitor-neko 的跨 run ledger。`nyako` 与 `hub-neko` 通过薄 extension 入口共享
-`tools/user-bindings.ts` 提供的 `resolve_user_binding`，用户绑定与授权 policy 不进入
-nyakore runtime contract。
+`tools/users/` 提供的 `resolve_user_binding`，用户绑定、记录与授权 policy 都不进入
+nyakore runtime contract 或 runtime data root。
 
-绑定记录是 nyako 工具读取的机器侧数据，位于 `~/.nyakore/users/*.toml`：
+绑定记录与工具放在同一个 definition-owned group：`tools/users/bindings/*.toml`。
 
 ```toml
 id = "example-user"
 identities = ["infoflow:user:example-user", "github:user:example-login"]
 ```
 
-工具每次查询都重新读取目录，只接受显式、无冲突的 identity，不根据显示名、邮箱或文本风格推断。
+工具基于自身文件位置读取记录，不依赖当前工作目录或 `~/.nyakore`。每次查询都重新读取目录，
+只接受显式、无冲突的 identity，不根据显示名、邮箱或文本风格推断。
 
 ## 配置加载
 

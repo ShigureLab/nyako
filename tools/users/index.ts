@@ -1,6 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
 import { Type, type Static } from '@sinclair/typebox'
 import { parse as parseToml } from 'smol-toml'
@@ -19,6 +19,11 @@ const resolveUserBindingSchema = Type.Object(
 )
 
 type ResolveUserBindingInput = Static<typeof resolveUserBindingSchema>
+
+const DEFAULT_BINDINGS_DIRECTORY = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  'bindings'
+)
 
 function isMissingPath(error: unknown): boolean {
   return Boolean(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT')
@@ -60,7 +65,11 @@ function parseBinding(raw: unknown, filePath: string): UserBinding {
 }
 
 export class UserBindingDirectory {
-  constructor(readonly directory = path.join(os.homedir(), '.nyakore', 'users')) {}
+  readonly directory: string
+
+  constructor(directory = DEFAULT_BINDINGS_DIRECTORY) {
+    this.directory = directory
+  }
 
   async list(): Promise<UserBinding[]> {
     let entries
@@ -123,7 +132,8 @@ export default function registerUserBindingTool(pi: ExtensionAPI): void {
   pi.registerTool({
     name: 'resolve_user_binding',
     label: 'resolve user binding',
-    description: 'Resolve an explicitly configured identity from the machine-local user directory.',
+    description:
+      'Resolve an explicitly configured identity from the nyako-owned user binding group.',
     parameters: resolveUserBindingSchema,
     execute: async (_toolCallId, input: ResolveUserBindingInput) => {
       const binding = await users.resolve(input.identity)

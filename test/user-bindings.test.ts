@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
 import { afterEach, describe, expect, it } from 'vite-plus/test'
-import registerUserBindingTool, { UserBindingDirectory } from '../tools/user-bindings.ts'
+import registerUserBindingTool, { UserBindingDirectory } from '../tools/users/index.ts'
 
 const tempDirs: string[] = []
 
@@ -75,5 +75,14 @@ describe('user binding tool', () => {
     expect(await tool?.execute('call_1', { identity: 'telegram:unknown' })).toMatchObject({
       details: { found: false, identity: 'telegram:unknown' },
     })
+  })
+
+  it('loads the nyako-owned binding records by default', async () => {
+    await expect(new UserBindingDirectory().resolve('github:user:SigureMo')).resolves.toMatchObject(
+      {
+        id: 'xuxiaojian',
+        canonicalIdentity: 'user:xuxiaojian',
+      }
+    )
   })
 })
