@@ -34,18 +34,16 @@ describe('NNP peer prompt contract', () => {
     const monitorPrompt = [monitorAgents, monitorTools].join('\n')
 
     expect(monitorAgents).toContain('nnp_send(toPeerId="session:hub_neko", kind="inform"')
-    expect(monitorTools).toContain('nnp_send(toPeerId="session:hub_neko", kind="inform"')
+    expect(monitorTools).toContain('发给 `session:hub_neko` 的 `kind="inform"`')
     expect(monitorPrompt).not.toMatch(/nnp_send\([^)]*kind="request"/u)
-    expect(monitorPrompt).not.toContain('发一次精简 `request`')
-    expect(monitorPrompt).not.toMatch(/hub_neko`? 未确认/u)
     expect(monitorPrompt).not.toContain('eventKey + stateDigest')
     expect(monitorPrompt).toContain('eventKey + canonical actionable state')
-    expect(monitorPrompt).toContain('不等待 hub reply/ack')
-    expect(monitorTools).toContain('[policy].trusted_users')
-    expect(nyakoAgents).toContain('nnp_send(toPeerId="session:hub_neko", kind="request"')
+    expect(monitorPrompt).toContain('不等待 reply/ack')
+    expect(monitorTools).toContain('trusted / ignored actor')
+    expect(nyakoAgents).toMatch(/交给\s+`session:hub_neko`/u)
   })
 
-  test('keeps upstream NNP delivery rules in the owning agent prompts', async () => {
+  test('leaves request reply mechanics to the runtime delivery prompt and tool schema', async () => {
     const prompts = await Promise.all([
       readPrompt('agents/dev-neko/AGENTS.md'),
       readPrompt('agents/research-neko/AGENTS.md'),
@@ -53,9 +51,8 @@ describe('NNP peer prompt contract', () => {
       readPrompt('agents/nyako/AGENTS.md'),
     ])
 
-    for (const prompt of prompts) {
-      expect(prompt).toContain('nnp_send(kind="reply", replyToMessageId=')
-      expect(prompt).toContain('普通 assistant')
-    }
+    const combined = prompts.join('\n')
+    expect(combined).not.toContain('replyToMessageId')
+    expect(combined).not.toMatch(/普通\s+assistant (?:文本|输出)/u)
   })
 })

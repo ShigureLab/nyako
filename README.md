@@ -38,7 +38,7 @@ credential alias，不保存 secret 本身。
 flowchart LR
     U["用户 / 外部 Channel"] --> C["nyako / conv_* 会话"]
     C -->|"NNP request"| H["hub_neko 中枢 Session"]
-    M["monitor-neko"] -->|"路由建议"| H
+    M["monitor-neko"] -->|"已验证事实"| H
     S["Schedules"] -->|"系统任务"| H
     H --> D["dev-neko 业务 Session"]
     H --> R["research-neko 业务 Session"]
@@ -122,9 +122,9 @@ Prompt 的确定性组装顺序由 `nyakore` 维护，而不是由本 README 复
 
 - `AGENTS.md` 必需。
 - `IDENTITY.md`、`SOUL.md`、`TOOLS.md`、`USER.md`、Agent `MEMORY.md` 按存在性加载。
-- Runtime contract、memory rules 和启用的 capability sections 由 `nyakore` 注入。
-- runtime 只注入小型 `memory_summary.md` 导航，详细内容通过 `memory_search` →
-  `memory_read` 渐进读取。
+- Runtime contract 注入当前 Session goal、artifacts 和启用的必要 capability context。
+- runtime memory 不进入常驻 prompt；需要历史事实时通过 `memory_search` →
+  `memory_read` 渐进读取，并回查 owning system 的实时状态。
 - Runtime search 使用 QMD BM25 派生索引并返回 `path:lineStart-lineEnd`；每次搜索/读取都有
   usage receipt。
 - 后台 producer 按 transcript 指纹处理 idle/completed Agent Session：先由无工具的

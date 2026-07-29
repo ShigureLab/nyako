@@ -2,145 +2,92 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { describe, expect, it } from 'vite-plus/test'
 
-async function readPrompt(relativePath: string): Promise<string> {
+async function read(relativePath: string): Promise<string> {
   return readFile(path.join(process.cwd(), relativePath), 'utf8')
 }
 
-describe('GitHub review publication scoped authorization policy', () => {
-  it('requires monitor to preserve actual requested-reviewer provenance', async () => {
-    const [agents, tools, schedule] = await Promise.all([
-      readPrompt('agents/monitor-neko/AGENTS.md'),
-      readPrompt('agents/monitor-neko/TOOLS.md'),
-      readPrompt('schedules/github-monitor.md'),
-    ])
+describe('GitHub review publication policy', () => {
+  it('keeps provenance collection factual at the monitor boundary', async () => {
+    const monitor = await read('agents/monitor-neko/AGENTS.md')
 
-    for (const behaviorMarker of [
-      'reviewRequestProvenance',
-      'provenanceVerified',
-      'authorizationCandidate',
-    ]) {
-      expect(agents).toContain(behaviorMarker)
-    }
-    for (const toolMarker of [
-      'ReviewRequestedEvent',
-      'eventSource',
-      'latestReviewRequestId',
-      'requestedReviewerLogin',
-      'viewerLogin',
-    ]) {
-      expect(tools).toContain(toolMarker)
-    }
-    expect(agents).toContain('monitor-neko 只报告事实，不解析用户绑定、不授予授权')
-    expect(agents).toContain('resolve_binding_and_dispatch_authorized_review')
-    expect(agents).toContain('request_confirmation_without_review_dispatch')
-    expect(schedule).toContain('review_authorization_candidates')
-    expect(schedule).toContain('review_authorization_confirmation_required')
-    expect(schedule).not.toContain('ReviewRequestedEvent')
-    expect(schedule).not.toContain('latestReviewRequestId')
+    expect(monitor).toContain(
+      'reviewRequest={eventSource,eventId,actorLogin,requestedReviewerLogin,viewerLogin,requestedAt,verified}'
+    )
+    expect(monitor).toContain('不决定授权')
+    expect(monitor).not.toContain('reviewGrant=')
+    expect(monitor).not.toContain('resolve_user_binding')
   })
 
-  it('requires hub to resolve the requester binding and issue only the PR-scoped grant', async () => {
-    const [agents, tools] = await Promise.all([
-      readPrompt('agents/hub-neko/AGENTS.md'),
-      readPrompt('agents/hub-neko/TOOLS.md'),
+  it('makes Hub the sole grant signer and keeps the envelope positive', async () => {
+    const [hub, dev, monitor, nyako] = await Promise.all([
+      read('agents/hub-neko/AGENTS.md'),
+      read('agents/dev-neko/AGENTS.md'),
+      read('agents/monitor-neko/AGENTS.md'),
+      read('agents/nyako/AGENTS.md'),
     ])
-    const combined = [agents, tools].join('\n')
 
-    expect(combined).toContain('resolve_user_binding(identity="github:user:<actorLogin>")')
-    expect(combined).toContain('`github_review_request`')
-    expect(combined).toContain('decision:"scoped_explicit"')
-    expect(combined).toContain('allowedActions:["github.review.publish"]')
-    expect(combined).toContain('intent `github.review.execute_authorized`')
-    expect(combined).toContain('`github.issue_event` 或 `github.graphql_review_requested_event`')
-    expect(combined).toContain('新 Session goal 和 artifacts 必须')
-    for (const deniedAction of [
-      'repository.change',
-      'git.push',
-      'github.merge',
-      'github.rerun',
-      'github.write.unrelated',
-    ]) {
-      expect(combined).toContain(deniedAction)
-    }
-    expect(combined).toContain('artifacts 必须固定 repo + PR')
-    expect(combined).toContain('github.review.authorization.confirmation_required')
-    expect(combined).toContain('不创建、不复用、不唤醒业务审查 Session')
+    expect(hub).toContain('Hub 是 review publication grant 的唯一签发者')
+    expect(hub).toContain('reviewGrant={action:"github.review.publish",repo,pr,basis}')
+    expect(hub).toContain('两条来源路径择一成立')
+    expect(dev).toContain('Hub 是 review grant 的唯一签发者')
+    expect(dev).toContain('`github.review.execute`')
+    expect(dev).toContain('reviewGrant={action:"github.review.publish",repo,pr,basis}')
+    expect([monitor, nyako].join('\n')).not.toContain('reviewGrant=')
+
+    const combined = [hub, dev, monitor, nyako].join('\n')
+    expect(combined).not.toContain('deniedActions')
+    expect(combined).not.toContain('scoped_explicit')
+    expect(combined).not.toContain('github.review.execute_authorized')
   })
 
-  it('authorizes a verified direct-user command without GitHub review-request provenance', async () => {
-    const [nyako, hubAgents, hubTools, devAgents, devTools] = await Promise.all([
-      readPrompt('agents/nyako/AGENTS.md'),
-      readPrompt('agents/hub-neko/AGENTS.md'),
-      readPrompt('agents/hub-neko/TOOLS.md'),
-      readPrompt('agents/dev-neko/AGENTS.md'),
-      readPrompt('agents/dev-neko/TOOLS.md'),
+  it('accepts either a bound direct-user request or verified GitHub provenance', async () => {
+    const [nyako, hub] = await Promise.all([
+      read('agents/nyako/AGENTS.md'),
+      read('agents/hub-neko/AGENTS.md'),
     ])
-    const hub = [hubAgents, hubTools].join('\n')
-    const dev = [devAgents, devTools].join('\n')
 
     expect(nyako).toContain('requestedAction="github.review.publish"')
-    expect(nyako).toContain('direct command 是独立于 monitor notification 的授权候选')
-    expect(hub).toContain('`direct_user_command`')
-    expect(hub).toContain(
-      'directUserRequest={sourcePeer,sourceMessageId,requesterIdentity,repo,pr,requestedAction:"github.review.publish"}'
+    expect(hub).toContain('Direct-user 路径')
+    expect(hub).toContain('Monitor 路径')
+    expect(hub).toContain('direct-user 请求不需要补 GitHub provenance')
+  })
+
+  it('lets Dev verify the exact target without replaying identity policy', async () => {
+    const dev = await read('agents/dev-neko/AGENTS.md')
+
+    expect(dev).toContain('当前 Session artifacts、repo、PR')
+    expect(dev).toContain('head')
+    expect(dev).toContain('记录 verified outcome')
+    expect(dev).toContain('紧邻写入复核 head')
+    expect(dev).toContain('不重放上游 identity/provenance 策略')
+    expect(dev).not.toContain('requesterBinding')
+    expect(dev).not.toContain('reviewRequestProvenance')
+  })
+
+  it('enables only task-relevant GitHub skills', async () => {
+    const configs = Object.fromEntries(
+      await Promise.all(
+        [
+          'dev-neko',
+          'hub-neko',
+          'memory-neko',
+          'monitor-neko',
+          'nyako',
+          'plan-neko',
+          'research-neko',
+        ].map(async (agent) => [agent, await read(`agents/${agent}/agent.toml`)])
+      )
     )
-    expect(hub).toContain('requesterBinding={found,id,canonicalIdentity,identities}')
-    expect(hub).toContain('sourcePeer,sourceMessageId')
-    expect(hub).toContain('不要求 `reviewRequestProvenance`')
-    expect(dev).toContain('Direct-user basis')
-    expect(dev).toContain('不要求 `reviewRequestProvenance`')
-  })
 
-  it('requires dev to record a verified outcome before the sole allowed GitHub write', async () => {
-    const [agents, tools] = await Promise.all([
-      readPrompt('agents/dev-neko/AGENTS.md'),
-      readPrompt('agents/dev-neko/TOOLS.md'),
-    ])
-    const combined = [agents, tools].join('\n')
-
-    expect(combined).toContain('intent="github.review.outcome.verified"')
-    expect(combined).toContain('github.review.publish')
-    expect(combined).toContain('github.review.authorization.rejected')
-    expect(combined).toContain('github_write_performed=false')
-    expect(combined).toContain('review id/URL')
-    expect(combined).toContain('紧邻 GitHub write 前')
-    expect(combined).toContain('不能扩张到代码修改、push、merge、rerun')
-  })
-
-  it('has no review-analysis fallback mode in any routing prompt', async () => {
-    const prompts = await Promise.all([
-      readPrompt('agents/monitor-neko/AGENTS.md'),
-      readPrompt('agents/monitor-neko/TOOLS.md'),
-      readPrompt('agents/hub-neko/AGENTS.md'),
-      readPrompt('agents/hub-neko/TOOLS.md'),
-      readPrompt('agents/dev-neko/AGENTS.md'),
-      readPrompt('agents/dev-neko/TOOLS.md'),
-    ])
-    const combined = prompts.join('\n')
-
-    for (const forbiddenMarker of [
-      '只读 review',
-      '只读审查',
-      'read-only review',
-      'execute_readonly',
-      'review.readonly',
-      'github.review.authorization.blocked',
-    ]) {
-      expect(combined).not.toContain(forbiddenMarker)
+    expect(configs['dev-neko']).toContain('"github-conversation"')
+    expect(configs['dev-neko']).toContain('"paddlepaddle-contribution-guidelines"')
+    expect(configs['monitor-neko']).toContain('enable = ["github-conversation"]')
+    expect(configs['research-neko']).toContain('enable = ["github-conversation"]')
+    for (const agent of ['hub-neko', 'memory-neko', 'nyako', 'plan-neko']) {
+      expect(configs[agent]).toContain('enable = []')
     }
-  })
 
-  it('keeps detailed review policy out of tool notes', async () => {
-    const [hubTools, devTools] = await Promise.all([
-      readPrompt('agents/hub-neko/TOOLS.md'),
-      readPrompt('agents/dev-neko/TOOLS.md'),
-    ])
-
-    for (const tools of [hubTools, devTools]) {
-      expect(tools).toContain('`AGENTS.md`')
-      expect(tools).not.toContain('authorization.basis=')
-      expect(tools).not.toContain('allowedActions:[')
-      expect(tools).not.toContain('deniedActions:[')
-    }
+    const all = Object.values(configs).join('\n')
+    expect(all).not.toContain('github-contribution-guidelines')
   })
 })

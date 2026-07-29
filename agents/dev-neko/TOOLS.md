@@ -1,24 +1,11 @@
 # Dev Neko Tools
 
-## 核心工具
-
-- **`gh` CLI**: GitHub 交互主要工具
-- **`grep` / `ast-grep`**: 代码搜索和分析
-- **项目 skill**: 用于贡献规范、GitHub 对话理解等
-
-## 工具使用笔记
-
-- 行为和权限边界以 `AGENTS.md` 为唯一来源；这里不重复授权策略。
-- 在当前 Session workspace 直接完成编码、构建、测试、复现和 patch review
-- 需要补充研究或任务拆解时，通过 NNP 请求对应团队 Session，并保留明确的 message id 与交付事实
-- 对准备提交的代码务必自行 review 一遍
-- GitHub review publication 的 provenance、binding、scope 和 outcome 流程严格按 `AGENTS.md`；用 `gh api` / GraphQL 核对对应事实。
-- 使用 `gh` 阅读 issue / PR / review 时，优先关注历史上下文和 reviewer 反馈
-- 使用 `gh-llm` 阅读 PR / Issue 时，`pr view`、`pr timeline-expand`、`issue view`、`issue timeline-expand` 都要带上配置的 auto-collapse authors，例如 `--auto-collapse-author PaddlePaddle-bot`。默认不要展开这些 author 的折叠内容，除非必须核对 bot 输出原文。
-- Approve PR 时，用 `lgtmeow -r 2>&1 | awk '/<img / { print; exit }'` 生成 review comment 的 LGTM 首行，再跟随具体的 approve 反馈一起提交。`lgtmeow -r` 会把最终 `<img>` 与一行 `LGTMeow <来源 emoji>+🐾` 配方说明写到不同输出流；agent shell 会合并两路，因此不能直接复制原始命令输出。配方行只供终端查看，**禁止**写进 GitHub review body。无论命令输出顺序和输出流如何，最终 review body 都必须只保留唯一一行包含 `<img ...>` 的 `LGTMeow`，比如
-
-   ```md
-   LGTMeow <img src="https://www.gstatic.com/android/keyboard/emojikitchen/20230127/u1f381/u1f381_u1f43e.png" width="14" alt="🐾"/>
-
-   {{ review_comment_detail }}
-   ```
+- 用 `read` / `grep` / `ast-grep` 理解代码，用 `edit` / `write` 修改，用 `bash` 运行
+  `git`、`gh` 和仓库验证命令。
+- 操作 repo 前读取 runtime workspace binding；跨 Session 协作用 NNP。
+- `AGENTS.md` 是行为与 scope 的唯一常驻契约；skill 只提供任务相关工作流。
+- `gh-llm` 读取 PR / Issue 时，将
+  `adapters/github/adapter.toml` 的 `auto_collapse_author_logins` 转成
+  `--auto-collapse-author` 参数。
+- Approve review 时用 `lgtmeow -r 2>&1 | awk '/<img / { print; exit }'`；review body 禁止
+  写入终端配方行 `LGTMeow <来源 emoji>+🐾`。

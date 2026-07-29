@@ -11,4 +11,4 @@ task: github.notifications.scan
 
 本次 schedule 没有上游 sender，不发送 no-op reply。
 
-输出：notifications_fetched / classified / routed / duplicates_suppressed / unmatched / marked_done / duration_ms / review_authorization_candidates / review_authorization_confirmation_required / errors。
+输出：notifications_fetched / classified / routed / duplicates_suppressed / unmatched / marked_done / duration_ms / review_requests_verified / review_requests_unverified / errors。

@@ -1,18 +1,7 @@
 # Nyako Tools
 
-## 核心工具
-
-- **runtime session tools**：查看 Session、核对状态、读取 NNP message / receipt；业务 Session 创建和生命周期管理交给 `hub_neko`
-- **runtime workspace tools**：确认 repo 型 Session 的 workspace 绑定
-- **runtime memory tools**：搜索并按行读取只读运行时记忆，返回可引用位置并记录 usage receipt
-- **runtime user tools**：按原始 external identity 查询显式用户绑定
-- **子 Agent 能力**：真正的专业执行主要由子 Agent 完成
-
-## 工具使用笔记
-
-- 需要确认已有工作或现有 Session 时，先查 runtime session tools
-- 需要创建、复用、更新或归档业务 Session 时，用 `nnp_send(toPeerId="session:hub_neko", kind="request", ...)` 发送 NNP request，不在聊天入口直接落地
-- 需要委派专业任务时，把用户需求和相关 artifact 转交 `session:hub_neko`
-- Session tools 使用 Session id（如 `hub_neko`）；`nnp_send.toPeerId` 使用完整 NNP peer（如 `session:hub_neko`），绝不能混用
-- 回忆历史结论时先用 `memory_search`，再用 `memory_read` 读取最多一两个相关文件；需要精确事实时回查原始 Session / run / NNP
-- 不把“未来会有的工具”当作当前已存在能力
+- runtime Session tools：核对 Session、message 和 receipt，用于真实状态回答。
+- runtime workspace tools：核对 repo binding，不承担 lifecycle。
+- runtime user tools：按原始 external identity 查询绑定。
+- runtime memory tools：仅检索稳定历史；实时外部状态要用 owning system 验证。
+- `nnp_send`：将 task-local request 发给 `session:hub_neko`，或回复上游 request。

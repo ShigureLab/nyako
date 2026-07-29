@@ -7,6 +7,5 @@ test('dev-neko keeps the lgtmeow recipe out of GitHub review bodies', async () =
 
   expect(prompt).toContain("lgtmeow -r 2>&1 | awk '/<img / { print; exit }'")
   expect(prompt).toContain('LGTMeow <来源 emoji>+🐾')
-  expect(prompt).toContain('禁止')
-  expect(prompt).toContain('最终 review body 都必须只保留唯一一行包含 `<img ...>`')
+  expect(prompt).toContain('review body 禁止')
 })

@@ -4,11 +4,7 @@ role = "planner"
 tools = ["read", "grep", "find", "ls", "runtime-session", "runtime-memory"]
 
 [skills]
-enable = [
-  "github-conversation",
-  "github-contribution-guidelines",
-  "paddlepaddle-contribution-guidelines",
-]
+enable = []
 
 [model]
 model = "openai-codex/gpt-5.6-sol"

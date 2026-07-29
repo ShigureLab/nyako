@@ -1,14 +1,10 @@
 id = "monitor-neko"
 name = "monitor-neko"
 role = "monitor"
-tools = ["read", "bash", "grep", "find", "ls", "runtime-session", "runtime-memory"]
+tools = ["read", "bash", "grep", "find", "ls", "runtime-session"]
 
 [skills]
-enable = [
-  "github-conversation",
-  "github-contribution-guidelines",
-  "paddlepaddle-contribution-guidelines",
-]
+enable = ["github-conversation"]
 
 [model]
 model = "openai-codex/gpt-5.6-terra"

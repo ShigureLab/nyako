@@ -4,11 +4,7 @@ role = "hub"
 tools = ["runtime-session", "runtime-workspace", "runtime-memory"]
 
 [skills]
-enable = [
-  "github-conversation",
-  "github-contribution-guidelines",
-  "paddlepaddle-contribution-guidelines",
-]
+enable = []
 
 [compaction]
 enabled = true

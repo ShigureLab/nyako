@@ -50,8 +50,8 @@ describe('GitHub monitor schedule', () => {
       'unmatched',
       'marked_done',
       'duration_ms',
-      'review_authorization_candidates',
-      'review_authorization_confirmation_required',
+      'review_requests_verified',
+      'review_requests_unverified',
       'errors',
     ]) {
       expect(body).toContain(outputField)
@@ -75,23 +75,24 @@ describe('GitHub monitor schedule', () => {
     ])
 
     for (const behaviorMarker of [
-      '被分配 PR',
-      'subscribed',
-      'replyToMessageId',
-      '纯自动 dependency update',
-      '同一 `repo#PR`',
-      'non-trusted human comment/mention 只抑制 comment 维度',
+      'unread GitHub inbox',
+      '活跃 Session 关联 PR',
+      'sourceEvent={type,id,url,actorLogin,body,createdAt}',
+      'relatedSessionId',
+      '{sourceEvent,classification,currentStatus?,relatedSessionId?,reviewRequest?}',
+      'failureFingerprint',
     ]) {
       expect(agents).toContain(behaviorMarker)
     }
     for (const toolMarker of [
-      '[policy].trusted_users',
-      'check-run/status context actor',
-      'Issue 必须覆盖 labels 和 assignee',
-      'failureFingerprint',
-      'check 已自动记录 suppressed',
+      'gh api notifications --paginate',
+      'auto-collapse authors',
+      'user-target',
+      'github_monitor_ledger(check)',
+      'notifications/threads/<thread_id>',
     ]) {
       expect(tools).toContain(toolMarker)
     }
+    expect([agents, tools].join('\n')).not.toContain('suggestedAction')
   })
 })
