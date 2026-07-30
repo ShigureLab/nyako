@@ -1,4 +1,5 @@
 id = "xuxiaojian"
+notificationPeerId = "endpoint:infoflow:infoflow:user:xuxiaojian"
 identities = [
   "telegram:user:1066949855",
   "telegram:chat:1066949855",

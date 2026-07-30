@@ -9,6 +9,7 @@ export type UserBinding = {
   id: string
   canonicalIdentity: string
   identities: string[]
+  notificationPeerId: string | null
 }
 
 const resolveUserBindingSchema = Type.Object(
@@ -41,7 +42,9 @@ function parseBinding(raw: unknown, filePath: string): UserBinding {
     throw new Error(`${filePath} must contain a TOML table`)
   }
   const value = raw as Record<string, unknown>
-  const unknownFields = Object.keys(value).filter((key) => key !== 'id' && key !== 'identities')
+  const unknownFields = Object.keys(value).filter(
+    (key) => key !== 'id' && key !== 'identities' && key !== 'notificationPeerId'
+  )
   if (unknownFields.length > 0) {
     throw new Error(`${filePath} contains unknown fields: ${unknownFields.join(', ')}`)
   }
@@ -55,13 +58,27 @@ function parseBinding(raw: unknown, filePath: string): UserBinding {
   if (new Set(identities).size !== identities.length) {
     throw new Error(`${filePath}: identities must not contain duplicates`)
   }
+  const notificationPeerId =
+    value.notificationPeerId === undefined
+      ? null
+      : nonEmptyString(value.notificationPeerId, `${filePath}: notificationPeerId`)
+  if (notificationPeerId) {
+    const match = /^endpoint:([^:]+):(.+)$/.exec(notificationPeerId)
+    const driver = match?.[1] ?? ''
+    const identity = match?.[2] ?? ''
+    if (!identities.includes(identity) || !identity.startsWith(`${driver}:`)) {
+      throw new Error(
+        `${filePath}: notificationPeerId driver must match an explicitly bound identity`
+      )
+    }
+  }
   const canonicalIdentity = `user:${id}`
   if (identities.includes(canonicalIdentity)) {
     throw new Error(
       `${filePath}: identities must not repeat the implicit canonical identity ${canonicalIdentity}`
     )
   }
-  return { id, canonicalIdentity, identities }
+  return { id, canonicalIdentity, identities, notificationPeerId }
 }
 
 export class UserBindingDirectory {
@@ -133,7 +150,7 @@ export default function registerUserBindingTool(pi: ExtensionAPI): void {
     name: 'resolve_user_binding',
     label: 'resolve user binding',
     description:
-      'Resolve an explicitly configured identity from the nyako-owned user binding group.',
+      'Resolve an explicitly configured identity and its optional notification peer from the nyako-owned user binding group.',
     parameters: resolveUserBindingSchema,
     execute: async (_toolCallId, input: ResolveUserBindingInput) => {
       const binding = await users.resolve(input.identity)
@@ -143,6 +160,7 @@ export default function registerUserBindingTool(pi: ExtensionAPI): void {
             id: binding.id,
             canonicalIdentity: binding.canonicalIdentity,
             identities: binding.identities,
+            notificationPeerId: binding.notificationPeerId,
           }
         : { found: false, identity: input.identity.trim() }
       return {

@@ -26,6 +26,12 @@ Session workspace 已由 runtime 建立；不要套用通用 fork、切主分支
 - comment follow-up 只读取精确事件和 current head；formal review 才读取完整 diff、checks 与
   unresolved threads。
 - 使用 `github-conversation`；PaddlePaddle 任务再加载对应 CI notes。
+- `session:hub_neko` 发来的 `kind=request`、intent `github.comment.reply`，其 exact payload
+  `{repo,pr,sourceCommentId,sourceCommentUrl}` 必须与当前 Session artifacts 对齐；缺失或不符
+  则拒绝。刷新 comment 与 current head、确认同一 thread 无本 bot 答复后才发布一次回复。
+  它不是 formal review，不要求 `reviewGrant`，也不授权代码、push、merge 或 rerun。
+- `github.comment.reply` 必须以实际 comment URL 完成交付，并在 NNP reply 中返回该 URL；
+  不能只把调查结论回给 Hub。
 - formal review publication 只接受 `session:hub_neko` 发来的 `kind=request`、intent
   `github.review.execute` 和 exact
   `reviewGrant={action:"github.review.publish",repo,pr,basis}`。

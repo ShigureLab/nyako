@@ -93,11 +93,13 @@ nyakore runtime contract 或 runtime data root。
 
 ```toml
 id = "example-user"
+notificationPeerId = "endpoint:infoflow:infoflow:user:example-user"
 identities = ["infoflow:user:example-user", "github:user:example-login"]
 ```
 
 工具基于自身文件位置读取记录，不依赖当前工作目录或 `~/.nyakore`。每次查询都重新读取目录，
-只接受显式、无冲突的 identity，不根据显示名、邮箱或文本风格推断。
+只接受显式、无冲突的 identity，不根据显示名、邮箱或文本风格推断。可选
+`notificationPeerId` 必须指向同一记录里的一项 identity，用于 Hub 的主动结果通知。
 
 ## 配置加载
 
