@@ -52,7 +52,12 @@ flowchart LR
 - `nyako` 是面向 channel 用户的 Agent；它运行在显式创建的 `conv_*`、`telegram_*`、`infoflow_*` 等 Session 中，不隐式拥有同名 Session。
 - `conv_*`、`telegram_*`、`infoflow_*`、`bridge_*` 是动态 channel/bridge Session。
 - `sess_monitor_neko_github_watch` 是 GitHub schedule 使用的长期监控 Session。
-- GitHub review request 只有在 monitor 保留实际 requester/target event provenance、hub 通过 definition-owned user binding tool 复核 requester 后，才形成仅限同一 PR `github.review.publish` 的 scoped authorization；缺失或冲突时不派发业务审查，必要时请求确认。
+- Review publication 链路：Monitor 只验证 explicit trusted native request 或 comment，并上报同一
+  `trusted_human_review_request`；Hub 直接发送唯一的 `github.review.publish {repo,pr}`；Dev 在这一个
+  command 内刷新、锁定、完整审查并发布稳定的 current head，不拆分中间交接阶段。这个
+  名字只是内部 command，不是另一套协议，也没有第二套许可、动作或来源副本。
+- Direct chat 由 Nyako 原样转交 channel `senderIdentity`，只由 Hub resolve 一次；Hub 不读 GitHub
+  或提供 SHA。
 - 其他 `sess_*` 通常是按任务创建的动态业务 Session。
 - 只有显式 NNP message 才构成交付、请求或协议事实；普通 assistant 文本不等于已发送。
 - live 状态、next action、等待关系和 PR 当前状态属于 Session/run/NNP，不属于长期记忆。
@@ -79,15 +84,15 @@ hooks/session-worktree/      # Session 生命周期 worktree provisioning/cleanu
 schedules/*.md               # repo-managed schedule definitions
 skills/<skill-id>/SKILL.md    # 物化在 definition repo 的完整 skill
 memory/config.toml           # runtime memory producer 策略
-tools/users/                 # nyako-owned user binding tool group and records
+tools/users/                 # definition-owned bindings, exposed only to Hub
 test/                        # extension 与 hook 测试
 ```
 
 `runtime-session`、`runtime-workspace` 和 `runtime-memory` 由各 Agent 的 `agent.toml`
 直接选择。Definition-owned extension 直接放在对应 Agent 的 `extensions/` 目录，例如
-monitor-neko 的跨 run ledger。`nyako` 与 `hub-neko` 通过薄 extension 入口共享
-`tools/users/` 提供的 `resolve_user_binding`，用户绑定、记录与授权 policy 都不进入
-nyakore runtime contract 或 runtime data root。
+monitor-neko 的跨 run ledger。只有 `hub-neko` 通过薄 extension 入口使用 `tools/users/` 提供的
+`resolve_user_binding`；`nyako` 只原样转交当前 channel 的 `senderIdentity`，避免重复解析。
+用户绑定、记录与 policy 都不进入 nyakore runtime contract 或 runtime data root。
 
 绑定记录与工具放在同一个 definition-owned group：`tools/users/bindings/*.toml`。
 

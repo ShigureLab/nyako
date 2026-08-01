@@ -54,9 +54,6 @@ const ledgerStateSchema = Type.Object(
     latestReviewId: Type.Optional(
       stringOrNumberSchema('Stable id for the latest actionable review.')
     ),
-    latestReviewRequestId: Type.Optional(
-      stringOrNumberSchema('Stable event id for the latest actionable review request.')
-    ),
     latestCommentId: Type.Optional(
       stringOrNumberSchema('Stable id for the latest actionable human comment.')
     ),
@@ -81,11 +78,33 @@ const ledgerStateSchema = Type.Object(
   { additionalProperties: false }
 )
 
+const ledgerSourceEventSchema = Type.Object(
+  {
+    type: Type.String({
+      description:
+        'Exact GitHub source event type, such as issue_comment, pull_request_review, or review_requested.',
+    }),
+    id: stringOrNumberSchema('Stable GitHub id for the exact source event.'),
+    url: Type.Optional(Type.String()),
+    actorLogin: Type.Optional(Type.String()),
+    body: Type.Optional(Type.String()),
+    createdAt: Type.Optional(Type.String()),
+  },
+  {
+    additionalProperties: false,
+    description:
+      'Exact immutable GitHub event identity. When present, type + id determine both the ledger key and digest.',
+  }
+)
+
 const ledgerEventSchema = Type.Object(
   {
-    eventKey: Type.String({
-      description: 'Stable dedup key for one GitHub notification or synthesized state event.',
-    }),
+    eventKey: Type.Optional(
+      Type.String({
+        description:
+          'Stable key for a synthetic thread/session state event. Omit for exact source events; sourceEvent type + id become the key.',
+      })
+    ),
     state: Type.Optional(ledgerStateSchema),
     stateDigest: Type.Optional(
       Type.String({
@@ -93,6 +112,7 @@ const ledgerEventSchema = Type.Object(
           'Legacy free-form digest of the current actionable state. Prefer state for new callers; this field remains supported and is normalized by the tool.',
       })
     ),
+    sourceEvent: Type.Optional(ledgerSourceEventSchema),
     actorLogin: Type.Optional(
       Type.String({
         description: 'GitHub login that authored or triggered the event when known.',
@@ -156,10 +176,19 @@ const githubMonitorLedgerSchema = Type.Object(
 type GithubMonitorLedgerInput = Static<typeof githubMonitorLedgerSchema>
 type LedgerEventInput = Static<typeof ledgerEventSchema>
 type LedgerStateInput = Static<typeof ledgerStateSchema>
-type NormalizedLedgerEventInput = Omit<LedgerEventInput, 'stateDigest'> & { stateDigest: string }
+type NormalizedLedgerEventInput = Omit<LedgerEventInput, 'eventKey' | 'stateDigest'> & {
+  eventKey: string
+  stateDigest: string
+}
 type LedgerOutcome = 'routed' | 'suppressed'
 type SeenStatus = 'new' | 'seen_repeat' | 'seen_changed'
 type HandledStatus = 'unhandled' | 'handled_repeat' | 'handled_changed'
+type ExactEventKind = 'comment' | 'review' | 'review-comment' | 'review-request'
+
+type ExactEventIdentity = {
+  kind: ExactEventKind
+  id: string
+}
 
 type LedgerEntry = {
   eventKey: string
@@ -231,6 +260,177 @@ function buildLoginSet(logins: readonly string[] | undefined, defaults: readonly
       .map((login) => normalizeLogin(login))
       .filter((login): login is string => login !== null)
   )
+}
+
+function normalizeExactEventKind(value: string): ExactEventKind | null {
+  const normalized = value
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .toLowerCase()
+    .replace(/^github[.:/_-]+/, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+
+  if (
+    normalized === 'pull_request_review_comment' ||
+    normalized === 'pull_review_comment' ||
+    normalized === 'review_comment'
+  ) {
+    return 'review-comment'
+  }
+  if (
+    normalized === 'review_requested' ||
+    normalized === 'review_request' ||
+    normalized === 'review_requested_event' ||
+    normalized === 'graphql_review_requested_event' ||
+    normalized === 'pull_request_review_request'
+  ) {
+    return 'review-request'
+  }
+  if (normalized === 'issue_comment' || normalized === 'comment') {
+    return 'comment'
+  }
+  if (
+    normalized === 'pull_request_review' ||
+    normalized === 'pull_review' ||
+    normalized === 'review'
+  ) {
+    return 'review'
+  }
+  return null
+}
+
+function normalizeExactEventId(value: string | number): string {
+  const normalized = String(value).trim()
+  if (!normalized) {
+    throw new Error('github_monitor_ledger sourceEvent.id must be non-empty')
+  }
+  return normalized
+}
+
+function exactEventKey(identity: ExactEventIdentity): string {
+  return `github:event:${identity.kind}:${identity.id}`
+}
+
+function exactEventDigest(identity: ExactEventIdentity): string {
+  return `event=${identity.kind}:${identity.id}`
+}
+
+function parseCanonicalExactEventKey(eventKey: string): ExactEventIdentity | null {
+  const match = /^github:event:([^:]+):(.+)$/i.exec(eventKey.trim())
+  const kind = match?.[1] ? normalizeExactEventKind(match[1]) : null
+  const id = match?.[2]?.trim()
+  return kind && id ? { kind, id } : null
+}
+
+function parseExactEventDigest(stateDigest: string): ExactEventIdentity | null {
+  const components = parseDigestComponents(stateDigest)
+  const value = components
+    ?.find((component) => component.key.toLowerCase() === 'event')
+    ?.value.trim()
+  if (!value) {
+    return null
+  }
+  const separator = value.indexOf(':')
+  if (separator <= 0) {
+    return null
+  }
+  const kind = normalizeExactEventKind(value.slice(0, separator))
+  const id = value.slice(separator + 1).trim()
+  return kind && id ? { kind, id } : null
+}
+
+function legacyExactEventKind(eventKey: string): ExactEventKind | null {
+  const normalized = eventKey
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+
+  if (
+    normalized.includes('session_pr') ||
+    normalized.includes('thread') ||
+    normalized.includes('notification')
+  ) {
+    return null
+  }
+  if (
+    normalized.includes('pull_request_review_comment') ||
+    normalized.includes('pull_review_comment') ||
+    normalized.includes('review_comment')
+  ) {
+    return 'review-comment'
+  }
+  if (normalized.includes('issue_comment') || /(?:^|_)comment(?:_|$)/.test(normalized)) {
+    return 'comment'
+  }
+  if (
+    normalized.includes('pull_request_review') ||
+    normalized.includes('pull_review') ||
+    /(?:^|_)review(?:_|$)/.test(normalized)
+  ) {
+    return 'review'
+  }
+  return null
+}
+
+function inferLegacyExactEvent(eventKey: string, stateDigest: string): ExactEventIdentity | null {
+  const canonical = parseCanonicalExactEventKey(eventKey) ?? parseExactEventDigest(stateDigest)
+  if (canonical) {
+    return canonical
+  }
+
+  const kind = legacyExactEventKind(eventKey)
+  if (!kind) {
+    return null
+  }
+  const components = parseDigestComponents(stateDigest)
+  if (!components) {
+    return null
+  }
+  const digestKey = kind === 'review' ? 'latest_review' : 'comment'
+  const id = digestComponentValue(components, digestKey)
+  if (!id || !eventKey.toLowerCase().includes(id.toLowerCase())) {
+    return null
+  }
+  return { kind, id }
+}
+
+const LEGACY_COMPOSITE_EVENT_COMPONENTS = [
+  {
+    kind: 'review-request',
+    keys: [
+      'latest_review_request',
+      'latestReviewRequest',
+      'latest_review_request_id',
+      'latestReviewRequestId',
+      'review_request',
+      'reviewRequest',
+      'review_request_id',
+      'reviewRequestId',
+    ],
+  },
+  {
+    kind: 'comment',
+    keys: ['latest_comment', 'latestComment', 'comment_id', 'commentId', 'comment'],
+  },
+  {
+    kind: 'review',
+    keys: ['latest_review', 'latestReview', 'review_id', 'reviewId'],
+  },
+] as const satisfies readonly {
+  kind: ExactEventKind
+  keys: readonly string[]
+}[]
+
+function legacyCompositeExactEvents(stateDigest: string | null): ExactEventIdentity[] {
+  if (!stateDigest) {
+    return []
+  }
+  return LEGACY_COMPOSITE_EVENT_COMPONENTS.flatMap(({ kind, keys }) => {
+    const id = extractActionValue(compactDigest(stateDigest), keys)
+    return id ? [{ kind, id }] : []
+  })
 }
 
 function canonicalizeEventKey(eventKey: string): string {
@@ -315,7 +515,7 @@ function extractFailedChecks(digest: string): string[] {
 
 function extractActionValue(digest: string, keys: readonly string[]): string | null {
   for (const key of keys) {
-    const match = new RegExp(`(?:^|[;|,\\n])\\s*${key}\\s*[:=]\\s*([^;|\\n]+)`, 'i').exec(digest)
+    const match = new RegExp(`(?:^|[;|,\\n])\\s*${key}\\s*[:=]\\s*([^;|,\\n]+)`, 'i').exec(digest)
     const value = match?.[1]?.trim()
     if (value) {
       return normalizeDigestToken(value)
@@ -343,13 +543,6 @@ function canonicalizeStateDigest(stateDigest: string): string {
     'review_id',
     'reviewId',
   ])
-  const latestReviewRequest = extractActionValue(compact, [
-    'latest_review_request',
-    'latestReviewRequest',
-    'review_request_id',
-    'reviewRequestId',
-    'review_request',
-  ])
   const latestComment = extractActionValue(compact, [
     'latest_comment',
     'latestComment',
@@ -376,7 +569,6 @@ function canonicalizeStateDigest(stateDigest: string): string {
       head ? `head=${head}` : null,
       review ? `review=${review}` : null,
       latestReview ? `latest_review=${latestReview}` : null,
-      latestReviewRequest ? `review_request=${latestReviewRequest}` : null,
       latestComment ? `comment=${latestComment}` : null,
     ]
       .filter((item): item is string => item !== null)
@@ -388,7 +580,6 @@ function canonicalizeStateDigest(stateDigest: string): string {
     state ? `state=${state}` : null,
     review ? `review=${review}` : null,
     latestReview && !explicitGate ? `latest_review=${latestReview}` : null,
-    latestReviewRequest ? `review_request=${latestReviewRequest}` : null,
     latestComment && !explicitGate ? `comment=${latestComment}` : null,
     explicitGate,
     failedChecks.length > 0 && !explicitGate ? `failed=${failedChecks.join('|')}` : null,
@@ -423,7 +614,6 @@ function canonicalizeStructuredState(state: LedgerStateInput): string | null {
   const lifecycleState = normalizeStructuredValue(state.state)
   const review = normalizeStructuredValue(state.reviewDecision)
   const latestReview = normalizeStructuredValue(state.latestReviewId)
-  const latestReviewRequest = normalizeStructuredValue(state.latestReviewRequestId)
   const latestComment = normalizeStructuredValue(state.latestCommentId)
   const failedChecks = normalizeCheckNames(state.failedChecks)
   const failureFingerprint = normalizeStructuredValue(state.failureFingerprint)
@@ -438,7 +628,6 @@ function canonicalizeStructuredState(state: LedgerStateInput): string | null {
       head ? `head=${head}` : null,
       review ? `review=${review}` : null,
       latestReview ? `latest_review=${latestReview}` : null,
-      latestReviewRequest ? `review_request=${latestReviewRequest}` : null,
       latestComment ? `comment=${latestComment}` : null,
     ]
       .filter((item): item is string => item !== null)
@@ -452,7 +641,6 @@ function canonicalizeStructuredState(state: LedgerStateInput): string | null {
     state.closed === true ? 'closed=true' : null,
     review ? `review=${review}` : null,
     latestReview && !explicitGate ? `latest_review=${latestReview}` : null,
-    latestReviewRequest ? `review_request=${latestReviewRequest}` : null,
     latestComment && !explicitGate ? `comment=${latestComment}` : null,
     explicitGate,
     failedChecks.length > 0 && !explicitGate ? `failed=${failedChecks.join('|')}` : null,
@@ -470,7 +658,16 @@ function buildStateDigest(event: LedgerEventInput): string {
   const rawDigest = event.stateDigest?.trim()
   if (!rawDigest) {
     throw new Error(
-      `github_monitor_ledger requires state or stateDigest for ${event.eventKey}. Prefer structured state for new callers.`
+      `github_monitor_ledger requires state or stateDigest for ${event.eventKey ?? 'synthetic event'}. Prefer structured state for new callers.`
+    )
+  }
+  if (
+    /(?:^|[;|,\n])\s*(?:latest[_-]?review[_-]?request(?:[_-]?id)?|review[_-]?request(?:[_-]?id)?)\s*[:=]/i.test(
+      rawDigest
+    )
+  ) {
+    throw new Error(
+      'github_monitor_ledger review requests require exact sourceEvent.type + sourceEvent.id'
     )
   }
   return canonicalizeStateDigest(rawDigest)
@@ -663,7 +860,7 @@ function sameHeadCiFailureFingerprintMatches(
   ) {
     return false
   }
-  return !['comment', 'latest_review', 'review_request'].some((key) =>
+  return !['comment', 'latest_review'].some((key) =>
     hasNewActionValue(leftComponents, rightComponents, key)
   )
 }
@@ -720,16 +917,6 @@ function suppressedSameHeadCiBackcheckMatches(
   ) {
     return false
   }
-  const previousReviewRequest = digestComponentValue(leftComponents, 'review_request')
-  const currentReviewRequest = digestComponentValue(rightComponents, 'review_request')
-  if (
-    (!previousReviewRequest && currentReviewRequest) ||
-    (previousReviewRequest &&
-      currentReviewRequest &&
-      previousReviewRequest !== currentReviewRequest)
-  ) {
-    return false
-  }
   const previousFailure = digestComponentValue(leftComponents, 'failure')
   const currentFailure = digestComponentValue(rightComponents, 'failure')
   if (currentFailure && currentFailure !== previousFailure) {
@@ -740,9 +927,44 @@ function suppressedSameHeadCiBackcheckMatches(
 }
 
 function normalizeEventInput(event: LedgerEventInput): NormalizedLedgerEventInput {
-  const eventKey = canonicalizeEventKey(event.eventKey)
-  const stateDigest = buildStateDigest(event)
-  return { ...event, eventKey, stateDigest }
+  const sourceIdentity = event.sourceEvent
+    ? (() => {
+        const kind = normalizeExactEventKind(event.sourceEvent.type)
+        if (!kind) {
+          throw new Error(
+            `github_monitor_ledger does not recognize sourceEvent.type=${event.sourceEvent.type}`
+          )
+        }
+        return { kind, id: normalizeExactEventId(event.sourceEvent.id) }
+      })()
+    : null
+  if (sourceIdentity && event.eventKey?.trim()) {
+    throw new Error(
+      'github_monitor_ledger exact source events must omit eventKey; sourceEvent.type + sourceEvent.id are the identity'
+    )
+  }
+  const canonicalStateDigest =
+    event.state || event.stateDigest?.trim()
+      ? buildStateDigest(event)
+      : sourceIdentity
+        ? exactEventDigest(sourceIdentity)
+        : buildStateDigest(event)
+  const syntheticEventKey = event.eventKey?.trim()
+  if (!sourceIdentity && !syntheticEventKey) {
+    throw new Error(
+      'github_monitor_ledger synthetic events require eventKey; exact events require sourceEvent.type + sourceEvent.id'
+    )
+  }
+  const eventKey = sourceIdentity
+    ? exactEventKey(sourceIdentity)
+    : canonicalizeEventKey(syntheticEventKey!)
+  const stateDigest = sourceIdentity ? exactEventDigest(sourceIdentity) : canonicalStateDigest
+  return {
+    ...event,
+    actorLogin: event.actorLogin ?? event.sourceEvent?.actorLogin,
+    eventKey,
+    stateDigest,
+  }
 }
 
 function mergeLedgerEntries(left: LedgerEntry, right: LedgerEntry): LedgerEntry {
@@ -772,25 +994,81 @@ function mergeLedgerEntries(left: LedgerEntry, right: LedgerEntry): LedgerEntry 
 }
 
 function normalizeLedgerEntry(entry: LedgerEntry, fallbackKey: string): LedgerEntry {
-  const eventKey = canonicalizeEventKey(entry.eventKey || fallbackKey)
+  const rawEventKey = entry.eventKey || fallbackKey
+  const lastSeenDigest = canonicalizeStateDigest(entry.lastSeenDigest)
+  const lastHandledDigest = entry.lastHandledDigest
+    ? canonicalizeStateDigest(entry.lastHandledDigest)
+    : null
+  const exactIdentity = inferLegacyExactEvent(rawEventKey, lastHandledDigest ?? lastSeenDigest)
+  const eventKey = exactIdentity ? exactEventKey(exactIdentity) : canonicalizeEventKey(rawEventKey)
   return {
     ...entry,
     eventKey,
     actorLogin: normalizeLogin(entry.actorLogin ?? undefined),
     requestedReviewerLogin: normalizeLogin(entry.requestedReviewerLogin ?? undefined),
-    lastSeenDigest: canonicalizeStateDigest(entry.lastSeenDigest),
-    lastHandledDigest: entry.lastHandledDigest
-      ? canonicalizeStateDigest(entry.lastHandledDigest)
-      : null,
+    lastSeenDigest: exactIdentity ? exactEventDigest(exactIdentity) : lastSeenDigest,
+    lastHandledDigest:
+      exactIdentity && lastHandledDigest ? exactEventDigest(exactIdentity) : lastHandledDigest,
   }
+}
+
+function legacyCompositeExactEntries(entry: LedgerEntry, fallbackKey: string): LedgerEntry[] {
+  const rawEventKey = entry.eventKey || fallbackKey
+  if (!canonicalizeEventKey(rawEventKey).startsWith('github:thread:')) {
+    return []
+  }
+
+  const seenIdentities = legacyCompositeExactEvents(entry.lastSeenDigest)
+  const handledIdentities = legacyCompositeExactEvents(entry.lastHandledDigest)
+  const handledKeys = new Set(handledIdentities.map(exactEventKey))
+  const identities = new Map<string, ExactEventIdentity>()
+  for (const identity of [...seenIdentities, ...handledIdentities]) {
+    identities.set(exactEventKey(identity), identity)
+  }
+
+  return Array.from(identities.values(), (identity) => {
+    const eventKey = exactEventKey(identity)
+    const stateDigest = exactEventDigest(identity)
+    const wasHandled = handledKeys.has(eventKey)
+    return {
+      ...entry,
+      eventKey,
+      actorLogin: normalizeLogin(entry.actorLogin ?? undefined),
+      requestedReviewerLogin: normalizeLogin(entry.requestedReviewerLogin ?? undefined),
+      lastSeenDigest: stateDigest,
+      lastHandledAt: wasHandled ? entry.lastHandledAt : null,
+      lastHandledDigest: wasHandled ? stateDigest : null,
+      lastHandledOutcome: wasHandled ? entry.lastHandledOutcome : null,
+      handledCount: wasHandled ? entry.handledCount : 0,
+      targetSessionId: wasHandled ? entry.targetSessionId : null,
+      messageKind: wasHandled ? entry.messageKind : null,
+      intent: wasHandled ? entry.intent : null,
+    }
+  })
 }
 
 function normalizeLedgerEntries(entries: Record<string, LedgerEntry>): Record<string, LedgerEntry> {
   const normalized: Record<string, LedgerEntry> = {}
+  const addEntry = (entry: LedgerEntry) => {
+    const existing = normalized[entry.eventKey]
+    normalized[entry.eventKey] = existing ? mergeLedgerEntries(existing, entry) : entry
+  }
   for (const [key, entry] of Object.entries(entries)) {
-    const next = normalizeLedgerEntry(entry, key)
-    const existing = normalized[next.eventKey]
-    normalized[next.eventKey] = existing ? mergeLedgerEntries(existing, next) : next
+    addEntry(normalizeLedgerEntry(entry, key))
+  }
+  const legacyExactEntries: Record<string, LedgerEntry> = {}
+  for (const [key, entry] of Object.entries(entries)) {
+    for (const exactEntry of legacyCompositeExactEntries(entry, key)) {
+      const existing = legacyExactEntries[exactEntry.eventKey]
+      legacyExactEntries[exactEntry.eventKey] = existing
+        ? mergeLedgerEntries(existing, exactEntry)
+        : exactEntry
+    }
+  }
+  for (const exactEntry of Object.values(legacyExactEntries)) {
+    if (!normalized[exactEntry.eventKey]) {
+      addEntry(exactEntry)
+    }
   }
   return normalized
 }
@@ -1230,7 +1508,7 @@ export default function registerGithubMonitorLedgerTool(pi: ExtensionAPI): void 
     name: 'github_monitor_ledger',
     label: 'github monitor ledger',
     description:
-      'Persist cross-run GitHub monitor dedup state outside chat memory. Use check before routing and record after a successful route or intentional suppression. Prefer structured state over free-form stateDigest.',
+      'Persist cross-run GitHub monitor dedup state outside chat memory. Use the same sourceEvent for exact-event check/record; use structured state for synthetic events. Record only after a successful route or intentional suppression.',
     parameters: githubMonitorLedgerSchema,
     execute: async (_toolCallId, input: GithubMonitorLedgerInput) => {
       if (input.action === 'check') {

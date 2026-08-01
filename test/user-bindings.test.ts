@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
@@ -116,6 +116,7 @@ describe('user binding tool', () => {
   it('registers resolve_user_binding as a native Pi extension tool', async () => {
     let tool:
       | {
+          description: string
           name: string
           execute(toolCallId: string, input: { identity: string }): Promise<any>
         }
@@ -127,6 +128,8 @@ describe('user binding tool', () => {
     } as ExtensionAPI)
 
     expect(tool?.name).toBe('resolve_user_binding')
+    expect(tool?.description).toContain('github:user:<login>')
+    expect(tool?.description).toContain('bare logins never match')
     expect(await tool?.execute('call_1', { identity: 'telegram:unknown' })).toMatchObject({
       details: { found: false, identity: 'telegram:unknown' },
     })
@@ -139,7 +142,7 @@ describe('user binding tool', () => {
     })
   })
 
-  it('loads the nyako-owned binding records by default', async () => {
+  it('loads the definition-owned binding records by default', async () => {
     await expect(new UserBindingDirectory().resolve('github:user:SigureMo')).resolves.toMatchObject(
       {
         id: 'xuxiaojian',
@@ -147,5 +150,17 @@ describe('user binding tool', () => {
         notificationPeerId: 'endpoint:infoflow:infoflow:user:xuxiaojian',
       }
     )
+  })
+
+  it('exposes the binding extension only to Hub', async () => {
+    await expect(
+      access(path.join(process.cwd(), 'agents', 'nyako', 'extensions', 'user-bindings.ts'))
+    ).rejects.toThrow()
+    await expect(
+      readFile(
+        path.join(process.cwd(), 'agents', 'hub-neko', 'extensions', 'user-bindings.ts'),
+        'utf8'
+      )
+    ).resolves.toContain('../../../tools/users/index.ts')
   })
 })

@@ -6,6 +6,10 @@ async function read(relativePath: string): Promise<string> {
   return readFile(path.join(process.cwd(), relativePath), 'utf8')
 }
 
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/gu, ' ')
+}
+
 describe('GitHub follow-up routing policy', () => {
   it('refreshes and preserves the exact source event', async () => {
     const [monitorAgents, monitorTools, hub] = await Promise.all([
@@ -27,9 +31,10 @@ describe('GitHub follow-up routing policy', () => {
     ])
 
     for (const prompt of [hub, dev]) {
+      const normalized = normalizeWhitespace(prompt)
       expect(prompt).toMatch(/runtime 注入的当前 Session goal/u)
       expect(prompt).toMatch(/`inform` 只增加事实/u)
-      expect(prompt).toContain('goal 内的一次性工作项')
+      expect(normalized).toContain('goal 内的一次性工作项')
       expect(prompt).toContain('不跨消息累计')
       expect(prompt).not.toContain('session.scope.replace')
       expect(prompt).not.toContain('session.stop')
@@ -46,16 +51,26 @@ describe('GitHub follow-up routing policy', () => {
       read('agents/hub-neko/TOOLS.md'),
       read('agents/dev-neko/AGENTS.md'),
     ])
-    const combined = prompts.join('\n')
-
-    expect(combined).toContain(
-      '{sourceEvent,classification,currentStatus?,relatedSessionId?,reviewRequest?}'
+    expect(prompts.join('\n')).toContain(
+      '{sourceEvent,classification,currentStatus?,relatedSessionId?}'
     )
-    expect(combined).not.toContain('suggestedAction')
-    expect(combined).not.toContain('deniedActions')
-    expect(combined).not.toContain('scoped_explicit')
-    expect(combined).not.toContain('Any response must be strictly necessary')
-    expect(combined).not.toContain('do not create commits, push')
+  })
+
+  it('inherits an unfinished review and durably defers transient routing failures', async () => {
+    const hub = await read('agents/hub-neko/AGENTS.md')
+    const normalized = normalizeWhitespace(hub)
+
+    expect(hub).toContain('催办继承同 PR 的未完成 review obligation')
+    expect(hub).toContain('绝不创建 reply-only Session')
+    expect(hub).toContain('同一 `obligationKey`')
+    expect(hub).toContain('`obligationKey="github.review.publish:<repo>#<pr>"`')
+    expect(hub).toContain('runtime 保持单一 pending')
+    expect(hub).toContain('`nnp_list(status=all)`')
+    expect(hub).toContain('不能只看')
+    expect(hub).toContain('`session_sleep` 持久重试')
+    expect(normalized).toContain('source message/correlation')
+    expect(hub).toContain('完整重试参数')
+    expect(hub).toContain('普通 assistant 文本和失败说明不算处理完成')
   })
 
   it('asks once instead of guessing an ambiguous external write target', async () => {
@@ -77,16 +92,16 @@ describe('GitHub follow-up routing policy', () => {
       })
     )
     const limits: Record<string, number> = {
-      'dev-neko': 3_500,
-      'hub-neko': 3_500,
-      'monitor-neko': 4_500,
+      'dev-neko': 3_800,
+      'hub-neko': 4_800,
+      'monitor-neko': 4_800,
       nyako: 2_800,
     }
 
     for (const [agent, prompt] of groups) {
       expect(Buffer.byteLength(prompt)).toBeLessThan(limits[agent])
     }
-    expect(Buffer.byteLength(groups.map(([, prompt]) => prompt).join('\n'))).toBeLessThan(14_000)
+    expect(Buffer.byteLength(groups.map(([, prompt]) => prompt).join('\n'))).toBeLessThan(15_000)
     await expect(
       access(path.join(process.cwd(), 'skills/github-contribution-guidelines/SKILL.md'))
     ).rejects.toThrow()

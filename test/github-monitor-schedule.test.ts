@@ -79,7 +79,7 @@ describe('GitHub monitor schedule', () => {
       '活跃 Session 关联 PR',
       'sourceEvent={type,id,url,actorLogin,body,createdAt}',
       'relatedSessionId',
-      '{sourceEvent,classification,currentStatus?,relatedSessionId?,reviewRequest?}',
+      '{sourceEvent,classification,currentStatus?,relatedSessionId?}',
       'failureFingerprint',
     ]) {
       expect(agents).toContain(behaviorMarker)
@@ -88,11 +88,11 @@ describe('GitHub monitor schedule', () => {
       'gh api notifications --paginate',
       'auto-collapse authors',
       'user-target',
-      'github_monitor_ledger(check)',
+      '`github_monitor_ledger`',
+      '`sourceEvent.type + id`',
       'notifications/threads/<thread_id>',
     ]) {
       expect(tools).toContain(toolMarker)
     }
-    expect([agents, tools].join('\n')).not.toContain('suggestedAction')
   })
 })

@@ -1,13 +1,16 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
+import type { TSchema } from '@sinclair/typebox'
+import { Value } from '@sinclair/typebox/value'
 import { afterEach, beforeEach, describe, expect, it } from 'vite-plus/test'
 import registerGithubMonitorLedgerTool from '../agents/monitor-neko/extensions/github-monitor-ledger.ts'
 
 type RegisteredTool = {
   name: string
+  parameters: TSchema
   execute: (toolCallId: string, input: unknown) => Promise<any>
 }
 
@@ -198,34 +201,166 @@ describe('github-monitor-ledger tool', () => {
     expect(Object.keys(ledger.entries)).toEqual(['github:thread:23960089331'])
   })
 
-  it('preserves review-request provenance and routes each new request event once', async () => {
+  it('derives exact-event identity from sourceEvent and merges legacy key aliases', async () => {
     const tool = registerTool()
-    const eventKey = 'github:thread:24774562597'
-    const headSha = '1eeaf99fa5d44d051d81a68c0a3b0c364d88c804'
+    const initialStats = await tool.execute('call_1', { action: 'stats' })
+    const ledgerPath = initialStats.details.ledgerPath as string
+    const ledger = JSON.parse(await readFile(ledgerPath, 'utf8')) as {
+      projectId: string
+      projectRoot: string
+      updatedAt: string
+      version: number
+      entries: Record<string, unknown>
+    }
+    const now = new Date().toISOString()
+    const legacyEntry = (eventKey: string, stateDigest: string) => ({
+      eventKey,
+      firstSeenAt: now,
+      lastSeenAt: now,
+      lastSeenDigest: stateDigest,
+      seenCount: 1,
+      actorLogin: 'gouzil',
+      requestedReviewerLogin: null,
+      isSelfAuthored: false,
+      isIgnoredActor: false,
+      lastHandledAt: now,
+      lastHandledDigest: stateDigest,
+      lastHandledOutcome: 'routed',
+      handledCount: 1,
+      targetSessionId: 'hub_neko',
+      messageKind: 'inform',
+      intent: 'github.notification.event',
+    })
+    const commentId = '5141348316'
+    const reviewId = '4814676539'
+    const commentAliases = [
+      `github:comment:PaddlePaddle/Paddle:79567:${commentId}`,
+      `github:issue_comment:PaddlePaddle/Paddle:79567:${commentId}`,
+      `github.issue_comment:PaddlePaddle/Paddle:79567:${commentId}`,
+      `github.issue_comment:${commentId}`,
+    ]
+    const reviewAliases = [
+      `github.pull_review:${reviewId}`,
+      `review:PaddlePaddle/Paddle:79421:${reviewId}`,
+      `github:pr:PaddlePaddle/Paddle:79421:review:${reviewId}`,
+      `github:PaddlePaddle/Paddle:pull:79421:review:${reviewId}`,
+    ]
 
-    const firstCheck = await tool.execute('call_1', {
+    ledger.entries = Object.fromEntries([
+      ...commentAliases.map((eventKey, index) => [
+        eventKey,
+        legacyEntry(
+          eventKey,
+          `head=${index === 0 ? '212fd32dd2e2' : '212fd32dd2e2fa02e030325729d98070a1250302'};state=open;comment=${commentId}`
+        ),
+      ]),
+      ...reviewAliases.map((eventKey, index) => [
+        eventKey,
+        legacyEntry(
+          eventKey,
+          `head=${index === 0 ? '1b0651c20fb0' : '88c42745f77a5344e523ea1211a5892048c8ea61'};state=open;review=changes_requested;latest_review=${reviewId}`
+        ),
+      ]),
+    ])
+    await writeFile(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`, 'utf8')
+
+    const migratedStats = await tool.execute('call_2', { action: 'stats' })
+    expect(migratedStats.details).toMatchObject({
+      totalEntries: 2,
+      handledEntries: 2,
+    })
+
+    const repeat = await tool.execute('call_3', {
       action: 'check',
       events: [
         {
-          eventKey,
-          actorLogin: 'SigureMo',
-          requestedReviewerLogin: 'ShigureNyako',
+          sourceEvent: {
+            type: 'github.issue_comment',
+            id: commentId,
+            actorLogin: 'gouzil',
+          },
           state: {
-            repo: 'yutto-dev/yutto',
-            pr: 770,
-            headSha,
-            state: 'OPEN',
-            reviewDecision: 'REVIEW_REQUIRED',
-            latestReviewRequestId: 28491324291,
-            gate: 'approval',
+            repo: 'PaddlePaddle/Paddle',
+            pr: 79567,
+            headSha: 'ffffffffffffffffffffffffffffffffffffffff',
+            state: 'CLOSED',
+          },
+        },
+        {
+          sourceEvent: {
+            type: 'PullRequestReview',
+            id: reviewId,
           },
         },
       ],
     })
 
+    expect(repeat.details.results).toMatchObject([
+      {
+        eventKey: `github:event:comment:${commentId}`,
+        stateDigest: `event=comment:${commentId}`,
+        handledStatus: 'handled_repeat',
+        shouldAct: false,
+      },
+      {
+        eventKey: `github:event:review:${reviewId}`,
+        stateDigest: `event=review:${reviewId}`,
+        handledStatus: 'handled_repeat',
+        shouldAct: false,
+      },
+    ])
+
+    const fresh = await tool.execute('call_4', {
+      action: 'check',
+      events: [
+        {
+          sourceEvent: {
+            type: 'issue_comment',
+            id: String(Number(commentId) + 1),
+          },
+        },
+      ],
+    })
+    expect(fresh.details.results[0]).toMatchObject({
+      eventKey: `github:event:comment:${Number(commentId) + 1}`,
+      seenStatus: 'new',
+      shouldAct: true,
+    })
+
+    const migratedLedger = JSON.parse(await readFile(ledgerPath, 'utf8')) as {
+      entries: Record<string, { handledCount: number }>
+    }
+    expect(Object.keys(migratedLedger.entries).sort()).toEqual([
+      `github:event:comment:${commentId}`,
+      `github:event:comment:${Number(commentId) + 1}`,
+      `github:event:review:${reviewId}`,
+    ])
+    expect(migratedLedger.entries[`github:event:comment:${commentId}`]?.handledCount).toBe(4)
+    expect(migratedLedger.entries[`github:event:review:${reviewId}`]?.handledCount).toBe(4)
+  })
+
+  it('routes each exact review-request source event once', async () => {
+    const tool = registerTool()
+    const firstRequestId = '28491324291'
+    const secondRequestId = '28499999999'
+
+    const firstCheck = await tool.execute('call_1', {
+      action: 'check',
+      events: [
+        {
+          sourceEvent: {
+            type: 'github.graphql_review_requested_event',
+            id: firstRequestId,
+            actorLogin: 'SigureMo',
+          },
+          requestedReviewerLogin: 'ShigureNyako',
+        },
+      ],
+    })
+
     expect(firstCheck.details.results[0]).toMatchObject({
-      eventKey,
-      stateDigest: `head=${headSha};state=open;review=review_required;review_request=28491324291;gate=approval`,
+      eventKey: `github:event:review-request:${firstRequestId}`,
+      stateDigest: `event=review-request:${firstRequestId}`,
       actorLogin: 'siguremo',
       requestedReviewerLogin: 'shigurenyako',
       shouldAct: true,
@@ -235,18 +370,12 @@ describe('github-monitor-ledger tool', () => {
       action: 'record',
       events: [
         {
-          eventKey,
-          actorLogin: 'SigureMo',
-          requestedReviewerLogin: 'ShigureNyako',
-          state: {
-            repo: 'yutto-dev/yutto',
-            pr: 770,
-            headSha,
-            state: 'OPEN',
-            reviewDecision: 'REVIEW_REQUIRED',
-            latestReviewRequestId: 28491324291,
-            gate: 'approval',
+          sourceEvent: {
+            type: 'review_requested',
+            id: firstRequestId,
+            actorLogin: 'SigureMo',
           },
+          requestedReviewerLogin: 'ShigureNyako',
           outcome: 'routed',
           targetSessionId: 'hub_neko',
           messageKind: 'inform',
@@ -259,13 +388,9 @@ describe('github-monitor-ledger tool', () => {
       action: 'check',
       events: [
         {
-          eventKey,
-          state: {
-            headSha: headSha.slice(0, 12),
-            state: 'open',
-            reviewDecision: 'review_required',
-            latestReviewRequestId: '28491324291',
-            gate: 'approval',
+          sourceEvent: {
+            type: 'pull_request_review_request',
+            id: firstRequestId,
           },
         },
       ],
@@ -281,22 +406,20 @@ describe('github-monitor-ledger tool', () => {
       action: 'check',
       events: [
         {
-          eventKey,
-          actorLogin: 'another-requester',
-          requestedReviewerLogin: 'ShigureNyako',
-          state: {
-            headSha,
-            state: 'OPEN',
-            reviewDecision: 'REVIEW_REQUIRED',
-            latestReviewRequestId: 28499999999,
-            gate: 'approval',
+          sourceEvent: {
+            type: 'review_requested_event',
+            id: secondRequestId,
+            actorLogin: 'another-requester',
           },
+          requestedReviewerLogin: 'ShigureNyako',
         },
       ],
     })
 
     expect(newRequestCheck.details.results[0]).toMatchObject({
-      handledStatus: 'handled_changed',
+      eventKey: `github:event:review-request:${secondRequestId}`,
+      stateDigest: `event=review-request:${secondRequestId}`,
+      handledStatus: 'unhandled',
       actorLogin: 'another-requester',
       requestedReviewerLogin: 'shigurenyako',
       shouldAct: true,
@@ -314,11 +437,216 @@ describe('github-monitor-ledger tool', () => {
       >
     }
 
-    expect(ledger.entries[eventKey]).toMatchObject({
+    expect(Object.keys(ledger.entries).sort()).toEqual([
+      `github:event:review-request:${firstRequestId}`,
+      `github:event:review-request:${secondRequestId}`,
+    ])
+    expect(ledger.entries[`github:event:review-request:${secondRequestId}`]).toMatchObject({
       actorLogin: 'another-requester',
       requestedReviewerLogin: 'shigurenyako',
-      lastSeenDigest: `head=${headSha};state=open;review=review_required;review_request=28499999999;gate=approval`,
+      lastSeenDigest: `event=review-request:${secondRequestId}`,
     })
+
+    await expect(
+      tool.execute('call_5', {
+        action: 'check',
+        events: [
+          {
+            sourceEvent: {
+              type: 'github.issue_event',
+              id: '28500000000',
+            },
+          },
+        ],
+      })
+    ).rejects.toThrow('does not recognize sourceEvent.type=github.issue_event')
+
+    await expect(
+      tool.execute('call_6', {
+        action: 'check',
+        events: [
+          {
+            eventKey: 'github:thread:24780207348',
+            sourceEvent: { type: 'github.review_requested', id: '28500000001' },
+          },
+        ],
+      })
+    ).rejects.toThrow('exact source events must omit eventKey')
+  })
+
+  it('requires sourceEvent instead of review-request ids in synthetic state', async () => {
+    const tool = registerTool()
+
+    await expect(
+      tool.execute('call_0', {
+        action: 'check',
+        events: [{ state: { headSha: '1eeaf99fa5d44d051d81a68c0a3b0c364d88c804' } }],
+      })
+    ).rejects.toThrow('synthetic events require eventKey')
+
+    expect(
+      Value.Check(tool.parameters, {
+        action: 'check',
+        events: [
+          {
+            eventKey: 'github:thread:24774562597',
+            state: {
+              headSha: '1eeaf99fa5d44d051d81a68c0a3b0c364d88c804',
+              latestReviewRequestId: 28491324291,
+            },
+          },
+        ],
+      })
+    ).toBe(false)
+
+    await expect(
+      tool.execute('call_1', {
+        action: 'check',
+        events: [
+          {
+            eventKey: 'github:thread:24774562597',
+            stateDigest: 'head=1eeaf99fa5d;reviewRequestId=28491324291',
+          },
+        ],
+      })
+    ).rejects.toThrow('review requests require exact sourceEvent.type + sourceEvent.id')
+  })
+
+  it('indexes immutable events from a handled legacy thread without replaying them', async () => {
+    const tool = registerTool()
+    const initialStats = await tool.execute('call_1', { action: 'stats' })
+    const ledgerPath = initialStats.details.ledgerPath as string
+    const ledger = JSON.parse(await readFile(ledgerPath, 'utf8')) as {
+      entries: Record<string, unknown>
+    }
+    const eventKey = 'github:thread:24780207348'
+    const reviewRequestId = '28502799575'
+    const commentId = '5141348316'
+    const reviewId = '4814676539'
+    const now = new Date().toISOString()
+    ledger.entries[eventKey] = {
+      eventKey,
+      firstSeenAt: now,
+      lastSeenAt: now,
+      lastSeenDigest: `head=ebe3659eed512170ea3496ab40b4eac85559626d;state=open;review=approved;latest_review=${reviewId};comment=${commentId},review_request=${reviewRequestId}`,
+      seenCount: 2,
+      actorLogin: 'siguremo',
+      requestedReviewerLogin: 'shigurenyako',
+      isSelfAuthored: false,
+      isIgnoredActor: false,
+      lastHandledAt: now,
+      lastHandledDigest: `head=ebe3659eed512170ea3496ab40b4eac85559626d;state=open;review=approved;latest_review=${reviewId};comment=${commentId},review_request=${reviewRequestId}`,
+      lastHandledOutcome: 'routed',
+      handledCount: 1,
+      targetSessionId: 'hub_neko',
+      messageKind: 'inform',
+      intent: 'github.notification.new_review_request',
+    }
+    await writeFile(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`, 'utf8')
+
+    const migratedStats = await tool.execute('call_2', { action: 'stats' })
+    expect(migratedStats.details).toMatchObject({ totalEntries: 4, handledEntries: 4 })
+
+    const repeat = await tool.execute('call_3', {
+      action: 'check',
+      events: [
+        { sourceEvent: { type: 'github.review_requested', id: reviewRequestId } },
+        { sourceEvent: { type: 'github.issue_comment', id: commentId } },
+        { sourceEvent: { type: 'github.pull_request_review', id: reviewId } },
+      ],
+    })
+    expect(repeat.details.results).toMatchObject([
+      {
+        eventKey: `github:event:review-request:${reviewRequestId}`,
+        handledStatus: 'handled_repeat',
+        shouldAct: false,
+      },
+      {
+        eventKey: `github:event:comment:${commentId}`,
+        handledStatus: 'handled_repeat',
+        shouldAct: false,
+      },
+      {
+        eventKey: `github:event:review:${reviewId}`,
+        handledStatus: 'handled_repeat',
+        shouldAct: false,
+      },
+    ])
+
+    const migrated = JSON.parse(await readFile(ledgerPath, 'utf8')) as {
+      entries: Record<
+        string,
+        {
+          lastSeenDigest: string
+          lastHandledDigest: string | null
+          handledCount: number
+          lastHandledOutcome: string | null
+        }
+      >
+    }
+    expect(migrated.entries[eventKey]).toMatchObject({
+      lastSeenDigest: `head=ebe3659eed512170ea3496ab40b4eac85559626d;state=open;review=approved;latest_review=${reviewId};comment=${commentId}`,
+      lastHandledDigest: `head=ebe3659eed512170ea3496ab40b4eac85559626d;state=open;review=approved;latest_review=${reviewId};comment=${commentId}`,
+      handledCount: 1,
+      lastHandledOutcome: 'routed',
+    })
+    for (const exactKey of [
+      `github:event:review-request:${reviewRequestId}`,
+      `github:event:comment:${commentId}`,
+      `github:event:review:${reviewId}`,
+    ]) {
+      expect(migrated.entries[exactKey]).toMatchObject({
+        lastSeenDigest: `event=${exactKey.split(':').slice(-2).join(':')}`,
+        lastHandledDigest: `event=${exactKey.split(':').slice(-2).join(':')}`,
+        handledCount: 1,
+        lastHandledOutcome: 'routed',
+      })
+    }
+  })
+
+  it('keeps a newer legacy review request unhandled when the handled id is older', async () => {
+    const tool = registerTool()
+    const initialStats = await tool.execute('call_1', { action: 'stats' })
+    const ledgerPath = initialStats.details.ledgerPath as string
+    const ledger = JSON.parse(await readFile(ledgerPath, 'utf8')) as {
+      entries: Record<string, unknown>
+    }
+    const eventKey = 'github:notification:24780207349'
+    const handledId = '28502799575'
+    const currentId = '28502799576'
+    const now = new Date().toISOString()
+    ledger.entries[eventKey] = {
+      eventKey,
+      firstSeenAt: now,
+      lastSeenAt: now,
+      lastSeenDigest: `head=ebe3659eed512170ea3496ab40b4eac85559626d;reviewRequestId=${currentId}`,
+      seenCount: 2,
+      actorLogin: 'siguremo',
+      requestedReviewerLogin: 'shigurenyako',
+      isSelfAuthored: false,
+      isIgnoredActor: false,
+      lastHandledAt: now,
+      lastHandledDigest: `head=ebe3659eed512170ea3496ab40b4eac85559626d;review_request=${handledId}`,
+      lastHandledOutcome: 'routed',
+      handledCount: 1,
+      targetSessionId: 'hub_neko',
+      messageKind: 'inform',
+      intent: 'github.notification.new_review_request',
+    }
+    await writeFile(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`, 'utf8')
+
+    const check = await tool.execute('call_2', {
+      action: 'check',
+      events: [
+        { sourceEvent: { type: 'github.review_requested', id: handledId } },
+        { sourceEvent: { type: 'github.review_requested', id: currentId } },
+      ],
+    })
+
+    expect(check.details.results).toMatchObject([
+      { handledStatus: 'handled_repeat', shouldAct: false },
+      { handledStatus: 'unhandled', shouldAct: true },
+    ])
   })
 
   it('auto-suppresses configured Paddle bot events as ignored actors', async () => {

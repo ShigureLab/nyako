@@ -38,6 +38,8 @@ describe('NNP peer prompt contract', () => {
     expect(monitorPrompt).not.toMatch(/nnp_send\([^)]*kind="request"/u)
     expect(monitorPrompt).not.toContain('eventKey + stateDigest')
     expect(monitorPrompt).toContain('eventKey + canonical actionable state')
+    expect(monitorPrompt).toContain('`sourceEvent={type,id,url?,actorLogin?,body?,createdAt?}`')
+    expect(monitorPrompt).toContain('由 tool 生成 identity key')
     expect(monitorPrompt).toContain('不等待 reply/ack')
     expect(monitorTools).toContain('trusted / ignored actor')
     expect(nyakoAgents).toMatch(/交给\s+`session:hub_neko`/u)

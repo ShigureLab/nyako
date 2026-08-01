@@ -150,7 +150,7 @@ export default function registerUserBindingTool(pi: ExtensionAPI): void {
     name: 'resolve_user_binding',
     label: 'resolve user binding',
     description:
-      'Resolve an explicitly configured identity and its optional notification peer from the nyako-owned user binding group.',
+      'Resolve an explicitly configured full external identity and its optional notification peer from the definition-owned user binding group exposed to Hub. For a GitHub sourceEvent.actorLogin, pass github:user:<login>; bare logins never match.',
     parameters: resolveUserBindingSchema,
     execute: async (_toolCallId, input: ResolveUserBindingInput) => {
       const binding = await users.resolve(input.identity)

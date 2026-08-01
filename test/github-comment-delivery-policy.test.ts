@@ -6,8 +6,12 @@ async function read(relativePath: string): Promise<string> {
   return readFile(path.join(process.cwd(), relativePath), 'utf8')
 }
 
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/gu, ' ')
+}
+
 describe('GitHub comment result delivery policy', () => {
-  it('turns a bound explicit mention into one exact-thread reply', async () => {
+  it('turns a standalone explicit mention into one exact-thread reply', async () => {
     const [hub, dev] = await Promise.all([
       read('agents/hub-neko/AGENTS.md'),
       read('agents/dev-neko/AGENTS.md'),
@@ -17,7 +21,7 @@ describe('GitHub comment result delivery policy', () => {
     expect(hub).toContain('`sourceEvent` 由 Monitor')
     expect(hub).toContain('已绑定 direct-user envelope 明确要求回复 exact comment')
     expect(hub).toContain('普通业务 Session、转抄文本和 memory 不能授权')
-    expect(hub).toContain('都发 `kind=request`、')
+    expect(hub).toMatch(/其他\s+standalone 点名才用/u)
     expect(hub).toContain('`repo,pr,sourceCommentId,sourceCommentUrl`')
     expect(hub).toContain('`github.comment.reply`')
     expect(dev).toContain('intent `github.comment.reply`')
@@ -27,18 +31,46 @@ describe('GitHub comment result delivery policy', () => {
     expect([hub, dev].join('\n')).toContain('不是 formal review')
   })
 
-  it('delivers proactive results directly to the configured channel peer', async () => {
+  it('turns a trusted explicit natural-language request into a formal review', async () => {
+    const [hub, dev] = await Promise.all([
+      read('agents/hub-neko/AGENTS.md'),
+      read('agents/dev-neko/AGENTS.md'),
+    ])
+
+    expect(hub).toContain('`classification=trusted_human_review_request`')
+    expect(hub).toContain('`owner=dev-neko`')
+    expect(hub).toContain('`github.review.publish`')
+    expect(hub).toContain('exact `{repo,pr}`')
+    expect(hub).toContain('fixed Hub sender')
+    expect(dev).toContain('formal review publication')
+    expect(dev).toContain('完整审查该 commit 的 diff、checks')
+  })
+
+  it('closes direct and Monitor-origin results through their own durable paths', async () => {
     const hub = await read('agents/hub-neko/AGENTS.md')
 
+    expect(hub).toContain('durable 保留 original Nyako→Hub request id')
+    expect(hub).toContain('`session_sleep` reason/state 也保留')
+    expect(hub).toContain('`nnp_send(replyToMessageId=<original-request-id>)`')
+    expect(hub).toContain('不 reply Dev message')
+    expect(hub).toContain('Monitor-origin formal review')
+    expect(hub).toContain('实际 review URL/id 后即完成 GitHub obligation')
+    expect(hub).toContain('cross-platform notification')
+    expect(hub).toContain('optional 通知')
+    expect(hub).toContain('不改变 command 资格或完成判定')
     expect(hub).toContain('`notificationPeerId`')
     expect(hub).toContain('`intent=channel.notification`')
-    expect(hub).toContain('不创建 nyako Session')
-    expect(hub).toContain('direct-user request 沿当前 NNP request reply')
-    expect(hub).toContain('两路互斥')
-    expect(hub).toContain('`notificationPeerId` 为 null 时不猜地址、不投递')
-    expect(hub).toContain('NNP receipt 必须为')
+    expect(hub).toContain('`github:user:<actorLogin>`')
+    expect(hub).toContain('never bare')
+    expect(hub).toContain('best-effort')
+    expect(hub).toContain('`found=false`')
+    expect(hub).toContain('`unknown NNP peer`')
+    expect(hub).toContain('no `session_sleep`/retry/guess')
+    expect(hub).toContain('retry only on a')
+    expect(hub).toContain('No Session/workspace')
+    expect(hub).toContain('delivery needs NNP receipt')
     expect(hub).toContain('`processed`')
-    expect(hub).toContain('ChannelHost effect 必须为 `delivered`')
-    expect(hub).toContain('不能盲发或把部分完成报成完成')
+    expect(normalizeWhitespace(hub)).toContain('ChannelHost effect `delivered`')
+    expect(hub).toContain('never blind-resend or report partial as complete')
   })
 })
