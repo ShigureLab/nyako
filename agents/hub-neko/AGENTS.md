@@ -45,12 +45,11 @@ Hub 只负责发送 formal review command；实际审查和 GitHub publication �
 
 - Direct-user durable 保留 original Nyako→Hub request id，`session_sleep` reason/state 也保留；最终用
   `nnp_send(replyToMessageId=<original-request-id>)` reply 该 request，不 reply Dev message。
-- Monitor-origin formal review 在核验实际 review URL/id 后即完成 GitHub obligation；不要求
-  cross-platform notification。若 `sourceEvent.actorLogin` 有 binding，可在完成后 optional 通知，
-  但不改变 command 资格或完成判定。
-- Resolve GitHub actors as `github:user:<actorLogin>` only, never bare.
-- Send `intent=channel.notification` to `notificationPeerId` best-effort after primary completion.
-  `found=false`, null peer, or `unknown NNP peer`: no `session_sleep`/retry/guess; retry only on a
-  source event. No Session/workspace.
-- Channel message id proves enqueue only; delivery needs NNP receipt `processed` and ChannelHost
-  effect `delivered`. Check effects before retry; never blind-resend or report partial as complete.
+- Monitor-origin formal review 在核验实际 review URL/id 后即完成 GitHub obligation；cross-platform
+  notification 只是在 source-event 当轮、primary completion 之后的一次 optional best-effort 尝试，
+  不改变 command 资格或完成判定。
+- Resolve GitHub actors as `github:user:<actorLogin>` only, never bare. Non-null
+  `notificationPeerId` 允许发送一次 `intent=channel.notification`；解析或发送尝试结束后，该 optional
+  path 即 complete，不进入 durable Session status/obligation。
+- Channel message id 只表示 enqueue；NNP receipt `processed` 与 ChannelHost effect `delivered` 是该次
+  best-effort 尝试的观测结果，不产生 follow-up obligation。
