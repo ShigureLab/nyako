@@ -16,9 +16,7 @@ describe('GitHub review command policy', () => {
       read('agents/monitor-neko/AGENTS.md'),
       read('agents/monitor-neko/TOOLS.md'),
     ])
-    expect(monitor).toContain(
-      'exact `{sourceEvent,classification,currentStatus?,relatedSessionId?}`'
-    )
+    expect(monitor).toContain('exact `{sourceEvent,classification,currentStatus?}`')
     expect(monitor).toContain('configured trusted actor')
     expect(monitor).toContain('native user-target review-request 确实 target 当前 viewer')
     expect(monitor).toContain('`sourceEvent.body`')
@@ -27,7 +25,7 @@ describe('GitHub review command policy', () => {
     expect(tools).toContain('configured trusted actor 的最新 user-target')
     expect(tools).toContain('target 确为当前 viewer')
     expect(tools).toContain('正文明确点名 viewer review')
-    expect(tools).toContain('exact `{sourceEvent,classification,currentStatus?,relatedSessionId?}`')
+    expect(tools).toContain('exact `{sourceEvent,classification,currentStatus?}`')
     expect(tools).toContain('必须带 `currentStatus.repo/pr`')
     expect(monitor).toContain('`currentStatus` 必须含 exact `repo`、`pr`')
     expect(monitor).not.toContain('resolve_user_binding')

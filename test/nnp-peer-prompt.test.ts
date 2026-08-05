@@ -34,7 +34,7 @@ describe('NNP peer prompt contract', () => {
     const monitorPrompt = [monitorAgents, monitorTools].join('\n')
 
     expect(monitorAgents).toContain('nnp_send(toPeerId="session:hub_neko", kind="inform"')
-    expect(monitorTools).toContain('发给 `session:hub_neko` 的 `kind="inform"`')
+    expect(monitorTools).toMatch(/发给 `session:hub_neko` 的\s+`kind="inform"`/u)
     expect(monitorPrompt).not.toMatch(/nnp_send\([^)]*kind="request"/u)
     expect(monitorPrompt).not.toContain('eventKey + stateDigest')
     expect(monitorPrompt).toContain('eventKey + canonical actionable state')

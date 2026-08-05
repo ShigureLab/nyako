@@ -40,7 +40,9 @@ describe('GitHub monitor schedule', () => {
       task: 'github.notifications.scan',
     })
     expect(Buffer.byteLength(body)).toBeLessThan(768)
-    expect(body).toContain('真实 GitHub unread inbox 扫描')
+    expect(body).toContain('真实 GitHub unread notifications 扫描')
+    expect(body).toContain('逐条处理本轮返回的 GitHub thread')
+    expect(body).not.toMatch(/反查|枚举|Session|历史时间窗/u)
 
     for (const outputField of [
       'notifications_fetched',
@@ -75,14 +77,27 @@ describe('GitHub monitor schedule', () => {
     ])
 
     for (const behaviorMarker of [
-      'unread GitHub inbox',
-      '活跃 Session 关联 PR',
+      'unread GitHub notifications',
+      '每轮唯一入口',
+      '0 条 unread',
+      'github:thread:<thread_id>',
       'sourceEvent={type,id,url,actorLogin,body,createdAt}',
-      'relatedSessionId',
-      '{sourceEvent,classification,currentStatus?,relatedSessionId?}',
+      '{sourceEvent,classification,currentStatus?}',
       'failureFingerprint',
     ]) {
       expect(agents).toContain(behaviorMarker)
+    }
+    for (const seededAlternative of [
+      '反查',
+      '枚举',
+      'list_sessions',
+      'get_session',
+      'all=true',
+      '历史时间窗',
+      'relatedSessionId',
+    ]) {
+      expect(agents).not.toContain(seededAlternative)
+      expect(tools).not.toContain(seededAlternative)
     }
     for (const toolMarker of [
       'gh api notifications --paginate',
@@ -94,5 +109,15 @@ describe('GitHub monitor schedule', () => {
     ]) {
       expect(tools).toContain(toolMarker)
     }
+  })
+
+  test('cannot access the Session registry', async () => {
+    const agentToml = await readFile(
+      path.join(process.cwd(), 'agents', 'monitor-neko', 'agent.toml'),
+      'utf8'
+    )
+
+    expect(agentToml).toContain('"runtime-nnp"')
+    expect(agentToml).not.toContain('"runtime-session"')
   })
 })

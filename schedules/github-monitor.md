@@ -7,7 +7,7 @@ reset: true
 task: github.notifications.scan
 ---
 
-执行一次真实 GitHub unread inbox 扫描和活跃 Session PR 状态反查；遵循 monitor-neko 当前的 `AGENTS.md` / `TOOLS.md` 契约。
+执行一次真实 GitHub unread notifications 扫描；逐条处理本轮返回的 GitHub thread。遵循 monitor-neko 当前的 `AGENTS.md` / `TOOLS.md` 契约。
 
 本次 schedule 没有上游 sender，不发送 no-op reply。
 

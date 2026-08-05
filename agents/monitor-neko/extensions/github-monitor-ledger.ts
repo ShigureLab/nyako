@@ -102,7 +102,7 @@ const ledgerEventSchema = Type.Object(
     eventKey: Type.Optional(
       Type.String({
         description:
-          'Stable key for a synthetic thread/session state event. Omit for exact source events; sourceEvent type + id become the key.',
+          'Canonical github:thread:<thread_id> key for synthetic state from the current unread notification. Omit for exact source events; sourceEvent type + id become the key.',
       })
     ),
     state: Type.Optional(ledgerStateSchema),
@@ -435,13 +435,6 @@ function legacyCompositeExactEvents(stateDigest: string | null): ExactEventIdent
 
 function canonicalizeEventKey(eventKey: string): string {
   const trimmed = eventKey.trim()
-  const sessionPrMatch =
-    /^(?:github:)?session-pr(?:-state)?[\s:#_-]+([^:\s]+):([^:#\s]+\/[^:#\s]+)[:#](\d+)(?::(?:ci|ci-failure|ci_failure))?$/i.exec(
-      trimmed
-    )
-  if (sessionPrMatch) {
-    return `github:session-pr:${sessionPrMatch[1]}:${sessionPrMatch[2]}#${sessionPrMatch[3]}`
-  }
   const threadMatch =
     /^(?:github:thread|github-thread|gh:thread|gh-thread|github:notification|github-notification|github_notification|gh:notification|gh-notification|notification|thread)[\s:#_-]*(\d+)(?:\b.*)?$/i.exec(
       trimmed
@@ -958,6 +951,11 @@ function normalizeEventInput(event: LedgerEventInput): NormalizedLedgerEventInpu
   const eventKey = sourceIdentity
     ? exactEventKey(sourceIdentity)
     : canonicalizeEventKey(syntheticEventKey!)
+  if (!sourceIdentity && !/^github:thread:\d+$/.test(eventKey)) {
+    throw new Error(
+      'github_monitor_ledger synthetic events require the current unread notification key github:thread:<thread_id>'
+    )
+  }
   const stateDigest = sourceIdentity ? exactEventDigest(sourceIdentity) : canonicalStateDigest
   return {
     ...event,
@@ -1508,7 +1506,7 @@ export default function registerGithubMonitorLedgerTool(pi: ExtensionAPI): void 
     name: 'github_monitor_ledger',
     label: 'github monitor ledger',
     description:
-      'Persist cross-run GitHub monitor dedup state outside chat memory. Use the same sourceEvent for exact-event check/record; use structured state for synthetic events. Record only after a successful route or intentional suppression.',
+      'Persist cross-run GitHub notification dedup state. Use the same sourceEvent for exact-event check/record; synthetic state uses the current unread github:thread:<thread_id>. Record after a successful route or intentional suppression.',
     parameters: githubMonitorLedgerSchema,
     execute: async (_toolCallId, input: GithubMonitorLedgerInput) => {
       if (input.action === 'check') {

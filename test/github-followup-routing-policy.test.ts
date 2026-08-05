@@ -51,9 +51,8 @@ describe('GitHub follow-up routing policy', () => {
       read('agents/hub-neko/TOOLS.md'),
       read('agents/dev-neko/AGENTS.md'),
     ])
-    expect(prompts.join('\n')).toContain(
-      '{sourceEvent,classification,currentStatus?,relatedSessionId?}'
-    )
+    expect(prompts.join('\n')).toContain('{sourceEvent,classification,currentStatus?}')
+    expect(prompts.join('\n')).not.toContain('relatedSessionId')
   })
 
   it('inherits an unfinished review and durably defers transient routing failures', async () => {

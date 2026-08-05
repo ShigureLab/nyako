@@ -1,7 +1,7 @@
 id = "monitor-neko"
 name = "monitor-neko"
 role = "monitor"
-tools = ["read", "bash", "grep", "find", "ls", "runtime-session"]
+tools = ["read", "bash", "grep", "find", "ls", "runtime-nnp"]
 
 [skills]
 enable = ["github-conversation"]

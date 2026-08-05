@@ -55,7 +55,7 @@ describe('github-monitor-ledger tool', () => {
       selfLogins: ['swgu98'],
       events: [
         {
-          eventKey: 'repo:1#thread:abc',
+          eventKey: 'github:thread:30001',
           stateDigest: 'review=requested|ci=pending',
           actorLogin: 'someone',
         },
@@ -74,7 +74,7 @@ describe('github-monitor-ledger tool', () => {
       selfLogins: ['swgu98'],
       events: [
         {
-          eventKey: 'repo:1#thread:abc',
+          eventKey: 'github:thread:30001',
           stateDigest: 'review=requested|ci=pending',
           actorLogin: 'someone',
           outcome: 'routed',
@@ -96,12 +96,12 @@ describe('github-monitor-ledger tool', () => {
       selfLogins: ['swgu98'],
       events: [
         {
-          eventKey: 'repo:1#thread:abc',
+          eventKey: 'github:thread:30001',
           stateDigest: 'review=requested|ci=pending',
           actorLogin: 'someone',
         },
         {
-          eventKey: 'repo:1#thread:abc',
+          eventKey: 'github:thread:30001',
           stateDigest: 'review=changes_requested|ci=failure',
           actorLogin: 'swgu98',
         },
@@ -140,7 +140,7 @@ describe('github-monitor-ledger tool', () => {
     }
 
     expect(ledger.projectRoot).toBe(repoRoot)
-    expect(ledger.entries['repo:1#thread:abc']).toMatchObject({
+    expect(ledger.entries['github:thread:30001']).toMatchObject({
       lastHandledOutcome: 'routed',
       targetSessionId: 'sess_monitor_neko_github_watch',
     })
@@ -729,14 +729,14 @@ describe('github-monitor-ledger tool', () => {
     })
   })
 
-  it('canonicalizes session PR state key aliases', async () => {
+  it('keeps repeated notification thread state handled', async () => {
     const tool = registerTool()
 
     await tool.execute('call_1', {
       action: 'record',
       events: [
         {
-          eventKey: 'session-pr:sess_dev:PaddlePaddle/Paddle#79104',
+          eventKey: 'github:thread:79104',
           stateDigest: 'head=abc|review=required|ci=failed:Check approval',
           outcome: 'routed',
         },
@@ -747,27 +747,27 @@ describe('github-monitor-ledger tool', () => {
       action: 'check',
       events: [
         {
-          eventKey: 'github:session-pr-state:sess_dev:PaddlePaddle/Paddle:79104',
+          eventKey: 'github:thread:79104',
           stateDigest: 'head=abc|review=required|ci=failed:Check approval',
         },
       ],
     })
 
     expect(check.details.results[0]).toMatchObject({
-      eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79104',
+      eventKey: 'github:thread:79104',
       handledStatus: 'handled_repeat',
       shouldAct: false,
     })
   })
 
-  it('canonicalizes session PR CI suffixes into the base PR fingerprint', async () => {
+  it('normalizes CI state within one notification thread', async () => {
     const tool = registerTool()
 
     await tool.execute('call_1', {
       action: 'record',
       events: [
         {
-          eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79104',
+          eventKey: 'github:thread:79104',
           state: {
             repo: 'PaddlePaddle/Paddle',
             pr: 79104,
@@ -785,7 +785,7 @@ describe('github-monitor-ledger tool', () => {
       action: 'check',
       events: [
         {
-          eventKey: 'github:session-pr-state:sess_dev:PaddlePaddle/Paddle:79104:ci',
+          eventKey: 'github:thread:79104',
           state: {
             repo: 'PaddlePaddle/Paddle',
             pr: 79104,
@@ -799,13 +799,13 @@ describe('github-monitor-ledger tool', () => {
     })
 
     expect(check.details.results[0]).toMatchObject({
-      eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79104',
+      eventKey: 'github:thread:79104',
       handledStatus: 'handled_repeat',
       shouldAct: false,
     })
   })
 
-  it('keeps suppressed same-head CI backchecks quiet when check display sets fluctuate', async () => {
+  it('keeps suppressed same-head CI notifications quiet when check display sets fluctuate', async () => {
     const tool = registerTool()
     const headSha = '64dc4a69acb6559037d2c1f59bb06c96c84249d9'
 
@@ -813,7 +813,7 @@ describe('github-monitor-ledger tool', () => {
       action: 'record',
       events: [
         {
-          eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79189',
+          eventKey: 'github:thread:79189',
           state: {
             repo: 'PaddlePaddle/Paddle',
             pr: 79189,
@@ -837,7 +837,7 @@ describe('github-monitor-ledger tool', () => {
       action: 'check',
       events: [
         {
-          eventKey: 'github:session-pr-state:sess_dev:PaddlePaddle/Paddle:79189:ci',
+          eventKey: 'github:thread:79189',
           state: {
             repo: 'PaddlePaddle/Paddle',
             pr: 79189,
@@ -851,7 +851,7 @@ describe('github-monitor-ledger tool', () => {
     })
 
     expect(sameHeadFluctuation.details.results[0]).toMatchObject({
-      eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79189',
+      eventKey: 'github:thread:79189',
       handledStatus: 'handled_repeat',
       shouldAct: false,
     })
@@ -860,7 +860,7 @@ describe('github-monitor-ledger tool', () => {
       action: 'check',
       events: [
         {
-          eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79189',
+          eventKey: 'github:thread:79189',
           state: {
             headSha,
             state: 'open',
@@ -885,7 +885,7 @@ describe('github-monitor-ledger tool', () => {
       action: 'record',
       events: [
         {
-          eventKey: 'session-pr:sess_dev:PaddlePaddle/Paddle#79107',
+          eventKey: 'github:thread:79107',
           stateDigest:
             'repo:PaddlePaddle/Paddle#79107;head:d84bac1eda8eff12145d5ef9781d5e2fef1f1484;state:open;merged:false;review:REVIEW_REQUIRED;latest_event:push:d84bac1eda8eff12145d5ef9781d5e2fef1f1484;failed_checks:Slice / Slice test|Approval/Check approval|Coverage test',
           outcome: 'routed',
@@ -897,7 +897,7 @@ describe('github-monitor-ledger tool', () => {
       action: 'check',
       events: [
         {
-          eventKey: 'github:session-pr-state:sess_dev:PaddlePaddle/Paddle:79107',
+          eventKey: 'github:thread:79107',
           stateDigest:
             'head=d84bac1eda8eff12145d5ef9781d5e2fef1f1484;state=OPEN;review=REVIEW_REQUIRED;failed=Coverage test|Check approval|Slice / Slice test',
         },
@@ -905,7 +905,7 @@ describe('github-monitor-ledger tool', () => {
     })
 
     expect(repeatCheck.details.results[0]).toMatchObject({
-      eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79107',
+      eventKey: 'github:thread:79107',
       stateDigest:
         'head=d84bac1eda8eff12145d5ef9781d5e2fef1f1484;state=open;review=review_required;failed=check approval|coverage test|slice / slice test',
       handledStatus: 'handled_repeat',
@@ -916,7 +916,7 @@ describe('github-monitor-ledger tool', () => {
       action: 'check',
       events: [
         {
-          eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79107',
+          eventKey: 'github:thread:79107',
           stateDigest:
             'head=d84bac1eda8eff12145d5ef9781d5e2fef1f1484;state=OPEN;review=REVIEW_REQUIRED;failed=Coverage test|Check approval|Slice / Slice test;comment=gouzil:4582462739',
         },
@@ -937,7 +937,7 @@ describe('github-monitor-ledger tool', () => {
       action: 'record',
       events: [
         {
-          eventKey: 'session-pr:sess_dev:PaddlePaddle/Paddle#79107',
+          eventKey: 'github:thread:79107',
           state: {
             repo: 'PaddlePaddle/Paddle',
             pr: 79107,
@@ -956,7 +956,7 @@ describe('github-monitor-ledger tool', () => {
       action: 'check',
       events: [
         {
-          eventKey: 'github:session-pr-state:sess_dev:PaddlePaddle/Paddle:79107',
+          eventKey: 'github:thread:79107',
           state: {
             repo: 'PaddlePaddle/Paddle',
             pr: '79107',
@@ -970,7 +970,7 @@ describe('github-monitor-ledger tool', () => {
     })
 
     expect(repeatCheck.details.results[0]).toMatchObject({
-      eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79107',
+      eventKey: 'github:thread:79107',
       stateDigest:
         'head=d84bac1eda8eff12145d5ef9781d5e2fef1f1484;state=open;review=review_required;failed=check approval|coverage test|slice / slice test',
       handledStatus: 'handled_repeat',
@@ -981,7 +981,7 @@ describe('github-monitor-ledger tool', () => {
       action: 'check',
       events: [
         {
-          eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79107',
+          eventKey: 'github:thread:79107',
           state: {
             headSha,
             state: 'OPEN',
@@ -1001,7 +1001,7 @@ describe('github-monitor-ledger tool', () => {
 
   it('distinguishes validated CI root causes under the same check name', async () => {
     const tool = registerTool()
-    const eventKey = 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79107'
+    const eventKey = 'github:thread:79107'
     const headSha = 'd84bac1eda8eff12145d5ef9781d5e2fef1f1484'
 
     await tool.execute('call_1', {
@@ -1102,8 +1102,7 @@ describe('github-monitor-ledger tool', () => {
       action: 'record',
       events: [
         {
-          eventKey:
-            'github:session-pr:sess_dev_neko_handle_paddle_pr_79329_missed_review_follow_up:PaddlePaddle/Paddle#79329',
+          eventKey: 'github:thread:79329',
           state: {
             repo: 'PaddlePaddle/Paddle',
             pr: 79329,
@@ -1125,8 +1124,7 @@ describe('github-monitor-ledger tool', () => {
       action: 'check',
       events: [
         {
-          eventKey:
-            'github:session-pr-state:sess_dev_neko_handle_paddle_pr_79329_missed_review_follow_up:PaddlePaddle/Paddle:79329',
+          eventKey: 'github:thread:79329',
           state: {
             repo: 'PaddlePaddle/Paddle',
             pr: 79329,
@@ -1141,8 +1139,7 @@ describe('github-monitor-ledger tool', () => {
     })
 
     expect(repeatedGateCheck.details.results[0]).toMatchObject({
-      eventKey:
-        'github:session-pr:sess_dev_neko_handle_paddle_pr_79329_missed_review_follow_up:PaddlePaddle/Paddle#79329',
+      eventKey: 'github:thread:79329',
       stateDigest: `head=${headSha.slice(0, 7)};state=open;review=review_required;gate=approval`,
       handledStatus: 'handled_repeat',
       shouldAct: false,
@@ -1152,8 +1149,7 @@ describe('github-monitor-ledger tool', () => {
       action: 'check',
       events: [
         {
-          eventKey:
-            'github:session-pr:sess_dev_neko_handle_paddle_pr_79329_missed_review_follow_up:PaddlePaddle/Paddle#79329',
+          eventKey: 'github:thread:79329',
           state: {
             repo: 'PaddlePaddle/Paddle',
             pr: 79329,
@@ -1172,14 +1168,14 @@ describe('github-monitor-ledger tool', () => {
     })
   })
 
-  it('treats repeated merged PR backchecks as terminal no-op state', async () => {
+  it('treats repeated merged PR notifications as terminal no-op state', async () => {
     const tool = registerTool()
 
     await tool.execute('call_1', {
       action: 'record',
       events: [
         {
-          eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79119',
+          eventKey: 'github:thread:79119',
           stateDigest:
             'repo=PaddlePaddle/Paddle;pr=79119;head=50ad302f5da18f8ec0debb8e9bc7dfff6e6a9c90;merged=true;review=APPROVED;failed=Linux-DCU / Test',
           outcome: 'routed',
@@ -1191,7 +1187,7 @@ describe('github-monitor-ledger tool', () => {
       action: 'check',
       events: [
         {
-          eventKey: 'session-pr:sess_dev:PaddlePaddle/Paddle#79119',
+          eventKey: 'github:thread:79119',
           stateDigest:
             'head:50ad302f5da18f8ec0debb8e9bc7dfff6e6a9c90;state:MERGED;review:APPROVED;failed_checks:Check approval|Coverage test',
         },
@@ -1214,7 +1210,7 @@ describe('github-monitor-ledger tool', () => {
       action: 'record',
       events: [
         {
-          eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79120',
+          eventKey: 'github:thread:79120',
           stateDigest: `terminal=merged;head=${shortSha};review=APPROVED`,
           outcome: 'routed',
         },
@@ -1225,7 +1221,7 @@ describe('github-monitor-ledger tool', () => {
       action: 'check',
       events: [
         {
-          eventKey: 'session-pr:sess_dev:PaddlePaddle/Paddle#79120',
+          eventKey: 'github:thread:79120',
           stateDigest: `terminal=merged;head=${fullSha};review=APPROVED`,
         },
       ],
@@ -1242,7 +1238,7 @@ describe('github-monitor-ledger tool', () => {
       action: 'record',
       events: [
         {
-          eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79121',
+          eventKey: 'github:thread:79121',
           stateDigest: `terminal=merged;head=${fullSha};review=APPROVED`,
           outcome: 'routed',
         },
@@ -1253,7 +1249,7 @@ describe('github-monitor-ledger tool', () => {
       action: 'check',
       events: [
         {
-          eventKey: 'session-pr:sess_dev:PaddlePaddle/Paddle#79121',
+          eventKey: 'github:thread:79121',
           stateDigest: `terminal=merged;head=${shortSha};review=APPROVED`,
         },
       ],
@@ -1274,7 +1270,7 @@ describe('github-monitor-ledger tool', () => {
       action: 'record',
       events: [
         {
-          eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79119',
+          eventKey: 'github:thread:79119',
           stateDigest:
             'repo=PaddlePaddle/Paddle;pr=79119;head=50ad302f5da18f8ec0debb8e9bc7dfff6e6a9c90;merged=true;review=APPROVED;failed=Linux-DCU / Test',
           outcome: 'routed',
@@ -1286,7 +1282,7 @@ describe('github-monitor-ledger tool', () => {
       action: 'check',
       events: [
         {
-          eventKey: 'session-pr:sess_dev:PaddlePaddle/Paddle#79119',
+          eventKey: 'github:thread:79119',
           state: {
             repo: 'PaddlePaddle/Paddle',
             pr: 79119,
@@ -1500,8 +1496,7 @@ describe('github-monitor-ledger tool', () => {
 
   it('keeps suppressed Paddle PR terminal states handled when head SHA length changes', async () => {
     const tool = registerTool()
-    const eventKey =
-      'github:session-pr:sess_dev_neko_triage_paddle_pr_79233_follow_up_ci_failures:PaddlePaddle/Paddle#79233'
+    const eventKey = 'github:thread:79233'
     const fullSha = 'fb301d72c2725f4fcabf78c513b91a1b5b108364'
     const shortSha = 'fb301d72c272'
 
@@ -1601,10 +1596,9 @@ describe('github-monitor-ledger tool', () => {
     })
   })
 
-  it('keeps suppressed Paddle PR backcheck state-object variants handled', async () => {
+  it('keeps suppressed Paddle PR notification state-object variants handled', async () => {
     const tool = registerTool()
-    const eventKey =
-      'github:session-pr:sess_dev_neko_review_paddle_pr_79153_error_format_mismatches:PaddlePaddle/Paddle#79153'
+    const eventKey = 'github:thread:79153'
     const fullSha = 'c0e2bbfecd5406472c0be7806b8464be38e7ad04'
 
     const priorSuppressionRecord = await tool.execute('call_1', {
@@ -1677,7 +1671,7 @@ describe('github-monitor-ledger tool', () => {
   it('does not inflate handled count for duplicate records', async () => {
     const tool = registerTool()
     const event = {
-      eventKey: 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79082',
+      eventKey: 'github:thread:79082',
       stateDigest: 'head=647a7c539c58a29ff053de3397ddc5c56defd348;merged=true',
       outcome: 'routed',
     }
@@ -1715,7 +1709,7 @@ describe('github-monitor-ledger tool', () => {
 
   it('allows later suppression to replace prior routed handling for the same state', async () => {
     const tool = registerTool()
-    const eventKey = 'github:session-pr:sess_dev:PaddlePaddle/Paddle#79083'
+    const eventKey = 'github:thread:79083'
     const stateDigest = 'head=647a7c539c58a29ff053de3397ddc5c56defd348;merged=true'
 
     await tool.execute('call_1', {
@@ -1768,5 +1762,25 @@ describe('github-monitor-ledger tool', () => {
       lastHandledOutcome: 'suppressed',
       handledCount: 2,
     })
+  })
+
+  it('rejects Session and repository backcheck keys', async () => {
+    const tool = registerTool()
+
+    for (const eventKey of [
+      'session-pr:yutto-dev/yutto#776:terminal',
+      'github:session-pr:sess_dev_neko_review_yutto_pr_776:yutto-dev/yutto#776',
+      'active-pr:yutto-dev/yutto#776:lifecycle',
+      'pr-terminal:yutto-dev/yutto#776',
+    ]) {
+      await expect(
+        tool.execute('call_rejected', {
+          action: 'check',
+          events: [{ eventKey, state: { terminal: 'merged' } }],
+        })
+      ).rejects.toThrow(
+        'synthetic events require the current unread notification key github:thread:<thread_id>'
+      )
+    }
   })
 })

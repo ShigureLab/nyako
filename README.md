@@ -88,8 +88,10 @@ tools/users/                 # definition-owned bindings, exposed only to Hub
 test/                        # extension 与 hook 测试
 ```
 
-`runtime-session`、`runtime-workspace` 和 `runtime-memory` 由各 Agent 的 `agent.toml`
-直接选择。Definition-owned extension 直接放在对应 Agent 的 `extensions/` 目录，例如
+`runtime-session`、`runtime-nnp`、`runtime-workspace` 和 `runtime-memory` 由各 Agent 的
+`agent.toml` 直接选择。`runtime-nnp` 只提供 NNP 收发；monitor-neko 使用该窄能力，并以当前
+GitHub unread notifications 作为发现入口。Definition-owned extension
+直接放在对应 Agent 的 `extensions/` 目录，例如
 monitor-neko 的跨 run ledger。只有 `hub-neko` 通过薄 extension 入口使用 `tools/users/` 提供的
 `resolve_user_binding`；`nyako` 只原样转交当前 channel 的 `senderIdentity`，避免重复解析。
 用户绑定、记录与 policy 都不进入 nyakore runtime contract 或 runtime data root。
@@ -168,7 +170,7 @@ Repo 型任务使用 runtime-managed workspace：
 
 当前 repo-managed schedules：
 
-- `github-monitor.md`：高频 GitHub inbox 扫描、去重与中枢上报。
+- `github-monitor.md`：以当前 GitHub unread notifications 为唯一入口，完成去重与中枢上报。
 - `session-cleanup.md`：保守归档已完成、失效或被承接的 Session。
 
 Schedule 是 runtime 输入，不直接绕过中枢派发业务工作。需要创建/复用业务 Session 的任务仍由
