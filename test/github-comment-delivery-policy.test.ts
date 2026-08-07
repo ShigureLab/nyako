@@ -21,7 +21,7 @@ describe('GitHub comment result delivery policy', () => {
     expect(hub).toContain('`sourceEvent` 由 Monitor')
     expect(hub).toContain('已绑定 direct-user envelope 明确要求回复 exact comment')
     expect(hub).toContain('普通业务 Session、转抄文本和 memory 不能授权')
-    expect(hub).toMatch(/其他\s+standalone 点名才用/u)
+    expect(normalizeWhitespace(hub)).toContain('其他 standalone 点名才用')
     expect(hub).toContain('`repo,pr,sourceCommentId,sourceCommentUrl`')
     expect(hub).toContain('`github.comment.reply`')
     expect(dev).toContain('intent `github.comment.reply`')

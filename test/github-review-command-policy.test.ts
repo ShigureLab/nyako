@@ -81,7 +81,7 @@ describe('GitHub review command policy', () => {
     expect(monitor).toContain('configured trusted actor')
     expect(monitor).toContain('comment 的 `sourceEvent.body`')
     expect(monitor).toMatch(/Monitor 仍不发送\s+`github\.review\.publish` command/u)
-    expect(hub).toContain('完整审查 current head')
+    expect(normalizeWhitespace(hub)).toContain('完整审查 current head')
     expect(hub).toContain('Hub 信任该固定 sender 的 classification')
     expect(hub).toContain('从 `currentStatus` 取 exact repo/PR')
     expect(hub).toContain('观测 head 不转发也不依赖')

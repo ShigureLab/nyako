@@ -56,6 +56,9 @@ flowchart LR
   `trusted_human_review_request`；Hub 直接发送唯一的 `github.review.publish {repo,pr}`；Dev 在这一个
   command 内刷新、锁定、完整审查并发布稳定的 current head，不拆分中间交接阶段。这个
   名字只是内部 command，不是另一套协议，也没有第二套许可、动作或来源副本。
+- 同一 `<repo>#<pr>` 只使用一个持续复用的 PR review Session；每次 `github.review.publish` 只是其中
+  一次 review cycle。发布 review、review decision、head 变化或 idle 均不结束 Session；只有确认
+  PR 已 `MERGED` 才自动归档，closed-unmerged 不归档。
 - Direct chat 由 Nyako 原样转交 channel `senderIdentity`，只由 Hub resolve 一次；Hub 不读 GitHub
   或提供 SHA。
 - 其他 `sess_*` 通常是按任务创建的动态业务 Session。

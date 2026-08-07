@@ -17,13 +17,19 @@ task: scheduled.session_cleanup
    - 当前 session `hub_neko`
    - 平台 channel / bridge session，例如 `telegram_*`、`infoflow_*`、`bridge_*`
    - 长期系统/调度 session，例如 `sess_monitor_neko_github_watch`
+   - PR review lifecycle session，除非 live GitHub 事实明确核实该 PR 已 merged；open、
+     closed-unmerged、等待新 head、已发布 formal review、CHANGES_REQUESTED、APPROVED、idle、
+     timeout 或存在重复 Session 都不能绕过这条规则
    - 你核实后确认仍在进行中、仍有未交付结果或仍需等待外部信号的 session
 4. 先为相似任务选出唯一的 canonical session，再处理旧重复项：
    - 同 repo 且同 PR / issue，或 title/topic/goal 明显属于同一工作流时，优先保留最新、有真实进展、持有 pending/running 请求或明确被继续使用的 session。
-   - 其它更旧且已被 canonical session 承接的重复 session 应归档；“存在相似活跃任务”是归档旧重复项的证据，不是保留全部重复项的理由。
+   - 其它更旧且已被 canonical session 承接的重复 session 通常应归档；但 PR review lifecycle
+     的重复项在 PR merged 前也不得由 cleanup 归档，应记录为策略违规待人工修复。
    - 如果无法判断哪一个是 canonical session，保留相关项并记入 `skipped_uncertain`。
 5. 归档条件满足其一即可：
-   - `PR 已终态`：session 明确关联某个 PR，使用 `gh pr view` / GitHub API 核实当前 `merged` 或 `closed`；没有 live 证据时不要把 monitor 文本或旧摘要单独当作终态证据。
+   - `PR 已合入`：session 明确关联某个 PR，使用 `gh pr view` / GitHub API 核实当前 `merged=true`
+     或 state=`MERGED`；closed-unmerged 不满足。没有 live 证据时不要把 monitor 文本、review
+     publication、review decision 或旧摘要单独当作 merge 证据。
    - `长期不活跃`：`updatedAt` 距现在已满 7 天，且没有 pending/running 请求、active NNP receipt 或仍需交付的具体动作。
    - `旧 timeout / 失败残留`：最后执行已 timeout / failed / cancelled，距今已满 24 小时，且任务已被其它 session 承接、重复创建，或没有可恢复的具体产物与待交付动作。
    - `测试 / smoke 残留`：title/topic/goal 明确是 smoke、e2e、临时验证或重复测试，距今已满 24 小时且没有 pending/running 请求。
@@ -33,7 +39,7 @@ task: scheduled.session_cleanup
 
 ## 目标
 
-- 归档 live 核实已 merged / closed 且没有未交付动作的 PR session
+- 只归档 live 核实已 merged 且没有未交付动作的 PR lifecycle session
 - 归档 7 天及以上无活动、旧 timeout / 失败残留和测试残留
 - 相似任务只保留唯一 canonical session，清掉被承接的旧重复项
 - 对无法确认 canonical 归属或仍有真实待办的 session 采取保守策略

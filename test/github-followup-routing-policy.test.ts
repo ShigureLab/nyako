@@ -21,7 +21,7 @@ describe('GitHub follow-up routing policy', () => {
     expect(monitorAgents).toContain('sourceEvent={type,id,url,actorLogin,body,createdAt}')
     expect(monitorAgents).toContain('发送前最后刷新')
     expect(monitorTools).toContain('再读一次 event 与 current head')
-    expect(hub).toContain('follow-up 原样转为 `inform`')
+    expect(normalizeWhitespace(hub)).toContain('follow-up 原样转为 `inform`')
   })
 
   it('uses the injected Session goal without inventing a scope mutation protocol', async () => {
@@ -34,13 +34,13 @@ describe('GitHub follow-up routing policy', () => {
       const normalized = normalizeWhitespace(prompt)
       expect(prompt).toMatch(/runtime 注入的当前 Session goal/u)
       expect(prompt).toMatch(/`inform` 只增加事实/u)
-      expect(normalized).toContain('goal 内的一次性工作项')
+      expect(normalized).toContain('goal 内的一次工作项，不代表 goal 或 Session 完成')
       expect(prompt).toContain('不跨消息累计')
       expect(prompt).not.toContain('session.scope.replace')
       expect(prompt).not.toContain('session.stop')
     }
-    expect(hub).toContain('新目标创建新业务 Session')
-    expect(dev).toContain('新目标使用新 Session')
+    expect(hub).toContain('新目标才创建新业务 Session')
+    expect(dev).toContain('PR review Session 的 goal')
   })
 
   it('routes existing-session follow-ups as facts without action hints', async () => {
@@ -59,9 +59,9 @@ describe('GitHub follow-up routing policy', () => {
     const hub = await read('agents/hub-neko/AGENTS.md')
     const normalized = normalizeWhitespace(hub)
 
-    expect(hub).toContain('催办继承同 PR 的未完成 review obligation')
-    expect(hub).toContain('绝不创建 reply-only Session')
-    expect(hub).toContain('同一 `obligationKey`')
+    expect(hub).toContain('生命周期键固定为 canonical `<repo>#<pr>`')
+    expect(hub).toContain('也不创建 reply-only Session')
+    expect(hub).toContain('催办复用')
     expect(hub).toContain('`obligationKey="github.review.publish:<repo>#<pr>"`')
     expect(hub).toContain('runtime 保持单一 pending')
     expect(hub).toContain('`nnp_list(status=all)`')
@@ -91,16 +91,16 @@ describe('GitHub follow-up routing policy', () => {
       })
     )
     const limits: Record<string, number> = {
-      'dev-neko': 3_800,
-      'hub-neko': 4_800,
-      'monitor-neko': 4_800,
+      'dev-neko': 4_700,
+      'hub-neko': 6_200,
+      'monitor-neko': 5_000,
       nyako: 2_800,
     }
 
     for (const [agent, prompt] of groups) {
       expect(Buffer.byteLength(prompt)).toBeLessThan(limits[agent])
     }
-    expect(Buffer.byteLength(groups.map(([, prompt]) => prompt).join('\n'))).toBeLessThan(15_000)
+    expect(Buffer.byteLength(groups.map(([, prompt]) => prompt).join('\n'))).toBeLessThan(17_000)
     await expect(
       access(path.join(process.cwd(), 'skills/github-contribution-guidelines/SKILL.md'))
     ).rejects.toThrow()
