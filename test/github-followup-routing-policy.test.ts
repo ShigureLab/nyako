@@ -103,6 +103,6 @@ describe('GitHub follow-up routing policy', () => {
     expect(Buffer.byteLength(groups.map(([, prompt]) => prompt).join('\n'))).toBeLessThan(17_000)
     await expect(
       access(path.join(process.cwd(), 'skills/github-contribution-guidelines/SKILL.md'))
-    ).rejects.toThrow()
+    ).resolves.toBeUndefined()
   })
 })

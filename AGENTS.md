@@ -86,6 +86,9 @@ Co-authored-by: Codex <noreply@openai.com>
 9. Repo work uses session-scoped workspaces managed under `NYAKORE_DATA_ROOT`.
 10.   Shared repo roots carry upstream synchronization state; session workspaces carry task execution state.
 11.   Workspace acquisition, layout, and cleanup are defined by runtime workspace state and lifecycle hooks.
+12.   External Skills belong in `skills.lock.toml` with a full immutable revision and canonical digest.
+      A mutable `ref` is only an explicit update selector; startup must never advance it, and a local
+      Skill directory must not shadow a locked Skill with the same name.
 
 ## User-Visible Links
 

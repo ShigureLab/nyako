@@ -1,0 +1,10 @@
+version = 1
+
+[[skills]]
+name = "github-conversation"
+source = "git"
+repository = "https://github.com/ShigureLab/gh-llm.git"
+ref = "main"
+revision = "ede939393be7ec1a81ecfb5c1f22e54b00c2238d"
+path = "skills/github-conversation"
+digest = "sha256:07358411f3598e9ca043c17d74d6a134989471077919d2c898b030c7ac60fcbf"

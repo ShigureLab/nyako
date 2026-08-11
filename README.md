@@ -85,7 +85,8 @@ agents/<agent-id>/
 
 hooks/session-worktree/      # Session 生命周期 worktree provisioning/cleanup
 schedules/*.md               # repo-managed schedule definitions
-skills/<skill-id>/SKILL.md    # 物化在 definition repo 的完整 skill
+skills/<skill-id>/SKILL.md    # definition repo 自己维护的本地 Skill
+skills.lock.toml              # 外部 Skill 的不可变 revision 与目录 digest
 memory/config.toml           # runtime memory producer 策略
 tools/users/                 # definition-owned bindings, exposed only to Hub
 test/                        # extension 与 hook 测试
@@ -119,6 +120,11 @@ identities = ["infoflow:user:example-user", "github:user:example-login"]
 - 默认 Agent 和 startup Sessions
 - runtime loop 开关
 - memory 目录位置（默认 `memory/`）
+
+项目根目录的 `skills.lock.toml` 独立声明远程 Skill：`revision` 固定 runtime 实际加载的完整
+commit SHA，`digest` 校验整个 Skill 目录，`ref` 只供显式更新时解析。Gateway 每次加载配置时
+都会验证 runtime cache；cache 完整时不联网，缺失或损坏时只拉取已锁定的 SHA 并重新校验，
+不会在启动或后台定期追踪 `ref`。
 
 Channel policy 放在 `adapters/<id>/channel.toml`，由 nyakore 加载；GitHub integration policy
 保留在 `adapters/github/adapter.toml`，只由其 definition-side module 直接读取，nyakore
@@ -157,8 +163,13 @@ Agent 可用能力来自三层：
 
 `dev-neko` 在绑定的 Session workspace 中直接完成工程实现和验证；需要独立研究或计划时，
 通过明确的 NNP Session 消息与 `research-neko`、`plan-neko` 协作。GitHub 深度上下文读取使用
-definition repo 中物化的 skill；具体行为约束以各 Agent 的 `AGENTS.md` 为准。Skill 的获取、
-版本选择和更新由 definition repo 的维护流程负责，runtime 启动时不克隆外部仓库。
+锁定的 `github-conversation` Skill；具体行为约束以各 Agent 的 `AGENTS.md` 为准。本仓库自己
+维护的 Skill 直接放在 `skills/<skill-id>/`，外部 Skill 则写入 `skills.lock.toml`。同名的本地与
+远程 Skill 会被拒绝，不能悄悄覆盖。
+
+`nyakore skill sync` 可主动校验并补齐当前锁定版本；正常 Gateway 启动也会完成同样的 cache
+维护。只有 `nyakore skill update <name>`（可选 `--ref <ref>`）会解析远程 selector、更新
+`revision` 与 `digest`。更新 lock 后需要重启 Gateway；不存在定时更新。
 
 ## Workspace 与 Git
 
@@ -225,6 +236,14 @@ git pull
 pnpm install --frozen-lockfile
 nyakore gateway service restart
 nyakore gateway health
+```
+
+需要显式升级远程 Skill 时：
+
+```bash
+nyakore skill update github-conversation
+git diff -- skills.lock.toml
+nyakore gateway service restart
 ```
 
 ### 任务投递与检查

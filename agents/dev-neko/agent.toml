@@ -15,7 +15,11 @@ tools = [
 ]
 
 [skills]
-enable = ["github-conversation", "paddlepaddle-contribution-guidelines"]
+enable = [
+  "github-conversation",
+  "github-contribution-guidelines",
+  "paddlepaddle-contribution-guidelines",
+]
 
 [model]
 model = "openai-codex/gpt-5.6-sol"

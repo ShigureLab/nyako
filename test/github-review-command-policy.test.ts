@@ -135,8 +135,8 @@ describe('GitHub review command policy', () => {
   })
 
   it('enables only task-relevant GitHub skills', async () => {
-    const configs = Object.fromEntries(
-      await Promise.all(
+    const [configs, skillLock] = await Promise.all([
+      Promise.all(
         [
           'dev-neko',
           'hub-neko',
@@ -145,19 +145,22 @@ describe('GitHub review command policy', () => {
           'nyako',
           'plan-neko',
           'research-neko',
-        ].map(async (agent) => [agent, await read(`agents/${agent}/agent.toml`)])
-      )
-    )
+        ].map(async (agent) => [agent, await read(`agents/${agent}/agent.toml`)] as const)
+      ).then(Object.fromEntries),
+      read('skills.lock.toml'),
+    ])
 
     expect(configs['dev-neko']).toContain('"github-conversation"')
+    expect(configs['dev-neko']).toContain('"github-contribution-guidelines"')
     expect(configs['dev-neko']).toContain('"paddlepaddle-contribution-guidelines"')
     expect(configs['monitor-neko']).toContain('enable = ["github-conversation"]')
     expect(configs['research-neko']).toContain('enable = ["github-conversation"]')
     for (const agent of ['hub-neko', 'memory-neko', 'nyako', 'plan-neko']) {
       expect(configs[agent]).toContain('enable = []')
     }
-
-    const all = Object.values(configs).join('\n')
-    expect(all).not.toContain('github-contribution-guidelines')
+    expect(skillLock).toContain('name = "github-conversation"')
+    expect(skillLock).toContain('repository = "https://github.com/ShigureLab/gh-llm.git"')
+    expect(skillLock).toMatch(/revision = "[0-9a-f]{40}"/u)
+    expect(skillLock).toMatch(/digest = "sha256:[0-9a-f]{64}"/u)
   })
 })
