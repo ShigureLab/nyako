@@ -152,7 +152,6 @@ describe('GitHub review command policy', () => {
 
     expect(configs['dev-neko']).toContain('"github-conversation"')
     expect(configs['dev-neko']).toContain('"github-contribution-guidelines"')
-    expect(configs['dev-neko']).toContain('"paddlepaddle-contribution-guidelines"')
     expect(configs['monitor-neko']).toContain('enable = ["github-conversation"]')
     expect(configs['research-neko']).toContain('enable = ["github-conversation"]')
     for (const agent of ['hub-neko', 'memory-neko', 'nyako', 'plan-neko']) {
