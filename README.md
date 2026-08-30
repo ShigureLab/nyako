@@ -49,8 +49,8 @@ flowchart LR
 
 - Session 是连续性的主对象；业务任务应复用或创建明确的 Session。
 - `hub_neko` 是 `runtime.toml` 声明的 startup Session，由 `hub-neko` 持有。
-- `nyako` 是面向 channel 用户的 Agent；它运行在显式创建的 `conv_*`、`telegram_*`、`infoflow_*` 等 Session 中，不隐式拥有同名 Session。
-- `conv_*`、`telegram_*`、`infoflow_*`、`bridge_*` 是动态 channel/bridge Session。
+- `nyako` 是面向 channel 用户的 Agent；它运行在显式创建的 `conv_*`、`telegram_*` 等 Session 中，不隐式拥有同名 Session。
+- `conv_*`、`telegram_*`、`bridge_*` 是动态 channel/bridge Session。
 - `sess_monitor_neko_github_watch` 是 GitHub schedule 使用的长期监控 Session。
 - Review publication 链路：Monitor 只验证 explicit trusted native request 或 comment，并上报同一
   `trusted_human_review_request`；Hub 直接发送唯一的 `github.review.publish {repo,pr}`；Dev 在这一个
@@ -104,8 +104,8 @@ monitor-neko 的跨 run ledger。只有 `hub-neko` 通过薄 extension 入口使
 
 ```toml
 id = "example-user"
-notificationPeerId = "endpoint:infoflow:infoflow:user:example-user"
-identities = ["infoflow:user:example-user", "github:user:example-login"]
+notificationPeerId = "endpoint:telegram:telegram:user:123456"
+identities = ["telegram:user:123456", "github:user:example-login"]
 ```
 
 工具基于自身文件位置读取记录，不依赖当前工作目录或 `~/.nyakore`。每次查询都重新读取目录，

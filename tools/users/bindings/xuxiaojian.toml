@@ -1,8 +1,2 @@
 id = "xuxiaojian"
-notificationPeerId = "endpoint:infoflow:infoflow:user:xuxiaojian"
-identities = [
-  "telegram:user:1066949855",
-  "telegram:chat:1066949855",
-  "infoflow:user:xuxiaojian",
-  "github:user:SigureMo",
-]
+identities = ["telegram:user:1066949855", "telegram:chat:1066949855", "github:user:SigureMo"]

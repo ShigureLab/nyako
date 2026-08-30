@@ -42,13 +42,13 @@ async function writeBinding(
 describe('user binding tool', () => {
   it('resolves explicit and canonical identities', async () => {
     const directory = await bindingsDirectory()
-    await writeBinding(directory, 'shigure.toml', 'shigure', ['telegram:42', 'infoflow:abc'])
+    await writeBinding(directory, 'shigure.toml', 'shigure', ['telegram:42', 'github:user:Shigure'])
     const users = new UserBindingDirectory(directory)
 
     await expect(users.resolve('telegram:42')).resolves.toEqual({
       id: 'shigure',
       canonicalIdentity: 'user:shigure',
-      identities: ['telegram:42', 'infoflow:abc'],
+      identities: ['telegram:42', 'github:user:Shigure'],
       notificationPeerId: null,
     })
     await expect(users.resolve('user:shigure')).resolves.toMatchObject({ id: 'shigure' })
@@ -61,8 +61,8 @@ describe('user binding tool', () => {
       directory,
       'shigure.toml',
       'shigure',
-      ['infoflow:user:shigure', 'github:user:Shigure'],
-      'endpoint:infoflow:infoflow:user:shigure'
+      ['telegram:user:42', 'github:user:Shigure'],
+      'endpoint:telegram:telegram:user:42'
     )
 
     await expect(
@@ -70,16 +70,16 @@ describe('user binding tool', () => {
     ).resolves.toEqual({
       id: 'shigure',
       canonicalIdentity: 'user:shigure',
-      identities: ['infoflow:user:shigure', 'github:user:Shigure'],
-      notificationPeerId: 'endpoint:infoflow:infoflow:user:shigure',
+      identities: ['telegram:user:42', 'github:user:Shigure'],
+      notificationPeerId: 'endpoint:telegram:telegram:user:42',
     })
 
     await writeBinding(
       directory,
       'invalid.toml',
       'invalid',
-      ['infoflow:user:invalid'],
-      'endpoint:infoflow:infoflow:user:someone-else'
+      ['telegram:user:invalid'],
+      'endpoint:telegram:telegram:user:someone-else'
     )
     await expect(new UserBindingDirectory(directory).list()).rejects.toThrow(
       'notificationPeerId driver must match an explicitly bound identity'
@@ -90,8 +90,8 @@ describe('user binding tool', () => {
       directory,
       'wrong-driver.toml',
       'wrong-driver',
-      ['infoflow:user:wrong-driver'],
-      'endpoint:telegram:infoflow:user:wrong-driver'
+      ['github:user:wrong-driver'],
+      'endpoint:telegram:github:user:wrong-driver'
     )
     await expect(new UserBindingDirectory(directory).list()).rejects.toThrow(
       'notificationPeerId driver must match an explicitly bound identity'
@@ -137,7 +137,7 @@ describe('user binding tool', () => {
       details: {
         found: true,
         id: 'xuxiaojian',
-        notificationPeerId: 'endpoint:infoflow:infoflow:user:xuxiaojian',
+        notificationPeerId: null,
       },
     })
   })
@@ -147,7 +147,7 @@ describe('user binding tool', () => {
       {
         id: 'xuxiaojian',
         canonicalIdentity: 'user:xuxiaojian',
-        notificationPeerId: 'endpoint:infoflow:infoflow:user:xuxiaojian',
+        notificationPeerId: null,
       }
     )
   })

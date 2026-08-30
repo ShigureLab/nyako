@@ -1,3 +1,2 @@
 id = "gushiwei"
-notificationPeerId = "endpoint:infoflow:infoflow:user:gushiwei"
-identities = ["infoflow:user:gushiwei", "github:user:swgu98"]
+identities = ["github:user:swgu98"]

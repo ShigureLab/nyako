@@ -15,7 +15,7 @@ task: scheduled.session_cleanup
 2. 必须先调用 `list_sessions` 获取当前非 archived session 列表；对候选项调用 `get_session` 查看详情，并对当前 `hub_neko` 调用 `nnp_list`（`direction=all`、`status=active`）检查活跃请求。当前工具不允许读取其它 Session 的 inbox；候选 Session 只要从 state、last run、next actions 或当前中枢消息无法排除仍有未交付工作，就必须归入 `skipped_uncertain`，不得猜测后归档。
 3. 必须跳过以下 session，不要归档：
    - 当前 session `hub_neko`
-   - 平台 channel / bridge session，例如 `telegram_*`、`infoflow_*`、`bridge_*`
+   - 平台 channel / bridge session，例如 `telegram_*`、`bridge_*`
    - 长期系统/调度 session，例如 `sess_monitor_neko_github_watch`
    - PR review lifecycle session，除非 live GitHub 事实明确核实该 PR 已 merged；open、
      closed-unmerged、等待新 head、已发布 formal review、CHANGES_REQUESTED、APPROVED、idle、
