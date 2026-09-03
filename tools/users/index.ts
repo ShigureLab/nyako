@@ -1,9 +1,6 @@
-import { readdir, readFile } from 'node:fs/promises'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
 import { Type, type Static } from '@sinclair/typebox'
-import { parse as parseToml } from 'smol-toml'
+import { loadLocalConfigSection, resolveLocalConfigPath } from '../local-config.ts'
 
 export type UserBinding = {
   id: string
@@ -21,15 +18,6 @@ const resolveUserBindingSchema = Type.Object(
 
 type ResolveUserBindingInput = Static<typeof resolveUserBindingSchema>
 
-const DEFAULT_BINDINGS_DIRECTORY = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  'bindings'
-)
-
-function isMissingPath(error: unknown): boolean {
-  return Boolean(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT')
-}
-
 function nonEmptyString(value: unknown, label: string): string {
   if (typeof value !== 'string' || !value.trim()) {
     throw new Error(`${label} must be a non-empty string`)
@@ -37,81 +25,70 @@ function nonEmptyString(value: unknown, label: string): string {
   return value.trim()
 }
 
-function parseBinding(raw: unknown, filePath: string): UserBinding {
+function parseBinding(raw: unknown, label: string): UserBinding {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new Error(`${filePath} must contain a TOML table`)
+    throw new Error(`${label} must be a TOML table`)
   }
   const value = raw as Record<string, unknown>
   const unknownFields = Object.keys(value).filter(
     (key) => key !== 'id' && key !== 'identities' && key !== 'notificationPeerId'
   )
   if (unknownFields.length > 0) {
-    throw new Error(`${filePath} contains unknown fields: ${unknownFields.join(', ')}`)
+    throw new Error(`${label} contains unknown fields: ${unknownFields.join(', ')}`)
   }
-  const id = nonEmptyString(value.id, `${filePath}: id`)
+  const id = nonEmptyString(value.id, `${label}.id`)
   if (!Array.isArray(value.identities) || value.identities.length === 0) {
-    throw new Error(`${filePath}: identities must be a non-empty string array`)
+    throw new Error(`${label}.identities must be a non-empty string array`)
   }
   const identities = value.identities.map((identity, index) =>
-    nonEmptyString(identity, `${filePath}: identities[${index}]`)
+    nonEmptyString(identity, `${label}.identities[${index}]`)
   )
   if (new Set(identities).size !== identities.length) {
-    throw new Error(`${filePath}: identities must not contain duplicates`)
+    throw new Error(`${label}.identities must not contain duplicates`)
   }
   const notificationPeerId =
     value.notificationPeerId === undefined
       ? null
-      : nonEmptyString(value.notificationPeerId, `${filePath}: notificationPeerId`)
+      : nonEmptyString(value.notificationPeerId, `${label}.notificationPeerId`)
   if (notificationPeerId) {
     const match = /^endpoint:([^:]+):(.+)$/.exec(notificationPeerId)
     const driver = match?.[1] ?? ''
     const identity = match?.[2] ?? ''
     if (!identities.includes(identity) || !identity.startsWith(`${driver}:`)) {
-      throw new Error(
-        `${filePath}: notificationPeerId driver must match an explicitly bound identity`
-      )
+      throw new Error(`${label}.notificationPeerId driver must match an explicitly bound identity`)
     }
   }
   const canonicalIdentity = `user:${id}`
   if (identities.includes(canonicalIdentity)) {
     throw new Error(
-      `${filePath}: identities must not repeat the implicit canonical identity ${canonicalIdentity}`
+      `${label}.identities must not repeat the implicit canonical identity ${canonicalIdentity}`
     )
   }
   return { id, canonicalIdentity, identities, notificationPeerId }
 }
 
-export class UserBindingDirectory {
-  readonly directory: string
+export class UserBindingConfig {
+  readonly configPath: string
 
-  constructor(directory = DEFAULT_BINDINGS_DIRECTORY) {
-    this.directory = directory
+  constructor(configPath = resolveLocalConfigPath()) {
+    this.configPath = configPath
   }
 
   async list(): Promise<UserBinding[]> {
-    let entries
-    try {
-      entries = await readdir(this.directory, { withFileTypes: true })
-    } catch (error) {
-      if (isMissingPath(error)) return []
-      throw error
+    const section = await loadLocalConfigSection('tool', 'user-binding', this.configPath)
+    if (!section) return []
+    const unknownFields = Object.keys(section).filter((key) => key !== 'bindings')
+    if (unknownFields.length > 0) {
+      throw new Error(
+        `${this.configPath}: [tool.user-binding] contains unknown fields: ${unknownFields.join(', ')}`
+      )
     }
-
-    const bindings = await Promise.all(
-      entries
-        .filter((entry) => entry.isFile() && entry.name.endsWith('.toml'))
-        .sort((left, right) => left.name.localeCompare(right.name))
-        .map(async (entry) => {
-          const filePath = path.join(this.directory, entry.name)
-          try {
-            return parseBinding(parseToml(await readFile(filePath, 'utf8')), filePath)
-          } catch (error) {
-            throw new Error(
-              `failed to load user binding: ${error instanceof Error ? error.message : String(error)}`,
-              { cause: error }
-            )
-          }
-        })
+    const rawBindings = section.bindings ?? []
+    if (!Array.isArray(rawBindings)) {
+      throw new Error(`${this.configPath}: tool.user-binding.bindings must be an array of tables`)
+    }
+    const bindings = rawBindings.map((binding, index) =>
+      parseBinding(binding, `${this.configPath}: tool.user-binding.bindings[${index}]`)
     )
 
     const ids = new Set<string>()
@@ -144,13 +121,15 @@ export class UserBindingDirectory {
   }
 }
 
-export default function registerUserBindingTool(pi: ExtensionAPI): void {
-  const users = new UserBindingDirectory()
+export default function registerUserBindingTool(
+  pi: ExtensionAPI,
+  users = new UserBindingConfig()
+): void {
   pi.registerTool({
     name: 'resolve_user_binding',
     label: 'resolve user binding',
     description:
-      'Resolve an explicitly configured full external identity and its optional notification peer from the definition-owned user binding group exposed to Hub. For a GitHub sourceEvent.actorLogin, pass github:user:<login>; bare logins never match.',
+      'Resolve an explicitly configured full external identity and its optional notification peer from the machine-local user binding config exposed to Hub. For a GitHub sourceEvent.actorLogin, pass github:user:<login>; bare logins never match.',
     parameters: resolveUserBindingSchema,
     execute: async (_toolCallId, input: ResolveUserBindingInput) => {
       const binding = await users.resolve(input.identity)

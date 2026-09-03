@@ -9,13 +9,13 @@
 
 | 层                      | 负责内容                                                                                           | 存放位置                         |
 | ----------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------- |
-| `nyako` definition repo | Agent 拓扑、prompt、工具声明、project policy、skills、hooks、schedules、Agent `MEMORY.md`          | 当前仓库，可提交                 |
+| `nyako` definition repo | Agent 拓扑、prompt、工具实现、project behavior、skills、hooks、schedules、Agent `MEMORY.md`        | 当前仓库，可提交                 |
 | `nyakore` runtime       | Session registry、显式 Session 寻址与投递、run records、NNP、gateway、workspace contract、内置能力 | `nyakore` 代码库                 |
-| 用户私有层              | Provider credentials、channel secret、gateway 设置、本机身份绑定                                   | `~/.nyakore/`                    |
+| 用户私有层              | Provider credentials、channel/adapter 实例配置、allowlist、本机身份绑定、gateway 设置              | `~/.nyakore/`                    |
 | 项目 runtime state      | Session 文件、transcript、NNP receipts、worktrees、日志、runtime memory/index                      | `~/.nyakore/projects/<project>/` |
 
-不要把 credentials、token 或运行时状态写进本仓库。`runtime.toml` 只保存可提交的定义和
-credential alias，不保存 secret 本身。
+不要把 credentials、外部账号标识、allowlist、用户绑定或运行时状态写进本仓库。`runtime.toml`
+只保存可提交的定义和 credential alias；所有机器/账号相关配置都放在 `~/.nyakore/config.toml`。
 
 ## 团队
 
@@ -70,9 +70,6 @@ flowchart LR
 ```text
 runtime.toml                 # definition repo 入口与 startup Session
 
-adapters/<id>/channel.toml   # nyakore 加载的 channel manifest 与可提交 policy
-adapters/github/adapter.toml # GitHub module 自己读取的 integration policy
-
 agents/<agent-id>/
 ├── agent.toml               # id、role、model、credential alias、工具集合
 ├── extensions/              # 可选：该 Agent 的 Pi 原生 extensions
@@ -88,7 +85,9 @@ schedules/*.md               # repo-managed schedule definitions
 skills/<skill-id>/SKILL.md    # definition repo 自己维护的本地 Skill
 skills.lock.toml              # 外部 Skill 的不可变 revision 与目录 digest
 memory/config.toml           # runtime memory producer 策略
-tools/users/                 # definition-owned bindings, exposed only to Hub
+tools/local-config.ts        # project tools 共用的本机配置局部读取机制
+tools/users/                 # user-binding 解析工具，仅暴露给 Hub
+tools/github/                # GitHub adapter policy 检查工具，仅暴露给 Monitor
 test/                        # extension 与 hook 测试
 ```
 
@@ -97,20 +96,25 @@ test/                        # extension 与 hook 测试
 GitHub unread notifications 作为发现入口。Definition-owned extension
 直接放在对应 Agent 的 `extensions/` 目录，例如
 monitor-neko 的跨 run ledger。只有 `hub-neko` 通过薄 extension 入口使用 `tools/users/` 提供的
-`resolve_user_binding`；`nyako` 只原样转交当前 channel 的 `senderIdentity`，避免重复解析。
-用户绑定、记录与 policy 都不进入 nyakore runtime contract 或 runtime data root。
+`resolve_user_binding`；`monitor-neko` 通过 `tools/github/` 的精确布尔检查读取 trusted actor
+policy；`nyako` 只原样转交当前 channel 的 `senderIdentity`，避免重复解析。
 
-绑定记录与工具放在同一个 definition-owned group：`tools/users/bindings/*.toml`。
+用户绑定记录放在机器本地的 `~/.nyakore/config.toml`：
 
 ```toml
+[tool.user-binding]
+
+[[tool.user-binding.bindings]]
 id = "example-user"
 notificationPeerId = "endpoint:telegram:telegram:user:123456"
 identities = ["telegram:user:123456", "github:user:example-login"]
 ```
 
-工具基于自身文件位置读取记录，不依赖当前工作目录或 `~/.nyakore`。每次查询都重新读取目录，
-只接受显式、无冲突的 identity，不根据显示名、邮箱或文本风格推断。可选
+工具每次查询都重新读取自己拥有的局部配置表，只接受显式、无冲突的 identity，不根据显示名、
+邮箱或文本风格推断。可选
 `notificationPeerId` 必须指向同一记录里的一项 identity，用于 Hub 的主动结果通知。
+Gateway 会通过 `NYAKORE_CONFIG_PATH` 传入已解析的本机配置文件位置；该环境值只包含路径，
+实际配置及 secret 不会复制进环境变量。
 
 ## 配置加载
 
@@ -126,12 +130,13 @@ commit SHA，`digest` 校验整个 Skill 目录，`ref` 只供显式更新时解
 都会验证 runtime cache；cache 完整时不联网，缺失或损坏时只拉取已锁定的 SHA 并重新校验，
 不会在启动或后台定期追踪 `ref`。
 
-Channel policy 放在 `adapters/<id>/channel.toml`，由 nyakore 加载；GitHub integration policy
-保留在 `adapters/github/adapter.toml`，只由其 definition-side module 直接读取，nyakore
-不会加载或验证该文件。`runtime.toml` 的旧 `[policy]` 已删除。Provider secret 位于
-`~/.nyakore/providers/`，channel token/key/secret 位于
-`~/.nyakore/config.toml`。用户层不再承载 allowlist、路由 Agent、group policy 等 definition
-policy。项目运行数据由 `nyakore` 解析到 `~/.nyakore/projects/<project>/`，不要手工依赖其内部文件布局。
+Channel 的 host 字段与 policy 都位于 `~/.nyakore/config.toml`；host 使用
+`[channels.<id>]`，policy 使用 `[channels.<id>.policy]`，router 再使用其 `.router` 子表。
+GitHub integration policy 位于
+`[adapter.github]`，只由其 owning tool 读取；其他 project tool 使用 `[tool.<id>]`。`nyakore`
+严格验证已知 channel 字段，但把 adapter/tool 表作为不透明局部配置。Provider credentials 仍位于
+`~/.nyakore/providers/`。项目运行数据由 `nyakore` 解析到
+`~/.nyakore/projects/<project>/`，不要手工依赖其内部文件布局。
 
 ## Prompt 与记忆
 
@@ -282,8 +287,7 @@ vp test
 - Gateway、repo schedules、动态业务 Session 与 per-session worktrees
 - GitHub monitor ledger 去重
 - repo/project/agent/runtime 分层记忆、QMD BM25 检索与带 provenance 的自动归并
-- runtime channel manifests 与 definition-owned GitHub integration policy；本机层仅保存
-  secret/endpoint
+- 完整的 machine-local channel、adapter 与 tool config；definition repo 不保存外部账号标识
 
 ## 特别感谢
 

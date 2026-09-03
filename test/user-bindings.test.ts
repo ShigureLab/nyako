@@ -1,9 +1,9 @@
-import { access, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
 import { afterEach, describe, expect, it } from 'vite-plus/test'
-import registerUserBindingTool, { UserBindingDirectory } from '../tools/users/index.ts'
+import registerUserBindingTool, { UserBindingConfig } from '../tools/users/index.ts'
 
 const tempDirs: string[] = []
 
@@ -13,37 +13,38 @@ afterEach(async () => {
   )
 })
 
-async function bindingsDirectory(): Promise<string> {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'nyako-user-bindings-'))
-  tempDirs.push(root)
-  const directory = path.join(root, 'users')
-  await mkdir(directory)
-  return directory
+type BindingInput = {
+  id: string
+  identities: string[]
+  notificationPeerId?: string
 }
 
-async function writeBinding(
-  directory: string,
-  name: string,
-  id: string,
-  identities: string[],
-  notificationPeerId?: string
-) {
-  await writeFile(
-    path.join(directory, name),
-    [
-      `id = ${JSON.stringify(id)}`,
-      ...(notificationPeerId ? [`notificationPeerId = ${JSON.stringify(notificationPeerId)}`] : []),
-      `identities = ${JSON.stringify(identities)}`,
-      '',
-    ].join('\n')
-  )
+async function writeBindings(bindings: BindingInput[]): Promise<string> {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'nyako-user-bindings-'))
+  tempDirs.push(root)
+  const configPath = path.join(root, 'config.toml')
+  const lines = ['[tool.user-binding]', '']
+  for (const binding of bindings) {
+    lines.push(
+      '[[tool.user-binding.bindings]]',
+      `id = ${JSON.stringify(binding.id)}`,
+      ...(binding.notificationPeerId
+        ? [`notificationPeerId = ${JSON.stringify(binding.notificationPeerId)}`]
+        : []),
+      `identities = ${JSON.stringify(binding.identities)}`,
+      ''
+    )
+  }
+  await writeFile(configPath, lines.join('\n'))
+  return configPath
 }
 
 describe('user binding tool', () => {
-  it('resolves explicit and canonical identities', async () => {
-    const directory = await bindingsDirectory()
-    await writeBinding(directory, 'shigure.toml', 'shigure', ['telegram:42', 'github:user:Shigure'])
-    const users = new UserBindingDirectory(directory)
+  it('resolves explicit and canonical identities from machine-local config', async () => {
+    const configPath = await writeBindings([
+      { id: 'shigure', identities: ['telegram:42', 'github:user:Shigure'] },
+    ])
+    const users = new UserBindingConfig(configPath)
 
     await expect(users.resolve('telegram:42')).resolves.toEqual({
       id: 'shigure',
@@ -56,76 +57,67 @@ describe('user binding tool', () => {
   })
 
   it('returns an explicit notification peer and rejects invalid destinations', async () => {
-    const directory = await bindingsDirectory()
-    await writeBinding(
-      directory,
-      'shigure.toml',
-      'shigure',
-      ['telegram:user:42', 'github:user:Shigure'],
-      'endpoint:telegram:telegram:user:42'
-    )
-
-    await expect(
-      new UserBindingDirectory(directory).resolve('github:user:Shigure')
-    ).resolves.toEqual({
+    const validPath = await writeBindings([
+      {
+        id: 'shigure',
+        identities: ['telegram:user:42', 'github:user:Shigure'],
+        notificationPeerId: 'endpoint:telegram:telegram:user:42',
+      },
+    ])
+    await expect(new UserBindingConfig(validPath).resolve('github:user:Shigure')).resolves.toEqual({
       id: 'shigure',
       canonicalIdentity: 'user:shigure',
       identities: ['telegram:user:42', 'github:user:Shigure'],
       notificationPeerId: 'endpoint:telegram:telegram:user:42',
     })
 
-    await writeBinding(
-      directory,
-      'invalid.toml',
-      'invalid',
-      ['telegram:user:invalid'],
-      'endpoint:telegram:telegram:user:someone-else'
-    )
-    await expect(new UserBindingDirectory(directory).list()).rejects.toThrow(
-      'notificationPeerId driver must match an explicitly bound identity'
-    )
-
-    await rm(path.join(directory, 'invalid.toml'))
-    await writeBinding(
-      directory,
-      'wrong-driver.toml',
-      'wrong-driver',
-      ['github:user:wrong-driver'],
-      'endpoint:telegram:github:user:wrong-driver'
-    )
-    await expect(new UserBindingDirectory(directory).list()).rejects.toThrow(
+    const invalidPath = await writeBindings([
+      {
+        id: 'invalid',
+        identities: ['telegram:user:invalid'],
+        notificationPeerId: 'endpoint:telegram:telegram:user:someone-else',
+      },
+    ])
+    await expect(new UserBindingConfig(invalidPath).list()).rejects.toThrow(
       'notificationPeerId driver must match an explicitly bound identity'
     )
   })
 
-  it('rejects duplicate ownership and ignores symlinked records', async () => {
-    const directory = await bindingsDirectory()
-    await writeBinding(directory, 'first.toml', 'first', ['telegram:42'])
-    await writeBinding(directory, 'second.toml', 'second', ['telegram:42'])
-    await expect(new UserBindingDirectory(directory).list()).rejects.toThrow(
+  it('rejects duplicate identity ownership', async () => {
+    const configPath = await writeBindings([
+      { id: 'first', identities: ['telegram:42'] },
+      { id: 'second', identities: ['telegram:42'] },
+    ])
+    await expect(new UserBindingConfig(configPath).list()).rejects.toThrow(
       'is bound to both "first" and "second"'
     )
+  })
 
-    await rm(path.join(directory, 'second.toml'))
-    const outside = path.join(path.dirname(directory), 'outside.toml')
-    await writeBinding(path.dirname(outside), path.basename(outside), 'outside', ['telegram:99'])
-    await symlink(outside, path.join(directory, 'linked.toml'))
-    await expect(new UserBindingDirectory(directory).list()).resolves.toHaveLength(1)
+  it('returns no bindings when the local config is absent', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'nyako-missing-config-'))
+    tempDirs.push(root)
+    await expect(new UserBindingConfig(path.join(root, 'config.toml')).list()).resolves.toEqual([])
   })
 
   it('registers resolve_user_binding as a native Pi extension tool', async () => {
+    const configPath = await writeBindings([
+      { id: 'owner', identities: ['github:user:ExampleOwner'] },
+    ])
     let tool:
       | {
-          description: string
+          description?: string
           name: string
           execute(toolCallId: string, input: { identity: string }): Promise<any>
         }
       | undefined
-    registerUserBindingTool({
-      registerTool(candidate) {
-        tool = candidate
-      },
-    } as ExtensionAPI)
+    registerUserBindingTool(
+      {
+        registerTool(candidate) {
+          tool = candidate
+        },
+      } as ExtensionAPI,
+      new UserBindingConfig(configPath)
+    )
 
     expect(tool?.name).toBe('resolve_user_binding')
     expect(tool?.description).toContain('github:user:<login>')
@@ -133,23 +125,13 @@ describe('user binding tool', () => {
     expect(await tool?.execute('call_1', { identity: 'telegram:unknown' })).toMatchObject({
       details: { found: false, identity: 'telegram:unknown' },
     })
-    expect(await tool?.execute('call_2', { identity: 'github:user:SigureMo' })).toMatchObject({
+    expect(await tool?.execute('call_2', { identity: 'github:user:ExampleOwner' })).toMatchObject({
       details: {
         found: true,
-        id: 'xuxiaojian',
+        id: 'owner',
         notificationPeerId: null,
       },
     })
-  })
-
-  it('loads the definition-owned binding records by default', async () => {
-    await expect(new UserBindingDirectory().resolve('github:user:SigureMo')).resolves.toMatchObject(
-      {
-        id: 'xuxiaojian',
-        canonicalIdentity: 'user:xuxiaojian',
-        notificationPeerId: null,
-      }
-    )
   })
 
   it('exposes the binding extension only to Hub', async () => {

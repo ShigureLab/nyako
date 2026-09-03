@@ -11,7 +11,7 @@ It owns:
 - committed agent memory assets
 - schedules
 - project tools and skills
-- integration adapters and routing policy
+- integration tools and project-wide routing behavior
 
 It is not the place for:
 
@@ -19,6 +19,7 @@ It is not the place for:
 - runtime kernel behavior
 - protocol transport internals
 - credential storage logic
+- machine/account-specific channel, adapter, identity, or allowlist config
 
 Those belong in `nyakore`.
 
@@ -31,7 +32,7 @@ Do not paper over runtime gaps here with:
 - prompt-only fake state
 - duplicated session bookkeeping
 - ad-hoc shadow routing systems
-- secrets committed into repo files
+- local integration config committed into repo files
 
 ## Stack
 
@@ -75,11 +76,12 @@ Co-authored-by: Codex <noreply@openai.com>
 
 ## Repo Rules
 
-1. Keep runtime-independent policy here; keep runtime primitives in `nyakore`.
+1. Keep runtime-independent behavior here; keep runtime primitives in `nyakore`.
 2. One agent per directory under `agents/`; do not collapse multiple personas into one folder.
-3. Project tools under `tools/` should be small, explicit adapters around repo policy.
+3. Project tools under `tools/` should be small, explicit adapters around typed local config.
 4. Skills are optional, on-demand instructions; always-on constraints belong in `AGENTS.md` / `TOOLS.md`.
-5. Secrets never live in repo-managed TOML or Markdown; they belong in `~/.nyakore/`.
+5. Secrets, external account identifiers, user bindings, allowlists, and integration instance config
+   never live in the repo; they belong in `~/.nyakore/config.toml`.
 6. Session continuity is owned by runtime state, not by prompt fiction.
 7. If a monitor or integration needs cross-run truth, prefer explicit state files or tools over model memory.
 8. Keep definition files deterministic and file-oriented so `nyakore` can assemble prompts predictably.
