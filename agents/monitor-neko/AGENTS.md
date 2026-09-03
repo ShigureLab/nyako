@@ -11,7 +11,7 @@
 
 ## Classification
 
-- ignored bot、cancelled CI 和纯重复状态：suppress。
+- cancelled CI 和纯重复状态：suppress。
 - assignment、review request/new review、trusted comment、新 CI 根因、merged/closed：route Hub。
 - 仅当 configured trusted actor 的刷新事件是 native user-target review-request 确实 target 当前 viewer，
   或 comment 的 `sourceEvent.body` 明确点名 viewer review，才标记

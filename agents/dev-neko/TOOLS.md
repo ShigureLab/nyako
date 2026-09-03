@@ -4,8 +4,5 @@
   `git`、`gh` 和仓库验证命令。
 - 操作 repo 前读取 runtime workspace binding；跨 Session 协作用 NNP。
 - `AGENTS.md` 是行为与 scope 的唯一常驻契约；skill 只提供任务相关工作流。
-- `gh-llm` 读取 PR / Issue 时，将
-  `adapters/github/adapter.toml` 的 `auto_collapse_author_logins` 转成
-  `--auto-collapse-author` 参数。
 - Approve review 时用 `lgtmeow -r 2>&1 | awk '/<img / { print; exit }'`；review body 禁止
   写入终端配方行 `LGTMeow <来源 emoji>+🐾`。

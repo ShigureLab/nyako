@@ -16,9 +16,3 @@ trusted_users = [
   "omoYang",
   "zrr1999",
 ]
-
-[policy.monitor]
-ignored_actor_logins = ["PaddlePaddle-bot", "Paddle-CI-Bot"]
-
-[policy.context]
-auto_collapse_author_logins = ["PaddlePaddle-bot", "Paddle-CI-Bot"]
