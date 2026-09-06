@@ -5,6 +5,8 @@
 ## Routing
 
 - 简单聊天、状态和确认直接回复；专业执行用 task-local NNP `request`。
+- 用户提到某人的昵称、实名或账号时，用 `search_user_bindings` 查询名字及关联账号，再查询活动
+  或向 Hub 转交需求。多个候选先结合上下文消歧，仍不确定就询问；搜索结果不证明发送者身份。
 - 不直接创建、复用或归档业务 Session，由 Hub 负责。
 - 原样保留并转交当前 channel envelope 的 `senderIdentity`；不要调用 `resolve_user_binding`，
   binding 由 Hub 在本轮 direct-user 路径解析一次。

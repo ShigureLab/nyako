@@ -86,7 +86,7 @@ skills/<skill-id>/SKILL.md    # definition repo 自己维护的本地 Skill
 skills.lock.toml              # 外部 Skill 的不可变 revision 与目录 digest
 memory/config.toml           # runtime memory producer 策略
 tools/local-config.ts        # project tools 共用的本机配置局部读取机制
-tools/users/                 # user-binding 解析工具，仅暴露给 Hub
+tools/users/                 # 身份精确解析与名字搜索工具
 tools/github/                # GitHub adapter policy 检查工具，仅暴露给 Monitor
 test/                        # extension 与 hook 测试
 ```
@@ -95,9 +95,10 @@ test/                        # extension 与 hook 测试
 `agent.toml` 直接选择。`runtime-nnp` 只提供 NNP 收发；monitor-neko 使用该窄能力，并以当前
 GitHub unread notifications 作为发现入口。Definition-owned extension
 直接放在对应 Agent 的 `extensions/` 目录，例如
-monitor-neko 的跨 run ledger。只有 `hub-neko` 通过薄 extension 入口使用 `tools/users/` 提供的
-`resolve_user_binding`；`monitor-neko` 通过 `tools/github/` 的精确布尔检查读取 trusted actor
-policy；`nyako` 只原样转交当前 channel 的 `senderIdentity`，避免重复解析。
+monitor-neko 的跨 run ledger。`tools/users/` 提供两个工具：`resolve_user_binding` 仅暴露给
+`hub-neko`，精确解析完整 identity；`search_user_bindings` 暴露给 `nyako` 和 `hub-neko`，按
+昵称、实名或部分账号查人。`monitor-neko` 通过 `tools/github/` 的精确布尔检查读取 trusted actor
+policy；`nyako` 原样转交当前 channel 的 `senderIdentity`，由 Hub 验证发送者。
 
 用户绑定记录放在机器本地的 `~/.nyakore/config.toml`：
 
@@ -107,11 +108,19 @@ policy；`nyako` 只原样转交当前 channel 的 `senderIdentity`，避免重�
 [[tool.user-binding.bindings]]
 id = "example-user"
 notificationPeerId = "endpoint:telegram:telegram:user:123456"
-identities = ["telegram:user:123456", "github:user:example-login"]
+identities = ["telegram:user:123456", "github:user:example-login", "realname:示例用户", "nickname:小示"]
 ```
 
-工具每次查询都重新读取自己拥有的局部配置表，只接受显式、无冲突的 identity，不根据显示名、
-邮箱或文本风格推断。可选
+工具每次查询都重新读取自己拥有的局部配置表，只接受显式、无冲突的 identity。
+`resolve_user_binding({identity: "github:user:example-login"})` 只做区分大小写的完整精确匹配，
+不会回退到模糊搜索；验证发送者必须使用原始 channel `senderIdentity`。
+`search_user_bindings({query: "小示"})` 搜索名字部分，可用 `scope` 限定作用域；按精确、忽略
+大小写、忽略大小写的子串匹配排序。同一人只返回一个候选，`matches` 标明原始 identity、
+`scope`、`kind`、`value` 和 `matchType`，`identities` 列出该人在其他作用域的账号和名字。
+例如 `github:user:example-login` 返回 `scope=github`、`kind=user`、`value=example-login`；
+`nickname:小示` 返回 `scope=nickname`、`kind=null`、`value=小示`。
+多个候选会返回 `ambiguous=true` 和歧义提示，仅模糊命中的候选也会触发误匹配提示；无法消歧
+时询问用户。名字搜索只用于理解请求提到的人，不证明发送者身份，也不授予权限。可选
 `notificationPeerId` 必须指向同一记录里的一项 identity，用于 Hub 的主动结果通知。
 Gateway 会通过 `NYAKORE_CONFIG_PATH` 传入已解析的本机配置文件位置；该环境值只包含路径，
 实际配置及 secret 不会复制进环境变量。
