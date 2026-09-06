@@ -1261,37 +1261,6 @@ function resolveHandledStatus(
     : 'handled_changed'
 }
 
-function summarizeCheck(results: CheckResult[]): string {
-  const summary = {
-    total: results.length,
-    shouldAct: results.filter((item) => item.shouldAct).length,
-    selfAuthored: results.filter((item) => item.isSelfAuthored).length,
-    seenNew: results.filter((item) => item.seenStatus === 'new').length,
-    seenChanged: results.filter((item) => item.seenStatus === 'seen_changed').length,
-    handledRepeat: results.filter((item) => item.handledStatus === 'handled_repeat').length,
-  }
-  return [
-    `checked ${summary.total} event(s)`,
-    `should_act=${summary.shouldAct}`,
-    `self_authored=${summary.selfAuthored}`,
-    `seen_new=${summary.seenNew}`,
-    `seen_changed=${summary.seenChanged}`,
-    `handled_repeat=${summary.handledRepeat}`,
-  ].join(' | ')
-}
-
-function summarizeRecord(results: RecordResult[]): string {
-  const routed = results.filter((item) => item.outcome === 'routed').length
-  const suppressed = results.filter((item) => item.outcome === 'suppressed').length
-  const changed = results.filter((item) => item.handledStatus === 'handled_changed').length
-  return [
-    `recorded ${results.length} event(s)`,
-    `routed=${routed}`,
-    `suppressed=${suppressed}`,
-    `handled_changed=${changed}`,
-  ].join(' | ')
-}
-
 async function handleCheck(input: GithubMonitorLedgerInput) {
   const selfLogins = buildLoginSet(input.selfLogins)
   const results = await withLedgerState(async (state) => {
@@ -1336,7 +1305,7 @@ async function handleCheck(input: GithubMonitorLedgerInput) {
   })
 
   return {
-    content: [{ type: 'text', text: summarizeCheck(results) }],
+    content: [{ type: 'text', text: JSON.stringify(results) }],
     details: {
       action: 'check',
       ledgerPath: resolveLedgerLocation().ledgerPath,
@@ -1409,7 +1378,7 @@ async function handleRecord(input: GithubMonitorLedgerInput) {
   })
 
   return {
-    content: [{ type: 'text', text: summarizeRecord(results) }],
+    content: [{ type: 'text', text: JSON.stringify(results) }],
     details: {
       action: 'record',
       ledgerPath: resolveLedgerLocation().ledgerPath,

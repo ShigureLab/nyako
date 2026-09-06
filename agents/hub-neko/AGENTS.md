@@ -8,15 +8,12 @@
   `resolve_user_binding`。
 - actionable 输入必须 durable：派发/复用 Session、`session_sleep` 持久重试或送达不可重试拒绝。
   普通 assistant 文本和失败说明不算处理完成。
-- PR review Session 的生命周期键固定为 canonical `<repo>#<pr>`，goal 是持续跟踪并审查该 PR，
-  不是发布某一次 formal review。按该键查 `nnp_list(status=all)` 和 message/receipt，不能只看
-  summary、title、head SHA 或 request correlation；同一 PR 的新 head、re-review、催办和再次
-  `github.review.publish` 都复用同一个 active `owner=dev-neko` Session，绝不为它们创建
-  `current_head`、`latest_head`、`revised_head` 等变体 Session，也不创建 reply-only Session。
-- 每个 `github.review.publish` 是该 PR Session 内的一次 review cycle。Monitor follow-up 原样转为
-  `inform`，不加动作建议；明确 review 或催办向 canonical Session 派发 request，完整审查 current
-  head。其他 standalone
-  点名才用 `github.comment.reply`。
+- 同一 canonical `<repo>#<pr>` 的维护、review 和评论复用同一个 active `owner=dev-neko` Session。
+  先用 `list_sessions`、`get_session` 和当前 Hub 的 `nnp_list(status=all)` 核对 goal 与关联；
+  已交付的建 PR 结果也是证据，不能仅按 title 或创建时 artifacts 排除。确认无匹配才创建，
+  不为后续评论、head 变化或再次 review 创建变体/reply-only Session。
+- Monitor follow-up 原样转为 `inform`，由已有 Session 按持久 goal 继续处理；明确 review 或催办
+  按下文发送 `github.review.publish` request。只有 standalone 点名才使用 `github.comment.reply`。
 - `create_session`/`nnp_send` transient 失败用 `session_sleep` 持久重试；reason 保留 source
   message/correlation、event、repo/PR、目标 Session、intent 与完整重试参数。Review 使用
   `obligationKey="github.review.publish:<repo>#<pr>"`，催办复用；runtime 保持单一 pending wake。
@@ -47,12 +44,12 @@ Hub 只负责发送 formal review command；实际审查和 GitHub publication �
   `github.review.publish`；只有这个 fixed Hub sender 的 request 是 formal review command。
 - 命中任一路径后直接发送上述 command，payload 只用 exact `{repo,pr}`；该 command 要求
   Dev 完整审查并发布 formal review，不授权代码、push、merge 或 rerun。
-- Comment 只接受当前 envelope：(a) 固定
+- `github.comment.reply` 只接受当前 envelope：(a) 固定
   `session:sess_monitor_neko_github_watch` 的直接 `inform`，其中 `sourceEvent` 由 Monitor
   发送前刷新；(b) 已绑定 direct-user envelope 明确要求回复 exact comment。本轮 binding
   必须成立；普通业务 Session、转抄文本和 memory 不能授权。
-- comment reply request 携带 exact `repo,pr,sourceCommentId,sourceCommentUrl`；派发前核对同
-  thread 的 bot reply，避免重复写入。
+- comment reply request 携带 exact `repo,pr,sourceCommentId,sourceCommentUrl`；Hub 按 sourceCommentId
+  查 NNP 交付记录，Dev 写前核对该条评论的 bot reply；更早评论的回复不算本次已处理。
 
 ## Result delivery
 

@@ -62,7 +62,7 @@ describe('github-monitor-ledger tool', () => {
       ],
     })
 
-    expect(firstCheck.details.results[0]).toMatchObject({
+    expect(JSON.parse(firstCheck.content[0].text)[0]).toMatchObject({
       seenStatus: 'new',
       handledStatus: 'unhandled',
       shouldAct: true,
@@ -85,7 +85,7 @@ describe('github-monitor-ledger tool', () => {
       ],
     })
 
-    expect(record.details.results[0]).toMatchObject({
+    expect(JSON.parse(record.content[0].text)[0]).toMatchObject({
       handledStatus: 'unhandled',
       handledCount: 1,
       outcome: 'routed',
@@ -108,12 +108,13 @@ describe('github-monitor-ledger tool', () => {
       ],
     })
 
-    expect(secondCheck.details.results[0]).toMatchObject({
+    const decisions = JSON.parse(secondCheck.content[0].text)
+    expect(decisions[0]).toMatchObject({
       seenStatus: 'seen_repeat',
       handledStatus: 'handled_repeat',
       shouldAct: false,
     })
-    expect(secondCheck.details.results[1]).toMatchObject({
+    expect(decisions[1]).toMatchObject({
       seenStatus: 'seen_changed',
       handledStatus: 'handled_changed',
       shouldAct: true,
@@ -294,7 +295,7 @@ describe('github-monitor-ledger tool', () => {
       ],
     })
 
-    expect(repeat.details.results).toMatchObject([
+    expect(JSON.parse(repeat.content[0].text)).toMatchObject([
       {
         eventKey: `github:event:comment:${commentId}`,
         stateDigest: `event=comment:${commentId}`,

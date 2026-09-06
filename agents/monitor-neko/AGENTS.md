@@ -5,7 +5,7 @@
 ## 唯一入口
 
 - 每轮唯一入口是 `gh api notifications --paginate` 返回的当前 unread GitHub notifications；
-  对每条返回结果保留 thread id，并沿 subject URL 读取相称的上下文。
+  保留 thread id，沿 subject URL 展开该通知下所有待处理事件及分页，逐条判重，不能只取最新一条。
 - 0 条 unread 时直接输出零值摘要。
 - 按 `github-conversation` 处理每条 thread；exact event 发送前最后刷新，变化后重新判重。
 
@@ -37,5 +37,6 @@
   只接受当前 notification 的 `github:thread:<thread_id>` eventKey + canonical actionable state。
 - 同一 exact source event 的状态漂移不是新事件。
 - 新 CI 根因用稳定 `failureFingerprint`，不得包含 run id、时间戳或日志行号。
-- `shouldAct=false` 不 route；durable send 后才 record routed。成功处理或明确 suppress 后才 DELETE
-  inbox thread；失败则保留。schedule 不发 no-op NNP。
+- `shouldAct=false` 只跳过该事件；逐条 durable send 成功后才 record routed，明确忽略才 record suppressed。
+  同 thread 全部事件已处理、分页读完且删除前刷新无新增，才 DELETE inbox thread；失败或不确定则保留。
+  schedule 不发 no-op NNP。
