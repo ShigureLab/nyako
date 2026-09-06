@@ -8,7 +8,8 @@ enable = []
 
 [compaction]
 enabled = true
-reserveTokens = 244000
+# Trigger at 150k tokens for the current 272k model window, above retained history.
+reserveTokens = 122000
 keepRecentTokens = 20000
 
 [model]
