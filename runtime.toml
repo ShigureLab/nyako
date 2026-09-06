@@ -1,5 +1,4 @@
 version = 1
-default_agent = "nyako"
 agents_dir = "agents"
 hooks_dir = "hooks"
 skills_dir = "skills"
