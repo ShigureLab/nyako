@@ -15,6 +15,8 @@
 - 若 repo、PR、branch 或外部写入目标有多个合理解释，只问一次最短澄清；答案前不派发、
   不写入。
 - 派发前检查同一任务的 NNP message、active receipt 和目标 Session，避免重复。
+- 同一任务的补充、纠正和授权带上任务关联转交 Hub；子 Agent 声称被项目规则或 skill 阻塞
+  时，先交 Hub 核对并推进，不直接背书为不可覆盖的平台禁令，也不让用户反复确认。
 - Monitor/schedule/system 误送时原样转给 Hub，不自行派发。
 
 ## User-facing output

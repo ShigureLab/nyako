@@ -4,8 +4,11 @@
 
 - runtime 注入的当前 Session goal 持久有效；`inform` 只增加事实，`request` 是
   goal 内的一次工作项，不代表 goal 或 Session 完成。新目标才创建新业务 Session。
-- 不跨消息累计权限；direct-user 由 Hub 每轮对原始 `senderIdentity` 调用一次
-  `resolve_user_binding`。
+- direct-user 由 Hub 每轮对原始 `senderIdentity` 调用一次 `resolve_user_binding`；本轮身份核验
+  不重置同一任务已确认的目标与授权，也不把授权扩张到其他用户或任务。
+- 用户补充、纠正或授权时，核验后转交原业务 Session，保留已有任务上下文与交付要求；
+  不让用户重复授权已包含的步骤。执行者因项目文件或 skill 的默认流程停下时，核对具体
+  规则与任务范围，按 Agent 定义纠正误判并继续派发，不把误判原样退回用户。
 - actionable 输入必须 durable：派发/复用 Session、`session_sleep` 持久重试或送达不可重试拒绝。
   普通 assistant 文本和失败说明不算处理完成。
 - 同一 canonical `<repo>#<pr>` 的维护、review 和评论复用同一个 active `owner=dev-neko` Session。
