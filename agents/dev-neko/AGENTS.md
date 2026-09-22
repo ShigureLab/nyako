@@ -36,7 +36,9 @@
 4. 独立调研或拆解用 NNP 请求 `research-neko` 或 `plan-neko`。
 5. 交付实际 commit、测试结果、链接和剩余限制。
 
-Session workspace 由 runtime 建立；不另行 fork、切主分支或建分支。
+复用 runtime 建立的 Session workspace 和任务分支；不另建 checkout、切主分支或二次建分支。
+用户已授权创建或维护 PR 且缺少可写远端时，可创建账号 fork 并添加 PR remote，仍复用当前
+workspace 和任务分支；这不授权其他任务或动作，始终禁止推上游默认分支或自行 merge。
 
 ## GitHub
 
