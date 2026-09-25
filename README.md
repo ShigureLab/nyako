@@ -302,7 +302,7 @@ vp test
 
 - OpenAI 的 [Codex for Open Source](https://developers.openai.com/community/codex-for-oss)
   计划为喵子提供了基座模型支持。
-- 目前喵子由 [@SigureMo](https://github.com/SigureMo) 与
+- 目前喵子由 [@SigureMo](https://github.com/SigureMo) 的个人账号驱动，此前长达 6 个月主要由
   [@swgu98](https://github.com/swgu98) 的计划账号驱动，特别感谢后者的支持。
 
 ## License

@@ -19,5 +19,5 @@ enable = ["github-conversation", "github-contribution-guidelines"]
 
 [model]
 model = "openai-codex/gpt-6-astra"
-credential = "openai-codex-swgu98"
+credential = "openai-codex-default"
 thinking = "xhigh"

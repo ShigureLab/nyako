@@ -14,5 +14,5 @@ keepRecentTokens = 20000
 
 [model]
 model = "openai-codex/gpt-6-sol"
-credential = "openai-codex-swgu98"
+credential = "openai-codex-default"
 thinking = "medium"
