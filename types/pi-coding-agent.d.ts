@@ -14,5 +14,29 @@ declare module '@mariozechner/pi-coding-agent' {
 
   export type ExtensionAPI = {
     registerTool(tool: RegisteredTool): void
+    on(
+      event: 'before_agent_start',
+      handler: (event: { prompt: string }) =>
+        | {
+            message?: {
+              customType: string
+              content: string
+              display: boolean
+              details?: unknown
+            }
+          }
+        | undefined
+        | Promise<
+            | {
+                message?: {
+                  customType: string
+                  content: string
+                  display: boolean
+                  details?: unknown
+                }
+              }
+            | undefined
+          >
+    ): () => void
   }
 }

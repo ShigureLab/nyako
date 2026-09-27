@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      chinese-days:
+        specifier: 1.5.9
+        version: 1.5.9
       smol-toml:
         specifier: 1.6.0
         version: 1.6.0
@@ -898,6 +901,9 @@ packages:
     resolution: {integrity: sha512-NUPRluOfOiTKBKvWPtSD4PhFvWCqOi0BGStNWs57X9js7XGTprSmFoz5F0tWhR4WPjNeR9jXqdC7/UpSJTnlRg==}
     engines: {node: '>=18'}
 
+  chinese-days@1.5.9:
+    resolution: {integrity: sha512-YwWUPcrtzlH5JIkSFCXerKb7Pox85G4LSVLZcrRMAzRuF8FmfmCC/6xGYmDyHtosvaYH/DyI5W8mnYGl01fu0g==}
+
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
 
@@ -1786,6 +1792,8 @@ snapshots:
   assertion-error@2.0.1: {}
 
   chai@6.2.2: {}
+
+  chinese-days@1.5.9: {}
 
   convert-source-map@2.0.0: {}
 
