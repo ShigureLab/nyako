@@ -19,15 +19,16 @@
 
 ## 团队
 
-| Agent           | 角色     | 主要职责                                                      |
-| --------------- | -------- | ------------------------------------------------------------- |
-| `nyako`         | 聊天入口 | 用户交互、澄清需求、用户可见汇报；把需要编排的任务交给中枢    |
-| `hub-neko`      | 中枢     | 唯一 Session 编排者；创建、复用、派发、收口和归档业务 Session |
-| `monitor-neko`  | 哨兵     | 扫描 GitHub 通知、分类、ledger 去重，只向中枢上报可行动信号   |
-| `dev-neko`      | 工程师   | 软件工程实现、PR、验证与 review                               |
-| `research-neko` | 情报员   | 技术调研、代码与资料分析、方案比较                            |
-| `plan-neko`     | 策略师   | 任务拆解、依赖关系、优先级和执行计划                          |
-| `memory-neko`   | 提取器   | 受限地从 idle/completed Session 提取可验证的长期事实          |
+| Agent                | 角色     | 主要职责                                                      |
+| -------------------- | -------- | ------------------------------------------------------------- |
+| `nyako`              | 聊天入口 | 用户交互、澄清需求、用户可见汇报；把需要编排的任务交给中枢    |
+| `hub-neko`           | 中枢     | 唯一 Session 编排者；创建、复用、派发、收口和归档业务 Session |
+| `monitor-neko`       | 哨兵     | 扫描 GitHub 通知、分类、ledger 去重，只向中枢上报可行动信号   |
+| `dev-neko`           | 工程师   | 软件工程实现、PR、验证与 review                               |
+| `research-neko`      | 情报员   | 技术调研、代码与资料分析、方案比较                            |
+| `plan-neko`          | 策略师   | 任务拆解、依赖关系、优先级和执行计划                          |
+| `memory-neko`        | 提取器   | 使用 GPT-6 Luna 更新 idle/completed Session 的来源摘要        |
+| `memory-matome-neko` | 整理喵   | 使用 GPT-6 Sol 将相关来源合并为简短导航                       |
 
 每个 Agent 的模型、工具集合和 prompt 文件都位于 `agents/<agent-id>/`。Agent id 是定义层
 身份；Session id 是 runtime 连续性对象，两者不要混用。
@@ -155,15 +156,18 @@ Prompt 的确定性组装顺序由 `nyakore` 维护，而不是由本 README 复
 - `AGENTS.md` 必需。
 - `IDENTITY.md`、`SOUL.md`、`TOOLS.md`、`USER.md`、Agent `MEMORY.md` 按存在性加载。
 - Runtime contract 注入当前 Session goal、artifacts 和启用的必要 capability context。
-- runtime memory 不进入常驻 prompt；需要历史事实时通过 `memory_search` →
-  `memory_read` 渐进读取，并回查 owning system 的实时状态。
-- Runtime search 使用 QMD BM25 派生索引并返回 `path:lineStart-lineEnd`；每次搜索/读取都有
-  usage receipt。
-- 后台 producer 按 transcript 指纹处理 idle/completed Agent Session：先由无工具的
-  `memory-neko` 在一次性隔离 Session 中做受限 JSON extraction，再由 runtime 确定性
-  consolidation；失败不推进 cursor，历史 extraction context 不会污染下一个来源。
-- 每个 observation 保留 `session:<id>@<fingerprint>` provenance；stage-1 extraction、cursor 和
-  consolidation state 位于 runtime memory 的 `pipeline/`，不是 prompt 内容。
+- memory-enabled Agent 的 prompt 只注入最多 8,000 字符的 runtime memory 导航；来源详情通过
+  `memory_search` → `memory_read` 渐进读取，并回查 owning system 的实时状态。
+- Runtime search 使用 Node 内置 SQLite FTS5/BM25 派生索引，返回 `path:lineStart-lineEnd`。
+- 后台 producer 按 transcript byte cursor 顺序处理 idle/completed Agent 与 conversation
+  Session。无工具的 `memory-neko` 使用 GPT-6 Luna 结合上次来源摘要做受限 JSON extraction，
+  同一 Session generation 只更新一份 `rollout_summaries/` 文件。
+- 每轮提取后，无工具的 `memory-matome-neko` 使用 GPT-6 Sol 最多整理一次导航；按检索主题
+  合并重复来源，保留有用的旧主题，并删除仅由已移除来源支撑的内容。提取与整理分别推进
+  checkpoint，整理失败保留上次导航，下轮重试时不重复提取。
+- 来源摘要保留 `session:<id>:g<generation>@<chunk-fingerprint>` provenance；cursor、整理
+  checkpoint 与 token/cache usage 位于 runtime memory 的 `pipeline/`，不是 prompt 内容。
+  切换旧 producer 时需备份并重建派生 memory，步骤见 nyakore 的 `docs/memory.md`。
 
 记忆不是协议真源。需要精确事实时，仍应回查原始 Session、run、transcript 或 NNP artifact。
 
@@ -291,11 +295,11 @@ vp test
 
 已落地：
 
-- 6 个业务 Agent、1 个受限 memory extractor，以及唯一 `hub_neko` 中枢拓扑
+- 唯一 `hub_neko` 中枢、业务 Agent，以及分别负责提取和整理的两个受限 memory Agent
 - Session-first 路由与显式 NNP 协作
 - Gateway、repo schedules、动态业务 Session 与 per-session worktrees
 - GitHub monitor ledger 去重
-- repo/project/agent/runtime 分层记忆、QMD BM25 检索与带 provenance 的自动归并
+- definition/runtime 分层记忆、SQLite FTS5/BM25 检索与带 provenance 的来源摘要和主题导航
 - 完整的 machine-local channel、adapter 与 tool config；definition repo 不保存外部账号标识
 
 ## 特别感谢

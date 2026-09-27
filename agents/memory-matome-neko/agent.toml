@@ -1,0 +1,12 @@
+id = "memory-matome-neko"
+name = "memory-matome-neko"
+role = "runtime-memory-consolidator"
+tools = []
+
+[skills]
+enable = []
+
+[model]
+model = "openai-codex/gpt-6-sol"
+credential = "openai-codex-default"
+thinking = "medium"
