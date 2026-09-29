@@ -13,6 +13,6 @@ reserveTokens = 122000
 keepRecentTokens = 20000
 
 [model]
-model = "openai-codex/gpt-6-sol"
+model = "openai-codex/gpt-6.1-sol"
 credential = "openai-codex-default"
 thinking = "medium"

@@ -18,6 +18,6 @@ tools = [
 enable = ["github-conversation", "github-contribution-guidelines"]
 
 [model]
-model = "openai-codex/gpt-6-astra"
+model = "openai-codex/gpt-6.1-sol"
 credential = "openai-codex-default"
 thinking = "xhigh"

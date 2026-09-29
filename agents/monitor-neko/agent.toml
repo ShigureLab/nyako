@@ -7,6 +7,6 @@ tools = ["read", "bash", "grep", "find", "ls", "runtime-nnp"]
 enable = ["github-conversation"]
 
 [model]
-model = "openai-codex/gpt-6-sol"
+model = "openai-codex/gpt-6.1-sol"
 credential = "openai-codex-default"
 thinking = "medium"

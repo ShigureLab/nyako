@@ -7,6 +7,6 @@ tools = ["read", "grep", "find", "ls", "runtime-session", "runtime-memory"]
 enable = []
 
 [model]
-model = "openai-codex/gpt-6-sol"
+model = "openai-codex/gpt-6.1-sol"
 credential = "openai-codex-default"
 thinking = "medium"
