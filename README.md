@@ -29,6 +29,7 @@
 | `plan-neko`          | 策略师   | 任务拆解、依赖关系、优先级和执行计划                          |
 | `memory-neko`        | 提取器   | 使用 GPT-6 Luna 更新 idle/completed Session 的来源摘要        |
 | `memory-matome-neko` | 整理喵   | 使用 GPT-6 Sol 将相关来源合并为简短导航                       |
+| `memory-skill-neko`  | 技能整理 | 从来源 agent 的重复实践中提炼该 agent 专用的可复用流程        |
 
 每个 Agent 的模型、工具集合和 prompt 文件都位于 `agents/<agent-id>/`。Agent id 是定义层
 身份；Session id 是 runtime 连续性对象，两者不要混用。
@@ -156,15 +157,22 @@ Prompt 的确定性组装顺序由 `nyakore` 维护，而不是由本 README 复
 - `AGENTS.md` 必需。
 - `IDENTITY.md`、`SOUL.md`、`TOOLS.md`、`USER.md`、Agent `MEMORY.md` 按存在性加载。
 - Runtime contract 注入当前 Session goal、artifacts 和启用的必要 capability context。
-- memory-enabled Agent 的 prompt 只注入最多 8,000 字符的 runtime memory 导航；来源详情通过
-  `memory_search` → `memory_read` 渐进读取，并回查 owning system 的实时状态。
+- 启用 `runtime-memory` 的 Agent 通过 `memory_search` → `memory_read` 渐进读取来源详情，并回查
+  owning system 的实时状态。每轮 prompt 提供该 Agent 自己的 learned skill 名称、适用条件和路径，
+  正文用 `memory_read` 按需读取；runtime memory 导航不注入 prompt。
 - Runtime search 使用 Node 内置 SQLite FTS5/BM25 派生索引，返回 `path:lineStart-lineEnd`。
 - 后台 producer 按 transcript byte cursor 顺序处理 idle/completed Agent 与 conversation
   Session。无工具的 `memory-neko` 使用 GPT-6 Luna 结合上次来源摘要做受限 JSON extraction，
   同一 Session generation 只更新一份 `rollout_summaries/` 文件。
-- 每轮提取后，无工具的 `memory-matome-neko` 使用 GPT-6 Sol 最多整理一次导航；按检索主题
+- 每轮提取后，`memory-matome-neko` 用受限的 read/edit/write 最多整理一次导航；按检索主题
   合并重复来源，保留有用的旧主题，并删除仅由已移除来源支撑的内容。提取与整理分别推进
   checkpoint，整理失败保留上次导航，下轮重试时不重复提取。
+- `memory-skill-neko` 每轮最多为一个来源 Agent 整理 skills，优先处理最久未处理的 Agent。
+  它只接收该 Agent 的来源记录与已有 skills；来源 Session 的 owner 决定归属，模型不能改派。
+  只有反复出现、已有可靠步骤和验证方法的流程才提炼成 skill，并合并重复、修正过时内容。
+  结果保存在 runtime memory 的 `skills/<agent>/<name>/SKILL.md`，不写回定义仓库。
+  skill 的检索和读取也按调用 Agent 限定；共享来源记录维持原有访问范围。
+  独立 checkpoint 保证无新证据时不反复调用模型，失败后可重试；`monitor-neko` 仍完全排除。
 - 来源摘要保留 `session:<id>:g<generation>@<chunk-fingerprint>` provenance；cursor、整理
   checkpoint 与 token/cache usage 位于 runtime memory 的 `pipeline/`，不是 prompt 内容。
   切换旧 producer 时需备份并重建派生 memory，步骤见 nyakore 的 `docs/memory.md`。

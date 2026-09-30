@@ -2,6 +2,7 @@
 enabled = true
 extractor_agent = "memory-neko"
 consolidation_agent = "memory-matome-neko"
+skill_agent = "memory-skill-neko"
 exclude_agents = ["monitor-neko"]
 sweep_interval_ms = 300000
 idle_after_ms = 300000

@@ -1,0 +1,12 @@
+id = "memory-skill-neko"
+name = "memory-skill-neko"
+role = "runtime-memory-skill-writer"
+tools = []
+
+[skills]
+enable = []
+
+[model]
+model = "openai-codex/gpt-6.1-sol"
+credential = "openai-codex-default"
+thinking = "medium"
