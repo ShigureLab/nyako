@@ -64,7 +64,7 @@ flowchart LR
   或提供 SHA。
 - 其他 `sess_*` 通常是按任务创建的动态业务 Session。
 - 只有显式 NNP message 才构成交付、请求或协议事实；普通 assistant 文本不等于已发送。
-- live 状态、next action、等待关系和 PR 当前状态属于 Session/run/NNP，不属于长期记忆。
+- live 状态、临时计划、等待关系和 PR 当前状态属于 Session/run/NNP，不属于长期记忆。
 
 ## 目录结构
 
