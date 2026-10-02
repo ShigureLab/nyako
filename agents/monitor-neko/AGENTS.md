@@ -13,6 +13,8 @@
 
 - cancelled CI 和纯重复状态：suppress。
 - assignment、review request/new review、trusted comment、新 CI 根因、merged/closed：route Hub。
+- Issue 的 `assigned` 事件来自 configured trusted assigner、目标为当前 viewer，且刷新后 issue
+  仍 OPEN、viewer 仍在 assignees 中时，标记 `trusted_human_assignment`；其他 assignment 只传事实。
 - 仅当 configured trusted actor 的刷新事件是 native user-target review-request 确实 target 当前 viewer，
   或 comment 的 `sourceEvent.body` 明确点名 viewer review，才标记
   `trusted_human_review_request`；Monitor 仍不发送 `github.review.publish` command。
@@ -23,6 +25,12 @@
 
 - payload 只用 exact `{sourceEvent,classification,currentStatus?}`。
 - `sourceEvent={type,id,url,actorLogin,body,createdAt}` 来自发送前最后刷新；摘要不能替代原事件。
+- assignment 的发起人取 REST `assigner.login` 或同一 timeline event 的 `actor.login`；单事件
+  endpoint 的 `actor` 可能是被指派人，不用它替代 assigner。将核验的发起人写入 `actorLogin`
+  并调用 `check_github_actor_trust`；事件目标从 `assignee.login` 取，不能从 notification reason 猜。
+- Issue assignment 的 `currentStatus` 携带刷新后的 `repo,issue,url,title,body,state,assignees`，
+  以及 `assigneeLogin,viewerLogin`。issue 正文放在 `currentStatus.body`，不替换原事件的空 body；
+  指派事件没有正文不表示 issue 没有任务。无法核验发起人或目标时保留通知，不标记可信指派。
 - `classification=trusted_human_review_request` 时 `currentStatus` 必须含 exact `repo`、`pr`；
   `head` 仅是观测事实；reason、PR author、team request 或模糊催办不能代替完整条件。
 - merged/closed 事件发送前必须刷新 PR lifecycle；`currentStatus` 必须含 exact `repo`、`pr`、state

@@ -31,10 +31,23 @@
   `obligationKey="github.review.archive:<repo>#<pr>"` 的 pending wake；wake 后先确认 Session 仍 active
   且 merge 事实仍匹配，再幂等重试，成功后不再保留或创建归档 wake。
 
-## GitHub writes
+## GitHub issue assignments
 
-Hub 只负责发送 formal review command；实际审查和 GitHub publication 都由 Dev 在同一 command
-内完成。Hub 发出 command 后只等待最终 review URL/id。
+- 固定 `session:sess_monitor_neko_github_watch` 的 `trusted_human_assignment` inform 表示可信用户
+  将当前仍 OPEN 的 issue 指派给机器人；这是独立任务入口。按 `currentStatus` 的 exact repo/issue
+  和 issue 正文确定目标，派给 Dev 分析、实现、验证并提交 PR，不要求用户再重复任务或授权。
+- 先查 Session goal/artifacts 与 NNP 历史，复用同一 canonical `<repo>#<issue>` 的 active Dev
+  Session（包括已关联 PR 的会话）；无匹配才创建。其他 issue/PR 的既有目标不限制新任务，
+  也不能因同仓库就把新 issue 塞入无关 Session。
+- 首次用 `github.issue.implement` request 携带原始事件和完整 `currentStatus`，goal 保留任务与
+  PR 交付要求；后续事实转为 inform。Dev 刷新 issue 后在该 Session 完成交付，不直推上游默认
+  分支或 merge。普通 assignment 的上下文或可信来源未核实时，先派 Dev/Research 只读补查；不得仅因
+  `sourceEvent.body=null` 就忽略任务，也不能只输出收到通知便结束。
+
+## GitHub review and comment commands
+
+Formal review 的实际审查和 GitHub publication 都由 Dev 在同一 command 内完成。
+Hub 发出 command 后只等待最终 review URL/id。
 
 - Direct-user 路径只接受 owner=nyako 的动态 channel Session 转交的 envelope；Hub 对
   `senderIdentity` 得到明确 positive binding 后核对 `kind=request`、intent
