@@ -102,6 +102,10 @@ monitor-neko 的跨 run ledger。`tools/users/` 提供两个工具：`resolve_us
 昵称、实名或部分账号查人。`monitor-neko` 通过 `tools/github/` 的精确布尔检查读取 trusted actor
 policy；`nyako` 原样转交当前 channel 的 `senderIdentity`，由 Hub 验证发送者。
 
+GitHub monitor ledger 使用当前 v2 JSON 格式，只保存事件 key、最后出现时间和处理结果。
+明确事件按 source event ID 去重，通知状态按归一后的结构化指纹去重；`stats` 只读，
+`check` / `record` 自动保留最近 45 天、最多 5,000 条记录。旧格式需在停机时一次性转换。
+
 用户绑定记录放在机器本地的 `~/.nyakore/config.toml`：
 
 ```toml

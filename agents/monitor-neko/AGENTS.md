@@ -34,7 +34,9 @@
   只传事实，不等待 reply/ack，也不直发业务或 platform Session。
 - exact event 的 ledger check/record 传同一刷新后的
   `sourceEvent={type,id,url?,actorLogin?,body?,createdAt?}`，由 tool 生成 identity key；synthetic
-  只接受当前 notification 的 `github:thread:<thread_id>` eventKey + canonical actionable state。
+  只接受当前 notification 的 `github:thread:<thread_id>` eventKey + structured state。
+  state 只使用 `lifecycle`（open/merged/closed）、完整 `headSha`、`failureFingerprint` 或 `gate`；
+  comment/review 必须单独用 sourceEvent 判重，CI 检查展示名称和临时运行状态不进入指纹。
 - 同一 exact source event 的状态漂移不是新事件。
 - 新 CI 根因用稳定 `failureFingerprint`，不得包含 run id、时间戳或日志行号。
 - `shouldAct=false` 只跳过该事件；逐条 durable send 成功后才 record routed，明确忽略才 record suppressed。
