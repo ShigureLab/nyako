@@ -171,12 +171,16 @@ Prompt 的确定性组装顺序由 `nyakore` 维护，而不是由本 README 复
 - 每轮提取后，`memory-matome-neko` 用受限的 read/edit/write 最多整理一次导航；按检索主题
   合并重复来源，保留有用的旧主题，并删除仅由已移除来源支撑的内容。提取与整理分别推进
   checkpoint，整理失败保留上次导航，下轮重试时不重复提取。
-- `memory-skill-neko` 每轮最多为一个来源 Agent 整理 skills，优先处理最久未处理的 Agent。
-  它只接收该 Agent 的来源记录与已有 skills；来源 Session 的 owner 决定归属，模型不能改派。
-  只有反复出现、已有可靠步骤和验证方法的流程才提炼成 skill，并合并重复、修正过时内容。
+- `memory-skill-neko` 每轮最多为一个来源 Agent 整理 skills，同一 Agent 至少间隔 6 小时，
+  优先处理最久未处理的 Agent。它接收该 Agent 的当前职责、指令、工具、来源记录与已有 skills；
+  来源 Session 的 owner 决定归属，模型不能改派。
+  每轮最多新增一个 skill，要求至少两个来源 Session 证明流程在独立任务中成功使用和复用，
+  且本轮至少有一个支持来源实质变化；同一事件的重试、告警或后续修订不算独立任务。
+  流程必须符合 owner 职责与工具能力，并能明确节省未来工作；默认不新增，优先合并重复，
+  删除证据不足、重复现有指令或已过时的 skills。
   结果保存在 runtime memory 的 `skills/<agent>/<name>/SKILL.md`，不写回定义仓库。
   skill 的检索和读取也按调用 Agent 限定；共享来源记录维持原有访问范围。
-  独立 checkpoint 保证无新证据时不反复调用模型，失败后可重试；`monitor-neko` 仍完全排除。
+  独立 checkpoint 忽略仅 provenance 标记变化的来源，失败后可重试；`monitor-neko` 仍完全排除。
 - 来源摘要保留 `session:<id>:g<generation>@<chunk-fingerprint>` provenance；cursor、整理
   checkpoint 与 token/cache usage 位于 runtime memory 的 `pipeline/`，不是 prompt 内容。
   切换旧 producer 时需备份并重建派生 memory，步骤见 nyakore 的 `docs/memory.md`。
