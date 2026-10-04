@@ -85,7 +85,8 @@ Co-authored-by: Codex <noreply@openai.com>
 6. Session continuity is owned by runtime state, not by prompt fiction.
 7. If a monitor or integration needs cross-run truth, prefer explicit state files or tools over model memory.
 8. Keep definition files deterministic and file-oriented so `nyakore` can assemble prompts predictably.
-9. Repo work uses session-scoped workspaces managed under `NYAKORE_DATA_ROOT`.
+9. Local repo work uses session-scoped workspaces managed under `NYAKORE_DATA_ROOT`. A remote
+   Session uses its explicitly authorized device and working directory instead.
 10.   Shared repo roots carry upstream synchronization state; session workspaces carry task execution state.
 11.   Workspace acquisition, layout, and cleanup are defined by runtime workspace state and lifecycle hooks.
 12.   External Skills belong in `skills.lock.toml` with a full immutable revision and canonical digest.

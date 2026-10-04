@@ -136,6 +136,22 @@ describe('session-worktree hook helpers', () => {
     expect(workspace.records.size).toBe(0)
   })
 
+  it('does not provision a central checkout for a remote Session', async () => {
+    const workspace = createWorkspaceRegistryStub()
+    await sessionWorktreeHook.beforeSessionCreate(
+      {
+        sessionId: 'sess_remote',
+        input: {
+          owner: 'dev-neko',
+          device: 'test-device',
+          artifacts: { repos: ['example/project'] },
+        },
+      },
+      { dataRoot: '/unused/device-hook-test', agentHasTool, workspace }
+    )
+    expect(workspace.records.size).toBe(0)
+  })
+
   it('cleans legacy manual session workspaces under the session workspace root', async () => {
     const dataRoot = await mkdtemp(path.join(os.tmpdir(), 'nyako-worktree-legacy-'))
     cleanupRoots.push(dataRoot)

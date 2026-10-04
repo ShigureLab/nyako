@@ -9,6 +9,7 @@ const HOOK_ID = 'session-worktree'
 
 type SessionCreateInput = {
   owner: string
+  device?: string
   artifacts?: {
     repos?: string[]
   }
@@ -42,7 +43,7 @@ function shouldProvisionSessionWorkspace(
   event: { input: SessionCreateInput },
   context: HookContext
 ): boolean {
-  return context.agentHasTool(event.input.owner, 'runtime-workspace')
+  return !event.input.device && context.agentHasTool(event.input.owner, 'runtime-workspace')
 }
 
 function slugify(value: string): string {
