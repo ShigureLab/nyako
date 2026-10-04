@@ -1,12 +1,11 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
 import { afterEach, describe, expect, it } from 'vite-plus/test'
-import registerUserBindingTool, { UserBindingConfig } from '../tools/users/index.ts'
-import registerSearchUserBindingsTool, { type searchUserBindings } from '../tools/users/search.ts'
-import registerHubUserTools from '../agents/hub-neko/extensions/user-bindings.ts'
-import registerNyakoUserSearch from '../agents/nyako/extensions/user-search.ts'
+import { createUserBindingTool, UserBindingConfig } from '../tools/users/index.ts'
+import { createSearchUserBindingsTool, type searchUserBindings } from '../tools/users/search.ts'
+import hubExtension from '../agents/hub-neko/extensions/user-bindings.ts'
+import nyakoExtension from '../agents/nyako/extensions/user-search.ts'
 
 const tempDirs: string[] = []
 
@@ -106,29 +105,23 @@ describe('user binding tool', () => {
     const configPath = await writeBindings([
       { id: 'owner', identities: ['github:user:ExampleOwner'] },
     ])
-    let tool:
-      | {
-          description?: string
-          name: string
-          execute(toolCallId: string, input: { identity: string }): Promise<any>
-        }
-      | undefined
-    registerUserBindingTool(
-      {
-        registerTool(candidate) {
-          tool = candidate
-        },
-      } as ExtensionAPI,
-      new UserBindingConfig(configPath)
-    )
+    const tool = createUserBindingTool(new UserBindingConfig(configPath))
 
     expect(tool?.name).toBe('resolve_user_binding')
     expect(tool?.description).toContain('github:user:<login>')
     expect(tool?.description).toContain('bare logins never match')
-    expect(await tool?.execute('call_1', { identity: 'telegram:unknown' })).toMatchObject({
+    expect(
+      await tool.execute({ identity: 'telegram:unknown' }, undefined as never, undefined as never)
+    ).toMatchObject({
       details: { found: false, identity: 'telegram:unknown' },
     })
-    expect(await tool?.execute('call_2', { identity: 'github:user:ExampleOwner' })).toMatchObject({
+    expect(
+      await tool.execute(
+        { identity: 'github:user:ExampleOwner' },
+        undefined as never,
+        undefined as never
+      )
+    ).toMatchObject({
       details: {
         found: true,
         id: 'owner',
@@ -136,17 +129,17 @@ describe('user binding tool', () => {
       },
     })
     for (const identity of ['ExampleOwner', 'github:user:exampleowner', 'github:user:Example']) {
-      expect(await tool?.execute('exact-only', { identity })).toMatchObject({
+      expect(
+        await tool.execute({ identity }, undefined as never, undefined as never)
+      ).toMatchObject({
         details: { found: false },
       })
     }
   })
 
   it('exposes search to Nyako and Hub, with exact resolution only on Hub', () => {
-    const hubTools: string[] = []
-    const nyakoTools: string[] = []
-    registerHubUserTools({ registerTool: (tool) => hubTools.push(tool.name) })
-    registerNyakoUserSearch({ registerTool: (tool) => nyakoTools.push(tool.name) })
+    const hubTools = hubExtension.tools!.map((tool) => tool.name)
+    const nyakoTools = nyakoExtension.tools!.map((tool) => tool.name)
     expect(hubTools).toEqual(['resolve_user_binding', 'search_user_bindings'])
     expect(nyakoTools).toEqual(['search_user_bindings'])
   })
@@ -154,21 +147,19 @@ describe('user binding tool', () => {
 
 async function searchTool(bindings: BindingInput[]) {
   const configPath = await writeBindings(bindings)
-  let tool: Parameters<ExtensionAPI['registerTool']>[0]
-  registerSearchUserBindingsTool(
-    {
-      registerTool(candidate) {
-        tool = candidate
-      },
-    },
-    new UserBindingConfig(configPath)
-  )
+  const tool = createSearchUserBindingsTool(new UserBindingConfig(configPath))
   return async (query: string, scope?: string) => {
-    const result = await tool.execute('search', {
-      query,
-      ...(scope === undefined ? {} : { scope }),
-    })
-    expect(JSON.parse(result.content[0]!.text)).toEqual(result.details)
+    const result = await tool.execute(
+      {
+        query,
+        ...(scope === undefined ? {} : { scope }),
+      },
+      undefined as never,
+      undefined as never
+    )
+    const content = result.content?.[0]
+    if (content?.type !== 'text') throw new Error('Expected text result')
+    expect(JSON.parse(content.text)).toEqual(result.details)
     return result.details as ReturnType<typeof searchUserBindings>
   }
 }

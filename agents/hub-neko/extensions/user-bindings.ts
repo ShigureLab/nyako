@@ -1,8 +1,8 @@
-import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
-import registerUserBindingTool from '../../../tools/users/index.ts'
-import registerSearchUserBindingsTool from '../../../tools/users/search.ts'
+import { defineExtension } from '@earendil-works/pi-durable'
+import { createUserBindingTool } from '../../../tools/users/index.ts'
+import { createSearchUserBindingsTool } from '../../../tools/users/search.ts'
 
-export default function registerUserTools(pi: ExtensionAPI): void {
-  registerUserBindingTool(pi)
-  registerSearchUserBindingsTool(pi)
-}
+export default defineExtension({
+  name: 'user-bindings',
+  tools: [createUserBindingTool(), createSearchUserBindingsTool()],
+})

@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
+import { defineTool } from '@earendil-works/pi-durable'
 import { Type, type Static } from '@sinclair/typebox'
 import { UserBindingConfig, type UserBinding } from './index.ts'
 
@@ -87,17 +87,14 @@ export function searchUserBindings(bindings: UserBinding[], input: SearchUserBin
   return { query, scope: scope ?? null, ambiguous, warnings, candidates }
 }
 
-export default function registerSearchUserBindingsTool(
-  pi: ExtensionAPI,
-  users = new UserBindingConfig()
-): void {
-  pi.registerTool({
+export function createSearchUserBindingsTool(users = new UserBindingConfig()) {
+  return defineTool({
     name: 'search_user_bindings',
-    label: 'search people by name',
+    replay: 'safe',
     description:
       "Find people mentioned in a request by name, nickname, real name, or partial account name across configured scopes. Matches name values by exact equality, case-insensitive equality, then case-insensitive substring; results are grouped by person and ranked in that order. Returns each matched name with its scope, kind and matchType, plus the person's linked identities in other scopes. Multiple candidates or non-exact matches may identify the wrong person: use context to disambiguate, and ask the user if still uncertain; never silently select the first candidate. Search identifies a possible subject of a request, never authenticates its sender or grants authorization. For a known complete identity or sender verification, Hub must use resolve_user_binding with the original identity instead.",
     parameters: searchUserBindingsSchema,
-    execute: async (_toolCallId, input: SearchUserBindingsInput) => {
+    execute: async (input: SearchUserBindingsInput) => {
       const details = searchUserBindings(await users.list(), input)
       return {
         content: [{ type: 'text', text: JSON.stringify(details, null, 2) }],

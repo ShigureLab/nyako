@@ -74,7 +74,7 @@ runtime.toml                 # definition repo 入口与 startup Session
 
 agents/<agent-id>/
 ├── agent.toml               # id、role、model、credential alias、工具集合
-├── extensions/              # 可选：该 Agent 的 Pi 原生 extensions
+├── extensions/              # 可选：该 Agent 的 Pi Durable 原生 extensions
 ├── AGENTS.md                # 必需：操作规则与职责
 ├── IDENTITY.md              # 可选：身份表达
 ├── SOUL.md                  # 可选：风格与价值取向
@@ -193,7 +193,12 @@ Agent 可用能力来自三层：
 
 1. pi 基础文件/终端工具，例如 `read`、`bash`、`edit`、`grep`。
 2. `nyakore` builtin groups，由 `agent.toml` 直接选择。
-3. Agent-owned Pi 原生 extensions，例如 GitHub monitor ledger。
+3. Agent-owned Pi Durable 原生 extensions，例如 GitHub monitor ledger。
+
+`extensions/*.ts` 默认导出 `defineExtension({ name, tools })`，工具通过
+`@earendil-works/pi-durable` 的 `defineTool` 声明。只读身份查询和 trust 检查使用
+`replay: 'safe'`；会写入 ledger 的工具使用 `replay: 'unsafe'`，由 runtime 的 Durable
+执行记录处理崩溃后的恢复。定义层继续拥有 ledger 数据含义与更新规则。
 
 `dev-neko` 在绑定的 Session workspace 中直接完成工程实现和验证；需要独立研究或计划时，
 通过明确的 NNP Session 消息与 `research-neko`、`plan-neko` 协作。GitHub 深度上下文读取使用

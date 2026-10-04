@@ -5,7 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
-import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
+import { defineExtension, defineTool } from '@earendil-works/pi-durable'
 import { Type, type Static } from '@sinclair/typebox'
 import { Value } from '@sinclair/typebox/value'
 
@@ -241,7 +241,10 @@ async function executeLedger(input: Input) {
     ledger.entries = Object.fromEntries(
       Object.entries(ledger.entries).filter(([, entry]) => entry.lastSeenAt >= now - RETENTION_MS)
     )
-    const results = events.map(({ key, fingerprint, outcome }) => {
+    const results = events.map<
+      | { eventKey: string; shouldAct: boolean }
+      | { eventKey: string; outcome: 'routed' | 'suppressed' }
+    >(({ key, fingerprint, outcome }) => {
       const entry = ledger.entries[key] ?? { lastSeenAt: now }
       const shouldAct = !entry.handled || entry.handled.fingerprint !== fingerprint
       if (input.action === 'record' && (shouldAct || entry.handled?.outcome !== outcome)) {
@@ -267,19 +270,22 @@ async function executeLedger(input: Input) {
   }
 }
 
-export default function registerGithubMonitorLedgerTool(pi: ExtensionAPI): void {
-  pi.registerTool({
-    name: 'github_monitor_ledger',
-    label: 'github monitor ledger',
-    description:
-      'Deduplicate GitHub events across runs. Exact events use sourceEvent type + id. Synthetic state uses the current unread github:thread:<thread_id> with state; comments/reviews always use their own sourceEvent. Check first, then record only after successful routing or intentional suppression. Reuse the same input identity/state for check and record. stats is read-only.',
-    parameters: inputSchema,
-    execute: async (_toolCallId, input: Input) => {
-      const result = await executeLedger(input)
-      return {
-        content: [{ type: 'text', text: JSON.stringify(result) }],
-        details: { action: input.action, result },
-      }
-    },
-  })
-}
+export const githubMonitorLedgerTool = defineTool({
+  name: 'github_monitor_ledger',
+  replay: 'unsafe',
+  description:
+    'Deduplicate GitHub events across runs. Exact events use sourceEvent type + id. Synthetic state uses the current unread github:thread:<thread_id> with state; comments/reviews always use their own sourceEvent. Check first, then record only after successful routing or intentional suppression. Reuse the same input identity/state for check and record. stats is read-only.',
+  parameters: inputSchema,
+  execute: async (input: Input) => {
+    const result = await executeLedger(input)
+    return {
+      content: [{ type: 'text', text: JSON.stringify(result) }],
+      details: { action: input.action, result },
+    }
+  },
+})
+
+export default defineExtension({
+  name: 'github-monitor-ledger',
+  tools: [githubMonitorLedgerTool],
+})

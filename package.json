@@ -5,10 +5,11 @@
   "description": "Definition repo for the nyako multi-agent team",
   "type": "module",
   "dependencies": {
+    "@earendil-works/pi-durable": "1.0.2",
+    "@sinclair/typebox": "^0.34.48",
     "smol-toml": "1.6.0"
   },
   "devDependencies": {
-    "@sinclair/typebox": "^0.34.48",
     "@types/node": "^24.13.3",
     "typescript": "^7.0.2",
     "vite-plus": "^0.2.6",

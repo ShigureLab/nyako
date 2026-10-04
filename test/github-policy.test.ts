@@ -1,9 +1,8 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
 import { afterEach, describe, expect, it } from 'vite-plus/test'
-import registerGithubPolicyTool, { GithubAdapterPolicy } from '../tools/github/index.ts'
+import { createGithubPolicyTool, GithubAdapterPolicy } from '../tools/github/index.ts'
 
 const tempDirs: string[] = []
 
@@ -53,23 +52,12 @@ describe('GitHub adapter policy tool', () => {
     const configPath = await writeConfig(
       ['[adapter.github]', 'trusted_users = ["octocat"]', ''].join('\n')
     )
-    let tool:
-      | {
-          name: string
-          execute(toolCallId: string, input: { login: string }): Promise<any>
-        }
-      | undefined
-    registerGithubPolicyTool(
-      {
-        registerTool(candidate) {
-          tool = candidate
-        },
-      } as ExtensionAPI,
-      new GithubAdapterPolicy(configPath)
-    )
+    const tool = createGithubPolicyTool(new GithubAdapterPolicy(configPath))
 
     expect(tool?.name).toBe('check_github_actor_trust')
-    await expect(tool?.execute('call_1', { login: 'octocat' })).resolves.toMatchObject({
+    await expect(
+      tool.execute({ login: 'octocat' }, undefined as never, undefined as never)
+    ).resolves.toMatchObject({
       details: { login: 'octocat', trusted: true },
     })
   })

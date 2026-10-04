@@ -1,19 +1,12 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
-import registerGithubMonitorLedgerTool from '../agents/monitor-neko/extensions/github-monitor-ledger.ts'
+import { githubMonitorLedgerTool } from '../agents/monitor-neko/extensions/github-monitor-ledger.ts'
 
-type Tool = { execute: (id: string, input: unknown) => Promise<any> }
+type Tool = typeof githubMonitorLedgerTool
 function registerTool(): Tool {
-  let tool!: Tool
-  registerGithubMonitorLedgerTool({
-    registerTool(value: Tool) {
-      tool = value
-    },
-  } as unknown as ExtensionAPI)
-  return tool
+  return githubMonitorLedgerTool
 }
 
 const sourceEvent = { type: 'issue_comment', id: 101 }
@@ -24,8 +17,16 @@ describe('github-monitor-ledger', () => {
   let tempHome: string
   let tool: Tool
   let ledgerPath: string
-  const call = async (action: string, events?: unknown[]) =>
-    JSON.parse((await tool.execute('test', { action, events })).content[0].text)
+  const call = async (action: string, events?: unknown[]) => {
+    const result = await tool.execute(
+      { action, events } as Parameters<Tool['execute']>[0],
+      undefined as never,
+      undefined as never
+    )
+    const content = result.content?.[0]
+    if (content?.type !== 'text') throw new Error('Expected text result')
+    return JSON.parse(content.text)
+  }
   const read = async () => JSON.parse(await readFile(ledgerPath, 'utf8'))
 
   beforeEach(async () => {
