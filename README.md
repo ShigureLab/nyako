@@ -90,6 +90,7 @@ memory/config.toml           # runtime memory producer 策略
 tools/local-config.ts        # project tools 共用的本机配置局部读取机制
 tools/users/                 # 身份精确解析与名字搜索工具
 tools/github/                # GitHub adapter policy 检查工具，仅暴露给 Monitor
+tools/web/                   # 公开网页搜索与正文读取，仅暴露给 Nyako 入口
 test/                        # extension 与 hook 测试
 ```
 
