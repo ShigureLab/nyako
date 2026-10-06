@@ -1,22 +1,17 @@
-import { execFile as execFileCallback } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import { mkdir, readdir, rm } from 'node:fs/promises'
 import path from 'node:path'
-import { promisify } from 'node:util'
 
-const execFile = promisify(execFileCallback)
 const HOOK_ID = 'session-worktree'
 
 type SessionCreateInput = {
   owner: string
   device?: string
-  artifacts?: {
-    repos?: string[]
-  }
+  cwd?: string
+  artifacts?: { repos?: string[] }
 }
 
 type WorkspaceRecord = {
   id: string
+  device?: string
   repo: string
   path: string
   branch: string | null
@@ -30,20 +25,32 @@ type WorkspaceRegistryLike = {
   delete(workspaceId: string): Promise<WorkspaceRecord | null>
   list(): Promise<WorkspaceRecord[]>
   listForOwner(ownerKey: string): Promise<WorkspaceRecord[]>
-  upsert(workspace: Omit<WorkspaceRecord, 'updatedAt'>): Promise<WorkspaceRecord>
+  upsert(workspace: WorkspaceRecord): Promise<WorkspaceRecord>
+}
+
+type WorkspaceDevice = {
+  workspacesRoot: string
+  exists(file: string): Promise<boolean>
+  mkdir(dir: string): Promise<void>
+  remove(file: string): Promise<void>
+  readdir(dir: string): Promise<string[]>
+  execFile(
+    command: string,
+    args: string[],
+    options?: {
+      cwd?: string
+      env?: Record<string, string>
+    }
+  ): Promise<string>
 }
 
 type HookContext = {
-  dataRoot: string
   agentHasTool(agentId: string, toolId: string): boolean
   workspace: WorkspaceRegistryLike
-}
-
-function shouldProvisionSessionWorkspace(
-  event: { input: SessionCreateInput },
-  context: HookContext
-): boolean {
-  return !event.input.device && context.agentHasTool(event.input.owner, 'runtime-workspace')
+  withDevice<T>(
+    deviceId: string | undefined,
+    task: (device: WorkspaceDevice) => Promise<T>
+  ): Promise<T>
 }
 
 function slugify(value: string): string {
@@ -55,39 +62,16 @@ function slugify(value: string): string {
 }
 
 function parseRepoSlug(repo: string): { owner: string; repoName: string } | null {
-  const trimmed = repo.trim().replace(/\.git$/i, '')
-  const match = /^([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)$/.exec(trimmed)
-  if (!match) {
+  const match = /^([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)$/.exec(repo.trim().replace(/\.git$/i, ''))
+  if (!match || match[1] === '.' || match[1] === '..' || match[2] === '.' || match[2] === '..')
     return null
-  }
-  return {
-    owner: match[1]!,
-    repoName: match[2]!,
-  }
+  return { owner: match[1]!, repoName: match[2]! }
 }
 
-function buildSessionWorkspaceRoot(dataRoot: string, sessionId: string): string {
-  return path.join(dataRoot, 'workspaces', 'sessions', sessionId)
-}
-
-function isPathWithin(parentDir: string, candidatePath: string | null | undefined): boolean {
-  if (!candidatePath) {
-    return false
-  }
-  const parent = path.resolve(parentDir)
-  const candidate = path.resolve(candidatePath)
-  return candidate === parent || candidate.startsWith(`${parent}${path.sep}`)
-}
-
-function resolveRemoteUrl(repo: string, remoteUrl?: string): string {
-  if (remoteUrl?.trim()) {
-    return remoteUrl
-  }
-  return `https://github.com/${repo}.git`
-}
-
-export function buildRootWorkspaceId(repo: string): string {
-  return `ws_root_${slugify(repo)}`
+export function buildRootWorkspaceId(repo: string, device?: string): string {
+  return device
+    ? `ws_remote_root_${encodeURIComponent(device)}_${slugify(repo)}`
+    : `ws_root_${slugify(repo)}`
 }
 
 export function buildSessionWorkspaceId(sessionId: string, repo: string): string {
@@ -95,174 +79,127 @@ export function buildSessionWorkspaceId(sessionId: string, repo: string): string
 }
 
 export function buildSessionBranch(sessionId: string): string {
-  const suffix = slugify(sessionId)
-  return `session/${suffix || 'work'}`
+  return `session/${slugify(sessionId) || 'work'}`
 }
 
-export function buildRepoPaths(params: { dataRoot: string; repo: string; sessionId: string }) {
+export function buildRepoPaths(params: {
+  workspacesRoot: string
+  repo: string
+  sessionId: string
+}) {
   const parsed = parseRepoSlug(params.repo)
-  if (!parsed) {
-    return null
-  }
-  const rootPath = path.join(params.dataRoot, 'workspaces', 'repos', parsed.owner, parsed.repoName)
-  const sessionPath = path.join(
-    params.dataRoot,
-    'workspaces',
-    'sessions',
-    params.sessionId,
-    parsed.owner,
-    parsed.repoName
-  )
+  if (!parsed) return null
   return {
-    owner: parsed.owner,
-    repoName: parsed.repoName,
-    rootPath,
-    sessionPath,
+    rootPath: path.posix.join(params.workspacesRoot, 'repos', parsed.owner, parsed.repoName),
+    sessionPath: path.posix.join(
+      params.workspacesRoot,
+      'sessions',
+      params.sessionId,
+      parsed.owner,
+      parsed.repoName
+    ),
   }
 }
 
-async function execGit(args: string[], cwd?: string): Promise<string> {
-  const result = await execFile('git', args, {
-    cwd,
-    encoding: 'utf8',
-    env: {
-      ...process.env,
-      GIT_TERMINAL_PROMPT: '0',
-    },
-  })
-  return result.stdout.trim()
+async function execGit(fs: WorkspaceDevice, args: string[], cwd?: string): Promise<string> {
+  return await fs.execFile('git', args, { cwd, env: { GIT_TERMINAL_PROMPT: '0' } })
 }
 
-async function readGit(args: string[], cwd?: string): Promise<string | null> {
+async function readGit(fs: WorkspaceDevice, args: string[], cwd?: string): Promise<string | null> {
   try {
-    return await execGit(args, cwd)
-  } catch {
-    return null
+    return await execGit(fs, args, cwd)
+  } catch (error) {
+    if (error instanceof Error && 'exitCode' in error) return null
+    throw error
   }
 }
 
-async function isUsableGitWorktree(worktreePath: string): Promise<boolean> {
-  if (!existsSync(worktreePath)) {
-    return false
-  }
-  return (await readGit(['rev-parse', '--is-inside-work-tree'], worktreePath)) === 'true'
+async function isUsableGitWorktree(fs: WorkspaceDevice, worktreePath: string): Promise<boolean> {
+  return (
+    (await fs.exists(worktreePath)) &&
+    (await readGit(fs, ['rev-parse', '--is-inside-work-tree'], worktreePath)) === 'true'
+  )
 }
 
 async function ensureSharedRepoRoot(params: {
+  fs: WorkspaceDevice
   remoteUrl?: string
   repo: string
   rootPath: string
 }): Promise<{ branch: string; rootPath: string }> {
-  await mkdir(path.dirname(params.rootPath), { recursive: true })
+  const { fs, rootPath } = params
+  await fs.mkdir(path.posix.dirname(rootPath))
   if (
-    existsSync(path.join(params.rootPath, '.git')) &&
-    !(await isUsableGitWorktree(params.rootPath))
+    (await fs.exists(path.posix.join(rootPath, '.git'))) &&
+    !(await isUsableGitWorktree(fs, rootPath))
   ) {
-    await removeDirIfExists(params.rootPath)
+    await fs.remove(rootPath)
   }
-  if (!existsSync(path.join(params.rootPath, '.git'))) {
-    await execGit(['clone', resolveRemoteUrl(params.repo, params.remoteUrl), params.rootPath])
+  if (!(await fs.exists(path.posix.join(rootPath, '.git')))) {
+    await execGit(fs, [
+      'clone',
+      params.remoteUrl?.trim() || `https://github.com/${params.repo}.git`,
+      rootPath,
+    ])
   }
-
-  const dirty = await readGit(['status', '--porcelain'], params.rootPath)
-  if (dirty && dirty.trim()) {
-    throw new Error(`shared repo root is dirty and cannot be refreshed safely: ${params.rootPath}`)
-  }
-
-  await execGit(['fetch', 'origin', '--prune'], params.rootPath)
-  const originHead =
-    (
-      await readGit(
-        ['symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD'],
-        params.rootPath
-      )
-    )
-      ?.replace(/^origin\//, '')
-      .trim() || null
-  const currentBranch =
-    (await readGit(['branch', '--show-current'], params.rootPath))?.trim() || null
-  const branch = originHead || currentBranch || 'main'
-  await execGit(['checkout', branch], params.rootPath)
-  await execGit(['reset', '--hard', `origin/${branch}`], params.rootPath)
-
-  return {
-    branch,
-    rootPath: params.rootPath,
-  }
+  const dirty = await execGit(fs, ['status', '--porcelain'], rootPath)
+  if (dirty)
+    throw new Error(`shared repo root is dirty and cannot be refreshed safely: ${rootPath}`)
+  await execGit(fs, ['fetch', 'origin', '--prune'], rootPath)
+  const originHead = (
+    await readGit(fs, ['symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD'], rootPath)
+  )?.replace(/^origin\//, '')
+  const branch = originHead || (await readGit(fs, ['branch', '--show-current'], rootPath)) || 'main'
+  await execGit(fs, ['checkout', branch], rootPath)
+  await execGit(fs, ['reset', '--hard', `origin/${branch}`], rootPath)
+  return { branch, rootPath }
 }
 
-async function removeDirIfExists(dirPath: string): Promise<void> {
-  if (!existsSync(dirPath)) {
-    return
-  }
-  await rm(dirPath, { force: true, recursive: true })
-}
-
-async function removeEmptyParents(startDir: string, stopDir: string): Promise<void> {
-  let current = path.resolve(startDir)
-  const boundary = path.resolve(stopDir)
-  while (current.startsWith(boundary) && current !== boundary) {
-    const entries = await readdir(current).catch(() => [])
-    if (entries.length > 0) {
-      return
+async function removeEmptyParents(
+  fs: WorkspaceDevice,
+  startDir: string,
+  stopDir: string
+): Promise<void> {
+  let current = path.posix.resolve(startDir)
+  const boundary = path.posix.resolve(stopDir)
+  while (current.startsWith(`${boundary}/`) && current !== boundary) {
+    if (await fs.exists(current)) {
+      if ((await fs.readdir(current)).length > 0) return
+      await fs.remove(current)
     }
-    await rm(current, { recursive: true, force: true })
-    current = path.dirname(current)
+    current = path.posix.dirname(current)
   }
 }
 
-async function ensureSessionWorktree(params: {
-  branch: string
-  remoteBaseBranch: string
-  rootPath: string
-  sessionPath: string
-}): Promise<void> {
-  await removeDirIfExists(params.sessionPath)
-  await mkdir(path.dirname(params.sessionPath), { recursive: true })
-  await execGit(['worktree', 'prune'], params.rootPath)
-  await execGit(
-    [
-      'worktree',
-      'add',
-      '-B',
-      params.branch,
-      params.sessionPath,
-      `origin/${params.remoteBaseBranch}`,
-    ],
-    params.rootPath
-  )
-}
-
-export async function provisionSessionRepoWorktree(params: {
+async function provisionRepo(params: {
   context: HookContext
+  fs: WorkspaceDevice
+  device?: string
   remoteUrl?: string
   repo: string
   sessionId: string
-}): Promise<WorkspaceRecord | null> {
+}): Promise<WorkspaceRecord> {
   const paths = buildRepoPaths({
-    dataRoot: params.context.dataRoot,
+    workspacesRoot: params.fs.workspacesRoot,
     repo: params.repo,
     sessionId: params.sessionId,
   })
-  if (!paths) {
-    return null
-  }
-
-  const root = await ensureSharedRepoRoot({
-    remoteUrl: params.remoteUrl,
-    repo: params.repo,
-    rootPath: paths.rootPath,
-  })
+  if (!paths) throw new Error(`invalid repository: ${params.repo}`)
+  const { fs } = params
+  const root = await ensureSharedRepoRoot({ ...params, rootPath: paths.rootPath })
   const branch = buildSessionBranch(params.sessionId)
-  await ensureSessionWorktree({
-    branch,
-    remoteBaseBranch: root.branch,
-    rootPath: root.rootPath,
-    sessionPath: paths.sessionPath,
-  })
-
+  await fs.remove(paths.sessionPath)
+  await fs.mkdir(path.posix.dirname(paths.sessionPath))
+  await execGit(fs, ['worktree', 'prune'], root.rootPath)
+  await execGit(
+    fs,
+    ['worktree', 'add', '-B', branch, paths.sessionPath, `origin/${root.branch}`],
+    root.rootPath
+  )
+  const target = params.device ? { device: params.device } : {}
   await params.context.workspace.upsert({
-    id: buildRootWorkspaceId(params.repo),
+    id: buildRootWorkspaceId(params.repo, params.device),
+    ...target,
     repo: params.repo,
     path: root.rootPath,
     branch: root.branch,
@@ -271,9 +208,9 @@ export async function provisionSessionRepoWorktree(params: {
     rootPath: root.rootPath,
     managedBy: HOOK_ID,
   })
-
   return await params.context.workspace.upsert({
     id: buildSessionWorkspaceId(params.sessionId, params.repo),
+    ...target,
     repo: params.repo,
     path: paths.sessionPath,
     branch,
@@ -284,128 +221,112 @@ export async function provisionSessionRepoWorktree(params: {
   })
 }
 
-export async function cleanupSessionWorkspace(params: {
+export async function provisionSessionRepoWorktree(params: {
   context: HookContext
+  device?: string
+  remoteUrl?: string
+  repo: string
+  sessionId: string
+}): Promise<WorkspaceRecord> {
+  return await params.context.withDevice(
+    params.device,
+    async (fs) => await provisionRepo({ ...params, fs })
+  )
+}
+
+async function cleanupWorkspace(params: {
+  context: HookContext
+  fs: WorkspaceDevice
   sessionId: string
   workspace: WorkspaceRecord
 }): Promise<void> {
-  const rootPath = params.workspace.rootPath?.trim() || null
-  const branch = params.workspace.branch?.trim() || null
-  const isHookManagedWorktree =
-    params.workspace.managedBy === HOOK_ID &&
-    Boolean(rootPath) &&
-    path.resolve(rootPath!) !== path.resolve(params.workspace.path)
-  const hasUsableRoot = rootPath ? await isUsableGitWorktree(rootPath) : false
-
-  if (isHookManagedWorktree && rootPath && hasUsableRoot) {
-    await readGit(['worktree', 'remove', '--force', params.workspace.path], rootPath)
-    await execGit(['worktree', 'prune'], rootPath)
-    if (branch) {
-      await readGit(['branch', '-D', branch], rootPath)
-    }
+  const { fs, workspace } = params
+  const rootPath = workspace.rootPath?.trim() || null
+  const isManaged = workspace.managedBy === HOOK_ID && rootPath && rootPath !== workspace.path
+  const usableRoot = rootPath ? await isUsableGitWorktree(fs, rootPath) : false
+  if (isManaged && rootPath && usableRoot) {
+    await execGit(fs, ['worktree', 'remove', '--force', workspace.path], rootPath)
+    await execGit(fs, ['worktree', 'prune'], rootPath)
+    if (workspace.branch) await readGit(fs, ['branch', '-D', workspace.branch], rootPath)
   } else {
-    await removeDirIfExists(params.workspace.path)
+    await fs.remove(workspace.path)
   }
-
-  await params.context.workspace.delete(params.workspace.id)
+  await params.context.workspace.delete(workspace.id)
   await removeEmptyParents(
-    path.dirname(params.workspace.path),
-    path.join(params.context.dataRoot, 'workspaces', 'sessions', params.sessionId)
+    fs,
+    path.posix.dirname(workspace.path),
+    path.posix.join(fs.workspacesRoot, 'sessions')
   )
-  await removeEmptyParents(
-    path.join(params.context.dataRoot, 'workspaces', 'sessions', params.sessionId),
-    path.join(params.context.dataRoot, 'workspaces', 'sessions')
-  )
-
-  if (isHookManagedWorktree && rootPath && !hasUsableRoot) {
-    const remainingWorkspaces = await params.context.workspace.list()
-    const normalizedRootPath = path.resolve(rootPath)
-    const stillReferenced = remainingWorkspaces.some(
-      (workspace) =>
-        workspace.kind === 'session' &&
-        workspace.rootPath &&
-        path.resolve(workspace.rootPath) === normalizedRootPath
+  if (isManaged && rootPath && !usableRoot) {
+    const remaining = (await params.context.workspace.list()).filter(
+      (item) => item.device === workspace.device
     )
-    if (!stillReferenced) {
-      const rootWorkspace = remainingWorkspaces.find(
-        (workspace) =>
-          workspace.kind === 'root' &&
-          workspace.managedBy === HOOK_ID &&
-          path.resolve(workspace.path) === normalizedRootPath
+    if (!remaining.some((item) => item.kind === 'session' && item.rootPath === rootPath)) {
+      await fs.remove(rootPath)
+      const root = remaining.find(
+        (item) => item.kind === 'root' && item.managedBy === HOOK_ID && item.path === rootPath
       )
-      await removeDirIfExists(rootPath)
-      if (rootWorkspace) {
-        await params.context.workspace.delete(rootWorkspace.id)
-      }
+      if (root) await params.context.workspace.delete(root.id)
       await removeEmptyParents(
-        path.dirname(rootPath),
-        path.join(params.context.dataRoot, 'workspaces', 'repos')
+        fs,
+        path.posix.dirname(rootPath),
+        path.posix.join(fs.workspacesRoot, 'repos')
       )
     }
   }
 }
 
-async function cleanupManagedSessionWorkspaces(params: {
+export async function cleanupSessionWorkspace(params: {
   context: HookContext
   sessionId: string
+  workspace: WorkspaceRecord
 }): Promise<void> {
-  const sessionRoot = buildSessionWorkspaceRoot(params.context.dataRoot, params.sessionId)
-  const workspaces = await params.context.workspace.list()
-  for (const workspace of workspaces) {
-    const isSessionScopedWorkspace =
-      workspace.kind === 'session' &&
-      (workspace.ownerKey === params.sessionId ||
-        isPathWithin(sessionRoot, workspace.path) ||
-        isPathWithin(sessionRoot, workspace.rootPath))
+  await params.context.withDevice(
+    params.workspace.device,
+    async (fs) => await cleanupWorkspace({ ...params, fs })
+  )
+}
 
-    if (!isSessionScopedWorkspace) {
-      continue
-    }
-    await cleanupSessionWorkspace({
-      context: params.context,
-      sessionId: params.sessionId,
-      workspace,
-    })
+async function cleanupManagedSessionWorkspaces(
+  context: HookContext,
+  sessionId: string
+): Promise<void> {
+  for (const workspace of await context.workspace.listForOwner(sessionId)) {
+    if (workspace.kind === 'session')
+      await cleanupSessionWorkspace({ context, sessionId, workspace })
   }
-  await removeDirIfExists(sessionRoot)
 }
 
 const sessionWorktreeHook = {
   async beforeSessionCreate(
     event: { input: SessionCreateInput; sessionId: string },
     context: HookContext
-  ): Promise<void> {
-    if (!shouldProvisionSessionWorkspace(event, context)) {
-      return
-    }
-    const repos = Array.from(
-      new Set(event.input.artifacts?.repos?.map((repo) => repo.trim()) ?? [])
-    ).filter(Boolean)
-    if (repos.length === 0) {
-      return
-    }
-
-    for (const repo of repos) {
-      await provisionSessionRepoWorktree({
-        context,
-        repo,
-        sessionId: event.sessionId,
-      })
-    }
+  ): Promise<{ cwd: string } | void> {
+    if (!context.agentHasTool(event.input.owner, 'runtime-workspace') || event.input.cwd) return
+    const repos = [
+      ...new Set(event.input.artifacts?.repos?.map((repo) => repo.trim()) ?? []),
+    ].filter(Boolean)
+    if (!repos.length) return
+    return await context.withDevice(event.input.device, async (fs) => {
+      let first: WorkspaceRecord | null = null
+      for (const repo of repos) {
+        const workspace = await provisionRepo({
+          context,
+          fs,
+          device: event.input.device,
+          repo,
+          sessionId: event.sessionId,
+        })
+        first ??= workspace
+      }
+      return event.input.device && first ? { cwd: first.path } : undefined
+    })
   },
-
   async onSessionArchived(event: { sessionId: string }, context: HookContext) {
-    await cleanupManagedSessionWorkspaces({
-      context,
-      sessionId: event.sessionId,
-    })
+    await cleanupManagedSessionWorkspaces(context, event.sessionId)
   },
-
   async onSessionRemoved(event: { sessionId: string }, context: HookContext) {
-    await cleanupManagedSessionWorkspaces({
-      context,
-      sessionId: event.sessionId,
-    })
+    await cleanupManagedSessionWorkspaces(context, event.sessionId)
   },
 }
 

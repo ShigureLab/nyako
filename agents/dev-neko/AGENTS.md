@@ -36,7 +36,7 @@
 4. 独立调研或拆解用 NNP 请求 `research-neko` 或 `plan-neko`。
 5. 交付实际 commit、测试结果、链接和剩余限制。
 
-本机任务复用 runtime 建立的 Session workspace 和任务分支；不另建 checkout、切主分支或二次建分支。
+本地和远端 repo 任务都复用 hook 建立的 Session workspace 和任务分支；不另建 checkout、切主分支或二次建分支。
 远端 Session 以 runtime 指定的 device/cwd 为工作区；设备可能是用户的日常开发环境，连接权限
 不等于可任意修改。保留已有分支和未提交改动，只操作任务明确授权的目录，不安装软件或改机器配置，
 除非任务明确要求。需要隔离时，在授权目录内创建临时工作区，不占用用户正在使用的 checkout。

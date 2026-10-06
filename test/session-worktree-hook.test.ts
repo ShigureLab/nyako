@@ -1,7 +1,9 @@
-import { execFileSync } from 'node:child_process'
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { execFile, execFileSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { promisify } from 'node:util'
 import { afterEach, describe, expect, it } from 'vite-plus/test'
 import sessionWorktreeHook, {
   cleanupSessionWorkspace,
@@ -10,6 +12,7 @@ import sessionWorktreeHook, {
 
 type WorkspaceRecord = {
   id: string
+  device?: string
   repo: string
   path: string
   branch: string | null
@@ -45,6 +48,45 @@ function agentHasTool(agentId: string, toolId: string): boolean {
   return agentId === 'dev-neko' && toolId === 'runtime-workspace'
 }
 
+function createHookContext(
+  dataRoot: string,
+  workspace: ReturnType<typeof createWorkspaceRegistryStub>,
+  remoteRoots: Record<string, string> = {}
+) {
+  const withDevice: Parameters<
+    typeof provisionSessionRepoWorktree
+  >[0]['context']['withDevice'] = async (deviceId, task) => {
+    const targetRoot = deviceId ? remoteRoots[deviceId]! : dataRoot
+    return await task({
+      workspacesRoot: path.join(targetRoot, 'workspaces'),
+      exists: async (file) => existsSync(file),
+      mkdir: async (dir) => {
+        await mkdir(dir, { recursive: true })
+      },
+      remove: async (file) => {
+        await rm(file, { recursive: true, force: true })
+      },
+      readdir: async (dir) => await readdir(dir),
+      execFile: async (command, args, options) => {
+        try {
+          return (
+            await promisify(execFile)(command, args, {
+              cwd: options?.cwd,
+              env: { ...process.env, ...options?.env },
+              encoding: 'utf8',
+            })
+          ).stdout.trim()
+        } catch (error) {
+          if (error instanceof Error && 'code' in error && typeof error.code === 'number')
+            Object.assign(error, { exitCode: error.code })
+          throw error
+        }
+      },
+    })
+  }
+  return { agentHasTool, workspace, withDevice }
+}
+
 async function withBareRepo(fn: (params: { bareRepo: string }) => Promise<void>): Promise<void> {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'nyako-worktree-hook-'))
   const sourceRepo = path.join(tempRoot, 'source')
@@ -77,11 +119,7 @@ describe('session-worktree hook helpers', () => {
       const dataRoot = await mkdtemp(path.join(os.tmpdir(), 'nyako-worktree-data-'))
       cleanupRoots.push(dataRoot)
       const workspace = createWorkspaceRegistryStub()
-      const context = {
-        dataRoot,
-        agentHasTool,
-        workspace,
-      }
+      const context = createHookContext(dataRoot, workspace)
 
       const sessionWorkspace = await provisionSessionRepoWorktree({
         context,
@@ -125,18 +163,14 @@ describe('session-worktree hook helpers', () => {
           },
         },
       },
-      {
-        dataRoot: '/tmp/nyako-worktree-skip',
-        agentHasTool,
-        workspace,
-      }
+      createHookContext('/tmp/nyako-worktree-skip', workspace)
     )
 
     expect(result).toBeUndefined()
     expect(workspace.records.size).toBe(0)
   })
 
-  it('does not provision a central checkout for a remote Session', async () => {
+  it('preserves an explicit remote working directory', async () => {
     const workspace = createWorkspaceRegistryStub()
     await sessionWorktreeHook.beforeSessionCreate(
       {
@@ -144,15 +178,16 @@ describe('session-worktree hook helpers', () => {
         input: {
           owner: 'dev-neko',
           device: 'test-device',
+          cwd: '/explicit/repo',
           artifacts: { repos: ['example/project'] },
         },
       },
-      { dataRoot: '/unused/device-hook-test', agentHasTool, workspace }
+      createHookContext('/unused/device-hook-test', workspace)
     )
     expect(workspace.records.size).toBe(0)
   })
 
-  it('cleans legacy manual session workspaces under the session workspace root', async () => {
+  it('cleans tracked manual session workspaces', async () => {
     const dataRoot = await mkdtemp(path.join(os.tmpdir(), 'nyako-worktree-legacy-'))
     cleanupRoots.push(dataRoot)
     const workspace = createWorkspaceRegistryStub()
@@ -173,7 +208,7 @@ describe('session-worktree hook helpers', () => {
       path: legacyPath,
       branch: 'develop',
       kind: 'session',
-      ownerKey: null,
+      ownerKey: sessionId,
       rootPath: legacyPath,
       managedBy: 'manual',
     })
@@ -182,11 +217,7 @@ describe('session-worktree hook helpers', () => {
       {
         sessionId,
       },
-      {
-        dataRoot,
-        agentHasTool,
-        workspace,
-      }
+      createHookContext(dataRoot, workspace)
     )
 
     await expect(access(legacyPath)).rejects.toThrow()
@@ -236,11 +267,7 @@ describe('session-worktree hook helpers', () => {
       {
         sessionId,
       },
-      {
-        dataRoot,
-        agentHasTool,
-        workspace,
-      }
+      createHookContext(dataRoot, workspace)
     )
 
     await expect(access(sessionPath)).rejects.toThrow()
@@ -277,14 +304,70 @@ describe('session-worktree hook helpers', () => {
 
     await sessionWorktreeHook.onSessionRemoved(
       { sessionId },
-      {
-        dataRoot,
-        agentHasTool,
-        workspace,
-      }
+      createHookContext(dataRoot, workspace)
     )
 
     await expect(access(sessionPath)).rejects.toThrow()
     expect(workspace.records.has('ws_session_removed_shigurelab_nyako')).toBe(false)
+  })
+
+  it('clones and creates worktrees on the selected device, with distinct shared roots per device', async () => {
+    await withBareRepo(async ({ bareRepo }) => {
+      const localRoot = await mkdtemp(path.join(os.tmpdir(), 'nyako-local-workspaces-'))
+      const remoteRoot = await mkdtemp(path.join(os.tmpdir(), 'nyako-remote-workspaces-'))
+      cleanupRoots.push(localRoot, remoteRoot)
+      const workspace = createWorkspaceRegistryStub()
+      const context = createHookContext(localRoot, workspace, { builder: remoteRoot })
+      const local = await provisionSessionRepoWorktree({
+        context,
+        remoteUrl: bareRepo,
+        repo: 'example/project',
+        sessionId: 'local',
+      })
+      const remote = await provisionSessionRepoWorktree({
+        context,
+        device: 'builder',
+        remoteUrl: bareRepo,
+        repo: 'example/project',
+        sessionId: 'remote',
+      })
+      expect(local.path).toContain(localRoot)
+      expect(remote.path).toContain(remoteRoot)
+      expect(remote.device).toBe('builder')
+      expect((await workspace.list()).filter((item) => item.kind === 'root')).toHaveLength(2)
+      expect(await readFile(path.join(remote.path, 'README.md'), 'utf8')).toContain('# hook test')
+      await sessionWorktreeHook.onSessionArchived({ sessionId: 'remote' }, context)
+      await expect(access(remote.path)).rejects.toThrow()
+      await access(local.path)
+    })
+  })
+
+  it('isolates the same repository and Session id in separate project workspaces', async () => {
+    await withBareRepo(async ({ bareRepo }) => {
+      const deviceRoot = await mkdtemp(path.join(os.tmpdir(), 'nyako-project-workspaces-'))
+      cleanupRoots.push(deviceRoot)
+      const contexts = ['first-project', 'second-project'].map((project) =>
+        createHookContext(path.join(deviceRoot, 'projects', project), createWorkspaceRegistryStub())
+      )
+      const workspaces = []
+      for (const context of contexts) {
+        workspaces.push(
+          await provisionSessionRepoWorktree({
+            context,
+            remoteUrl: bareRepo,
+            repo: 'example/project',
+            sessionId: 'same-session',
+          })
+        )
+      }
+      expect(workspaces[0]!.rootPath).not.toBe(workspaces[1]!.rootPath)
+      await writeFile(path.join(workspaces[1]!.path, 'proof.txt'), 'second project')
+      await sessionWorktreeHook.onSessionArchived({ sessionId: 'same-session' }, contexts[0]!)
+      await expect(access(workspaces[0]!.path)).rejects.toThrow()
+      expect(await readFile(path.join(workspaces[1]!.path, 'proof.txt'), 'utf8')).toBe(
+        'second project'
+      )
+      expect(await contexts[1]!.workspace.listForOwner('same-session')).toHaveLength(1)
+    })
   })
 })

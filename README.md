@@ -218,6 +218,8 @@ Repo 型任务使用 runtime-managed workspace：
 - shared repo root 保存同步基线。
 - 每个业务 Session 使用独立 worktree 完成修改、测试和提交。
 - `session-worktree` hook 负责 provisioning 和生命周期清理。
+- 本地和 SSH 设备使用相同流程：仓库缓存位于目标用户的 `~/.nyakore/projects/<project>/workspaces/repos/<owner>/<repo>/`，Session worktree 位于 `~/.nyakore/projects/<project>/workspaces/sessions/<session-id>/<owner>/<repo>/`。
+- 远程 Session 指定 `device` 和 `repo` 即可自动 clone、同步并创建 worktree；显式 `cwd` 优先。未关联 repo 的 Session 使用该设备上的默认 Session 目录。
 - 遇到非当前 Session 的未提交修改必须保留并上报，不能自动覆盖。
 
 ## Schedules
