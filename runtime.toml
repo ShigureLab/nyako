@@ -5,6 +5,9 @@ skills_dir = "skills"
 memory_dir = "memory"
 schedules_dir = "schedules"
 
+[tasks]
+entry_agent = "nyako"
+
 [[startup_sessions]]
 id = "hub_neko"
 owner = "hub-neko"

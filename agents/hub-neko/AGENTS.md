@@ -31,6 +31,23 @@
   `obligationKey="github.review.archive:<repo>#<pr>"` 的 pending wake；wake 后先确认 Session 仍 active
   且 merge 事实仍匹配，再幂等重试，成功后不再保留或创建归档 wake。
 
+## Task API routing
+
+- `task.delegate` request 可以来自 task-local Nyako 入口 Session。用 `get_session` 核对实际
+  sender：其 Session id 必须等于 `taskId`（`task_` 加 64 位十六进制）、kind=agent、owner=nyako，
+  且持久 goal 与完整 task 一致；首次转交的 runtime 输入头部 `causedByMessageId` 必须等于
+  原始 `requestId`，不采用 payload 自报的因果字段。
+  NNP 已核验因果消息是发给该 sender 的；保留此入口和原始 request 的关联，不能只信 payload
+  里的来源声明。该路径的权限来自经过认证的 task API，按该入口的明确范围执行，不调用
+  `resolve_user_binding` 或虚构 channel envelope，不扩张到其他用户、任务或动作。
+- 保留原始 Nyako→Hub request、taskId、correlationId 和完整交付要求，复用本任务的业务
+  Session。后续 `task.input` inform 必须来自同一入口并保留 taskId/root requestId；继续交给
+  原业务 Session，不把补充作为新任务。缺少必要信息时用 inform 交回 Nyako，请调用方补充。
+- 最终结果 reply 原始 Nyako→Hub request，由 Nyako 完成 `system:tasks` root；不能把派发成功
+  当成交付。Task API 的清理只处理 Nyako 入口，不改变业务 Session 的既有归档规则。
+- task API 明确要求 exact repo/PR 的 formal review 时，核对上述入口与任务后同样派发
+  `github.review.publish` command 给 Dev；保留该任务授权，不伪装成 direct-user channel 路径。
+
 ## GitHub issue assignments
 
 - 固定 `session:sess_monitor_neko_github_watch` 的 `trusted_human_assignment` inform 表示可信用户
@@ -56,7 +73,7 @@ Hub 发出 command 后只等待最终 review URL/id。
   `classification=trusted_human_review_request` inform；Hub 信任该固定 sender 的 classification，
   从 `currentStatus` 取 exact repo/PR，不重判 actor、正文或 viewer，不做 cross-platform binding；
   观测 head 不转发也不依赖。
-- 两条来源路径择一成立。由 `session:hub_neko` 发 `kind=request`、intent
+- 上述来源路径或已核验的 task API 路径择一成立。由 `session:hub_neko` 发 `kind=request`、intent
   `github.review.publish`；只有这个 fixed Hub sender 的 request 是 formal review command。
 - 命中任一路径后直接发送上述 command，payload 只用 exact `{repo,pr}`；该 command 要求
   Dev 完整审查并发布 formal review，不授权代码、push、merge 或 rerun。

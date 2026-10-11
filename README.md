@@ -290,6 +290,15 @@ nyakore gateway service restart
 
 ### 任务投递与检查
 
+`runtime.toml` 的 `[tasks].entry_agent = "nyako"` 启用 HTTP task API：每个任务使用独立 Nyako
+Session，由 Nyako 转给 Hub 并汇总结果。Gateway 必须配置 Bearer token。提交 `POST /api/tasks`
+（JSON `{idempotencyKey,task}`）后，用 `GET /api/tasks/<taskId>` 查询状态和结果；
+`POST /api/tasks/<taskId>/messages` 补充输入；完成后 `DELETE /api/tasks/<taskId>` 归档入口并清理
+临时工作目录，保留结果与审计记录。未完成或仍有活动投递时清理返回 409，且不归档业务
+Session。完整协议见 [nyakore task API](https://github.com/ShigureLab/nyakore/blob/main/docs/tasks.md)。
+外部 Agent 使用 [delegate-to-nyako Skill](skills/delegate-to-nyako/SKILL.md) 调用 HTTP API，
+完成派活、查询、补充输入和清理；无需注册成 runtime Agent 或增加工具。
+
 ```bash
 # 向已有 Session 持久投递任务
 nyakore session run --session hub_neko --task "检查当前运行状态"

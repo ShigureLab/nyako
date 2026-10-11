@@ -10,3 +10,5 @@
 - `search_user_bindings`：按昵称、实名或部分账号查人；返回命中作用域、匹配类型和关联账号。
   多候选或模糊命中可能误匹配，不能直接选择第一项；发送者身份仍由 Hub 精确解析。
 - `nnp_send`：向 `session:hub_neko` 派发或回复上游 request。
+- task API 的结果使用 `nnp_send` 回复原始 `system:tasks` request；进度是 `task.progress` inform，
+  完成是 `task.result` reply。HTTP 结果由协议记录提供，普通文本不完成任务。
