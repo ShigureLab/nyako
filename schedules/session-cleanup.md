@@ -7,38 +7,26 @@ reset: false
 task: scheduled.session_cleanup
 ---
 
-请执行一次每日 session 清理。目标是归档已经完成、失效或已被其它 session 承接的旧 session，保持活跃 session 列表干净。
+执行一次每日 Session 清理。遵循当前 Hub Agent 定义的 `Session closeout` 规则；每日任务是
+补查漏清，不替代日常交付后的及时归档。实际调用工具执行，不只回复“收到”或引用上轮摘要。
 
-## 强制要求
-
-1. 由当前中枢喵 session 负责执行清理；不要只回复“收到”，要实际检查并归档符合条件的 session。
-2. 必须先调用 `list_sessions` 获取当前非 archived session 列表；对候选项调用 `get_session` 查看详情，并对当前 `hub_neko` 调用 `nnp_list`（`direction=all`、`status=active`）检查活跃请求。当前工具不允许读取其它 Session 的 inbox；候选 Session 只要从 state、last run 或当前中枢消息无法排除仍有未交付工作，就必须归入 `skipped_uncertain`，不得猜测后归档。
-3. 必须跳过以下 session，不要归档：
-   - 当前 session `hub_neko`
-   - 平台 channel / bridge session，例如 `telegram_*`、`bridge_*`
-   - 长期系统/调度 session，例如 `sess_monitor_neko_github_watch`
-   - PR review lifecycle session，除非 live GitHub 事实明确核实该 PR 已 merged；open、
-     closed-unmerged、等待新 head、已发布 formal review、CHANGES_REQUESTED、APPROVED、idle、
-     timeout 或存在重复 Session 都不能绕过这条规则
-   - 你核实后确认仍在进行中、仍有未交付结果或仍需等待外部信号的 session
-4. 先为相似任务选出唯一的 canonical session，再处理旧重复项：
-   - 同 repo 且同 PR / issue，或 title/topic/goal 明显属于同一工作流时，优先保留最新、有真实进展、持有 pending/running 请求或明确被继续使用的 session。
-   - 其它更旧且已被 canonical session 承接的重复 session 通常应归档；但 PR review lifecycle
-     的重复项在 PR merged 前也不得由 cleanup 归档，应记录为策略违规待人工修复。
-   - 如果无法判断哪一个是 canonical session，保留相关项并记入 `skipped_uncertain`。
-5. 归档条件满足其一即可：
-   - `PR 已合入`：session 明确关联某个 PR，使用 `gh pr view` / GitHub API 核实当前 `merged=true`
-     或 state=`MERGED`；closed-unmerged 不满足。没有 live 证据时不要把 monitor 文本、review
-     publication、review decision 或旧摘要单独当作 merge 证据。
-   - `长期不活跃`：`updatedAt` 距现在已满 7 天，且没有 pending/running 请求、active NNP receipt 或仍需交付的具体动作。
-   - `旧 timeout / 失败残留`：最后执行已 timeout / failed / cancelled，距今已满 24 小时，且任务已被其它 session 承接、重复创建，或没有可恢复的具体产物与待交付动作。
-   - `测试 / smoke 残留`：title/topic/goal 明确是 smoke、e2e、临时验证或重复测试，距今已满 24 小时且没有 pending/running 请求。
-6. 归档前逐项记录原因；实际归档时必须调用 `archive_session`，逐个传精确 `sessionId`。单个 session 因 workspace 清理等原因失败时，记录到 `errors` 并继续检查其它候选，不要让一次失败中断整轮清理。
-7. 清理结束后输出结构化摘要：`checked` / `archived`（含 reason）/ `skipped_system` / `kept_canonical` / `skipped_uncertain` / `errors`
-
-## 目标
-
-- 只归档 live 核实已 merged 且没有未交付动作的 PR lifecycle session
-- 归档 7 天及以上无活动、旧 timeout / 失败残留和测试残留
-- 相似任务只保留唯一 canonical session，清掉被承接的旧重复项
-- 对无法确认 canonical 归属或仍有真实待办的 session 采取保守策略
+1. 先 `list_sessions` 获取当前非 archived 列表，对业务候选逐项 `get_session`。按 kind 和真实
+   职责跳过 conversation、当前 Hub、长期系统/调度和由调用方清理的 task API 入口。
+2. 核对当前 Hub 的 `nnp_list(direction="all",status="active")`，再按候选任务 correlationId
+   用 `status="all"` 翻完原请求、全部补充、最终结果及向原请求方交付的历史。只看 active 页不能
+   判断已完成任务；历史页有 nextBeforeSequence 就继续。工具输出截断或缺少原 owner 交付证据时，
+   发关联原任务的核查 request，不读取其它 peer 的 inbox，不再以相同的“交付不明”结束一轮。
+   核查回复回来后继续处理本轮候选；不得把这次核查算作原任务新待办。
+3. 已完整交付且无具体剩余职责的一次性任务立即归档，包括诊断、负结果、顾问、全部补充已完成的
+   复用任务。顾问不等下游 PR、用户 ACK、安装或部署；不得因为最近补查更新了 updatedAt 就重新
+   等 7 天。PR owner 则须由 Monitor/Dev 新鲜核实 `MERGED` 或 `CLOSED`，并核销未交付事项；
+   Hub 没有 GitHub 读取工具，缺证据时请求原 Dev 只读刷新。OPEN 保留唯一 canonical，职责与
+   证据已移交的重复项归档，顾问不套用 PR owner 的保留条件。
+4. 对尚无完成/承接证据的残留，7 天无活动、24 小时以上 timeout/failed/cancelled 或 smoke/test
+   只能触发核查，不能代替完成判断。确认无具体可恢复工作、未交付结果和必要本地产物后归档；
+   有真实待办则保留并说明动作、owner 和唤醒条件。证据不足须列缺口及核查 message id，继续追查。
+5. 归档前保全必要工作树/证据，逐个调用 `archive_session` 传精确 sessionId，记录实际结果。
+   单项失败记入 errors 并继续其余项，transient/busy 按 Hub 规则持久重试，不把失败冒充成功。
+6. 最后重新 `list_sessions` 核对结果，输出 `checked` / `archived`（逐项 reason 与交付/终态证据）/
+   `skipped_system` / `kept_canonical`（OPEN PR 等具体职责）/ `skipped_uncertain`（缺口、核查 id）/
+   `errors`。有待核查项时摘要标明未完；后续回复继续收口，不能靠重复汇总把缺口拖到下一天。

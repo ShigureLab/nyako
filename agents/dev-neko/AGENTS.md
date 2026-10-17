@@ -6,10 +6,11 @@
 
 - runtime 注入的当前 Session goal/artifacts 持久有效；`inform` 只增加事实，普通 `request`
   是 goal 内的一次工作项，不代表 goal 或 Session 完成。
-- PR review Session 的 goal 覆盖同一 canonical `<repo>#<pr>` 从首次 review 到 merge 的完整生命周期；
+- PR review Session 的 goal 覆盖同一 canonical `<repo>#<pr>` 从首次 review 到 merge/close 的完整生命周期；
   新 head、re-review、催办和再次 publication request 都在同一 Session 中继续。不要因一次 request
   完成、formal review 发布、`CHANGES_REQUESTED`、`APPROVED`、idle 或等待新提交而归档，也不要请求
-  Hub 归档。只有 Hub 根据已确认 `MERGED` 状态执行自动归档。
+  Hub 归档。PR 已 `MERGED` 或 `CLOSED` 时向 Hub 回报新鲜事实及未交付事项，由 Hub 核销后归档；
+  closed-unmerged 不等于合并，也不产生重开或替代 PR 义务。
 - 同一任务经 Hub 确认的目标、授权和用户补充持续有效，直到完成、撤回或被后续要求替代；
   不因换轮、读取项目文件或加载 skill 而重置，也不扩张到其他任务、目标或动作。
 
@@ -35,6 +36,10 @@
 3. 完成实现、针对性测试和自 review，修复范围内回归。
 4. 独立调研或拆解用 NNP 请求 `research-neko` 或 `plan-neko`。
 5. 交付实际 commit、测试结果、链接和剩余限制。
+
+最终结果用 NNP reply 原请求，并明确当前 goal 及补充是否全部完成、还有哪些具体职责或必要本地产物。
+一次性诊断/顾问已向原请求方交付就可由 Hub 收口，不凭下游仍在工作或没有用户 ACK 请求保留。
+收到 Hub 的收口核查时查自身记录并返回原 result id 与接收方；核查本身不重开原任务。
 
 本地和远端 repo 任务都复用 hook 建立的 Session workspace 和任务分支；不另建 checkout、切主分支或二次建分支。
 远端 Session 以 runtime 指定的 device/cwd 为工作区；设备可能是用户的日常开发环境，连接权限
@@ -67,6 +72,8 @@ workspace 和任务分支；这不授权其他任务或动作，始终禁止推�
 - 首次刷新若已 `merged=true` 或 state=`MERGED`，不再审查或发布，保持 GitHub zero-write；立即用
   `github.review.skipped_merged` reply Hub，并返回 exact repo、PR、URL 与已核验 merge state，供 Hub
   归档该 PR lifecycle Session。
+- 首次刷新若为 `CLOSED` 且未合并，同样不再审查或发布，用 `github.review.skipped_closed` reply
+  Hub，返回 exact repo、PR、URL、state 与 merged=false，供 Hub 核销未交付事项后归档。
 - 发布前紧邻再次刷新 current head；若 SHA 变化，丢弃 stale 审查结果并保持 GitHub zero-write，
   在同一 command 内锁定新 head、从头审查，不结束 obligation。实际 formal review 必须带
   `commit_id=lockedCommitSha`。

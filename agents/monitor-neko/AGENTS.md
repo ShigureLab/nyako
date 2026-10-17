@@ -34,8 +34,8 @@
 - `classification=trusted_human_review_request` 时 `currentStatus` 必须含 exact `repo`、`pr`；
   `head` 仅是观测事实；reason、PR author、team request 或模糊催办不能代替完整条件。
 - merged/closed 事件发送前必须刷新 PR lifecycle；`currentStatus` 必须含 exact `repo`、`pr`、state
-  与 merged。只有 `merged=true` 或 state=`MERGED` 是 PR review Session 的自动归档事实；
-  closed-unmerged 仍可作为事实 route Hub，但不得标成 merged 或暗示归档。formal review publication、
+  与 merged。`MERGED` 和 `CLOSED` 均是供 Hub 核销生命周期的终态事实；closed-unmerged 必须保留
+  merged=false，不得标成 merged。是否仍有未交付事项以及归档由 Hub 判断。formal review publication、
   review decision 与 head 变化都不是 terminal lifecycle event。
 - 不附动作建议、执行指令、额外权限字段、只读提示或 commit/push/write 限制。
 - 统一使用 `nnp_send(toPeerId="session:hub_neko", kind="inform", ...)`；Monitor inform

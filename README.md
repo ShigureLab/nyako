@@ -60,7 +60,8 @@ flowchart LR
   名字只是内部 command，不是另一套协议，也没有第二套许可、动作或来源副本。
 - 同一 `<repo>#<pr>` 只使用一个持续复用的 PR review Session；每次 `github.review.publish` 只是其中
   一次 review cycle。发布 review、review decision、head 变化或 idle 均不结束 Session；只有确认
-  PR 已 `MERGED` 才自动归档，closed-unmerged 不归档。
+  PR 已 `MERGED` 或 `CLOSED` 且无未交付事项时自动归档，关闭不代表合并。调研/规划顾问按自身
+  goal 与交付收口，不等下游 PR；普通一次性任务完整交付后由 Hub 本轮归档，不等用户 ACK 或闲置期限。
 - Direct chat 由 Nyako 原样转交 channel `senderIdentity`，只由 Hub resolve 一次；Hub 不读 GitHub
   或提供 SHA。
 - 其他 `sess_*` 通常是按任务创建的动态业务 Session。
@@ -227,7 +228,7 @@ Repo 型任务使用 runtime-managed workspace：
 当前 repo-managed schedules：
 
 - `github-monitor.md`：以当前 GitHub unread notifications 为唯一入口，完成去重与中枢上报。
-- `session-cleanup.md`：保守归档已完成、失效或被承接的 Session。
+- `session-cleanup.md`：按 Hub 的收口规则补查并归档漏清的 Session；证据不足时向原 owner 核查并继续处理。
 
 Schedule 是 runtime 输入，不直接绕过中枢派发业务工作。需要创建/复用业务 Session 的任务仍由
 `hub_neko` 决策。Schedule body 只描述单轮触发和输出契约；稳定行为策略与精确工具规则分别

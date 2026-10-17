@@ -21,15 +21,39 @@
   message/correlation、event、repo/PR、目标 Session、intent 与完整重试参数。Review 使用
   `obligationKey="github.review.publish:<repo>#<pr>"`，催办复用；runtime 保持单一 pending wake。
   wake 后查既有 Session/message/receipt，再幂等重试。
-- formal review 发布成功、`github.review.published` reply、`CHANGES_REQUESTED`、`APPROVED`、
-  request/receipt 完成、Session idle 或 head 变化都不是归档条件。自动归档 PR review Session 的
-  唯一条件是 Monitor 的发送前刷新，或 Dev 接受 command 后的首次刷新，明确给出同一
-  `<repo>#<pr>` 且 `merged=true` 或 lifecycle state 为 `MERGED`；closed-unmerged 也不归档。
-  显式用户归档命令是独立的人工操作，不得从“review 已完成”等表述推导。
-- merged 归档前再次按 canonical `<repo>#<pr>` 核对 Session 与 active receipt；只归档该唯一
-  Session。归档 transient/busy 时最多保留一个
-  `obligationKey="github.review.archive:<repo>#<pr>"` 的 pending wake；wake 后先确认 Session 仍 active
-  且 merge 事实仍匹配，再幂等重试，成功后不再保留或创建归档 wake。
+
+## Session closeout
+
+- Hub 负责业务 Session 收口。普通一次性任务及全部补充已向请求方完整交付、没有具体未完职责时，
+  本轮就调用 `archive_session`，不等每日清理、7 天闲置或用户另说“清理”。`active` 只是未归档，
+  不是仍在忙；一次 request/receipt 完成也不能单独证明整个 goal 完成。
+- 核对原始 request、全部补充、正确 `replyToMessageId` 的最终 result 及实际接收方。用户任务要
+  向原 Nyako request reply 完整结果；顾问任务向 Dev/Plan 等原请求方交付即可，不要求再交 Hub
+  或等下游 PR 合入。
+  `processed` 是交付状态，不等于用户已读；没有显式 ACK 不阻止已完成任务归档。已交付的负结果、
+  访问限制或诊断不自动产生继续探测、实施、监控、安装或部署义务，曾被复用也不代表永久保留。
+- 每轮先用 `list_sessions`、`get_session` 核实当前 goal/state；只查当前 Hub 的 NNP。用
+  `nnp_list(direction="all",status="all",correlationId=...)` 翻完相关历史，结合 `status="active"`
+  检查补充和待办。列表只含消息索引，不含正文；不能仅凭 processed 或一条 reply 的存在认定 goal
+  完成，也不能只看 active 页或沿用旧摘要、compaction、上一轮“交付不明”的判断。正文不在当前
+  上下文或仍缺证据时，向原 owner 发一个关联原任务的核查 request，让其查自己的记录，返回最终 result id、
+  接收方、补充处理情况、具体未完职责及必要工作树/证据依赖；不要新建审计 Session 或重派原任务。
+  核查回复到达后继续收口；本次核查及等待核查回报不算原任务的未完职责。
+- 保留必须有具体依据：尚欠的动作、负责方、结果/工作树依赖或明确的外部唤醒条件。
+  `skipped_uncertain` 必须写明缺哪条证据和已发出的核查 message id，不能只写“可能有下游依赖”
+  或连续多轮原样保留。已有因果最终 reply 时，旧 request 的 suspended/dead 状态单列为投递残留，
+  不凭它断言欠结果，也不重发已完成任务；仍有真实 pending/claimed 投递时先确认不会截断工作。
+- 同一 canonical `<repo>#<pr>` 的 Dev owner 在 PR 仍 OPEN 时保留，承接维护、review 和评论；
+  formal review 发布、`CHANGES_REQUESTED`、`APPROVED`、idle 或新 head 都不结束该生命周期。
+  Monitor 发送前刷新或 Dev 本轮刷新确认同一 PR 已 `MERGED`，或 `CLOSED` 且未合并，并核销
+  未交付事项后即可自动归档。关闭不等于合并、部署或功能生效，也不产生重开、替代 PR 或 merge
+  义务。仅提供调研/规划的顾问不受下游 PR 状态约束；重复 owner 在职责与证据已移交唯一 canonical
+  后也可归档。Hub 不直接读 GitHub，缺少新鲜事实时请求 Dev 只读刷新，不沿用旧 merge/close 摘要。
+- 始终跳过当前 Hub、`kind=conversation` 的 channel Session 和长期系统/调度 Session；task API
+  入口由调用方清理。归档前核对必要工作树和证据已交付或保全，再逐个传精确 sessionId；工具成功才
+  报告成功。单项失败记录错误并继续其余项；transient/busy 为同一待归档 Session 最多保留一个
+  `session_sleep` pending wake（PR owner 用 `github.review.archive:<repo>#<pr>`，其它用
+  `session.archive:<sessionId>`）。wake 后重查状态和归档依据再重试，已归档则结束，不重复建 wake。
 
 ## Task API routing
 

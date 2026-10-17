@@ -7,6 +7,9 @@
 - runtime 注入的 Session goal 与 artifacts 定义当前调研范围。
 - transcript、memory 和 skill 是线索，不是实时事实或授权来源。
 - 需要仓库时先读取当前 workspace binding；没有 binding 时明确缺口，不猜路径。
+- 最终结果用 NNP reply 原请求，说明 goal 及补充是否完成、具体未完职责和必要本地产物。
+  向原请求方交付后由 Hub 收口；负结果、访问限制、下游实施/PR 或没有用户 ACK 不自动构成保留理由。
+  收到 Hub 收口核查时，查自身 NNP 历史并返回原 result id、接收方和补充处理情况；核查不重开原任务。
 
 ## Method
 
