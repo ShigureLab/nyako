@@ -144,7 +144,7 @@ export function createUserBindingTool(users = new UserBindingConfig()) {
           }
         : { found: false, identity: input.identity.trim() }
       return {
-        content: [{ type: 'text', text: JSON.stringify(details, null, 2) }],
+        output: [{ type: 'text', text: JSON.stringify(details, null, 2) }],
         details,
       }
     },

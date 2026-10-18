@@ -107,7 +107,7 @@ export function createWebTools(read = fetchWebText) {
           provider: 'bing',
           results: parseSearchResults(response.text, input.maxResults ?? 5),
         }
-        return { content: [{ type: 'text', text: JSON.stringify(details, null, 2) }], details }
+        return { output: [{ type: 'text', text: JSON.stringify(details, null, 2) }], details }
       },
     }),
     defineTool({
@@ -128,7 +128,7 @@ export function createWebTools(read = fetchWebText) {
           publishedTime: page.publishedTime,
           ...pageSlice(page.text, input.offset, input.maxChars),
         }
-        return { content: [{ type: 'text', text: JSON.stringify(details, null, 2) }], details }
+        return { output: [{ type: 'text', text: JSON.stringify(details, null, 2) }], details }
       },
     }),
   ] as const

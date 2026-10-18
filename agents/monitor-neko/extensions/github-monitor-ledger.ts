@@ -279,7 +279,7 @@ export const githubMonitorLedgerTool = defineTool({
   execute: async (input: Input) => {
     const result = await executeLedger(input)
     return {
-      content: [{ type: 'text', text: JSON.stringify(result) }],
+      output: [{ type: 'text', text: JSON.stringify(result) }],
       details: { action: input.action, result },
     }
   },

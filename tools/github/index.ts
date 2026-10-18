@@ -66,7 +66,7 @@ export function createGithubPolicyTool(policy = new GithubAdapterPolicy()) {
       const login = input.login.trim()
       const details = { login, trusted: await policy.isTrusted(login) }
       return {
-        content: [{ type: 'text', text: JSON.stringify(details, null, 2) }],
+        output: [{ type: 'text', text: JSON.stringify(details, null, 2) }],
         details,
       }
     },

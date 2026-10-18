@@ -97,7 +97,7 @@ export function createSearchUserBindingsTool(users = new UserBindingConfig()) {
     execute: async (input: SearchUserBindingsInput) => {
       const details = searchUserBindings(await users.list(), input)
       return {
-        content: [{ type: 'text', text: JSON.stringify(details, null, 2) }],
+        output: [{ type: 'text', text: JSON.stringify(details, null, 2) }],
         details,
       }
     },

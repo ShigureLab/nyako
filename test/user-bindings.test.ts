@@ -157,7 +157,7 @@ async function searchTool(bindings: BindingInput[]) {
       undefined as never,
       undefined as never
     )
-    const content = result.content?.[0]
+    const content = result.output?.[0]
     if (content?.type !== 'text') throw new Error('Expected text result')
     expect(JSON.parse(content.text)).toEqual(result.details)
     return result.details as ReturnType<typeof searchUserBindings>

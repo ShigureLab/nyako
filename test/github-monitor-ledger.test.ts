@@ -23,7 +23,7 @@ describe('github-monitor-ledger', () => {
       undefined as never,
       undefined as never
     )
-    const content = result.content?.[0]
+    const content = result.output?.[0]
     if (content?.type !== 'text') throw new Error('Expected text result')
     return JSON.parse(content.text)
   }
