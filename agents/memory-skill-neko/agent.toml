@@ -7,6 +7,6 @@ tools = []
 enable = []
 
 [model]
-model = "openai-codex/gpt-6.1-sol"
-credential = "openai-codex-default"
+model = "openai/gpt-6.1-sol"
+credential = "openai-default"
 thinking = "medium"
