@@ -7,6 +7,6 @@ tools = []
 enable = []
 
 [model]
-model = "openai/gpt-6-luna"
-credential = "openai-default"
+model = "openai-codex/gpt-6-luna"
+credential = "openai-codex-default"
 thinking = "low"
