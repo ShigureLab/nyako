@@ -17,6 +17,12 @@ tools = [
 [skills]
 enable = ["github-conversation", "github-contribution-guidelines"]
 
+[compaction]
+enabled = true
+# Match Codex's default auto-compaction at 90% of the current 500k model window.
+reserveTokens = 50000
+keepRecentTokens = 20000
+
 [model]
 model = "openai-codex/gpt-6.1-sol"
 credential = "openai-codex-default"
